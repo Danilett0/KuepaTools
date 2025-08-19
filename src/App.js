@@ -19,7 +19,9 @@ function App() {
             alignItems: "center",
           }}
         >
-          <h1 style={{ color: "#fff", marginBottom: "20px" }}>Kuepa Tools 🛠️</h1>
+          <Link to="/" style={{ textDecoration: "none", color: "#fff" }}>
+            <h1 style={{ marginBottom: "20px" }}>Kuepa Tools 🛠️</h1>
+          </Link>
           <div
             style={{
               display: "flex",
@@ -57,7 +59,7 @@ function App() {
               Cambios de Estado y Estadísticas
             </Link>
             <Link
-              to="/segunda-pagina"
+              to="/Auditar-Estadisticas"
               className="App-link"
               style={{
                 padding: "10px 20px",
@@ -77,7 +79,7 @@ function App() {
               element={<ComandosBemoInscripciones />}
             />
             <Route path="/cambios-estado-bemo" element={<CambiosEstadoBemo />} />
-            <Route path="/segunda-pagina" element={<SegundaPagina />} />
+            <Route path="/Auditar-Estadisticas" element={<SegundaPagina />} />
           </Routes>
         </div>
       </div>
