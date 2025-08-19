@@ -72,7 +72,7 @@ function CambiosEstadoBemo() {
         {generatedCommand && (
           <div className="commands">
             <strong>Comando generado:</strong>
-            <pre style={{ whiteSpace: 'pre-wrap' }}>{generatedCommand}</pre>
+            <p style={{ margin: '10px 0', whiteSpace: 'pre-line' }}>{generatedCommand}</p>
           </div>
         )}
       </div>

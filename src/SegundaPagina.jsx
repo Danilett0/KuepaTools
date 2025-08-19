@@ -62,7 +62,7 @@ function SegundaPagina() {
         {generatedCommands.length > 0 && (
           <div className="commands">
             <strong>Comandos generados:</strong>
-            <pre style={{ whiteSpace: 'pre-wrap' }}>{generatedCommands.join('\n')}</pre>
+            <p style={{ margin: '10px 0', whiteSpace: 'pre-line' }}>{generatedCommands.join('\n')}</p>
           </div>
         )}
       </div>
