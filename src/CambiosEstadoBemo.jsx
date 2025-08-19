@@ -38,7 +38,7 @@ function CambiosEstadoBemo() {
         maxHeight: '90vh',
         overflowY: 'auto'
       }}>
-        <h2 style={{ textAlign: 'center', marginBottom: '20px' }}>Cambios de estado</h2>
+        <h3 style={{ textAlign: 'center', marginBottom: '20px' }}>Complete los datos para generar el comando de cambios de estado</h3>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <input
             type="text"

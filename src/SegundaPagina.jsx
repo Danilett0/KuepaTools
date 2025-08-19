@@ -40,6 +40,9 @@ function SegundaPagina() {
         maxHeight: '90vh',
         overflowY: 'auto'
       }}>
+  
+        <h3 style={{ textAlign: 'center', marginBottom: '20px' }}>Complete los datos para generar comando para auditar estadisticas del estudiante</h3>
+
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <input
             type="text"

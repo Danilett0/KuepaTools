@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 
 function ComandosBemoInscripciones() {
   const [groupId, setGroupId] = useState('');
-  const [studentIds, setStudentIds] = useState(Array(9).fill(''));
+  const [studentIds, setStudentIds] = useState(Array(10).fill(''));
   const [generatedCommand, setGeneratedCommand] = useState('');
 
   const handleStudentIdChange = (index, value) => {
@@ -61,13 +61,13 @@ function ComandosBemoInscripciones() {
         maxHeight: '90vh',
         overflowY: 'auto'
       }}>
+        <h3 style={{textAlign:"center"}}>Listado de estudiantes vs grupo para inscribir o eliminar</h3>
         <div style={{
           display: 'flex',
           flexDirection: 'column',
           gap: '10px',
           marginTop: '20px'
         }}>
-          <h2>COMANDOS BEMO 😎<br />Inscripciones y retiro de grupos academicos </h2>
           <input
             type="text"
             id="groupId"
