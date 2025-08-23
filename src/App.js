@@ -52,7 +52,7 @@ function App() {
               transition: 'opacity 0.3s ease'
             }}
           >
-            Cambios de Estado y Estadísticas
+            Cambios de Estado
           </button>
           <button
             onClick={() => setActiveComponent("auditar-estadisticas")}
