@@ -1,89 +1,73 @@
 import "./App.css";
-import "./styles.css";
-import { BrowserRouter as Router, Route, Link, Routes } from "react-router-dom";
-import CambiosEstadoBemo from "./CambiosEstadoBemo.jsx";
-import SegundaPagina from "./SegundaPagina.jsx";
-import ComandosBemoInscripciones from "./ComandosBemoInscripciones.jsx";
+import "./Styles/styles.css";
+import React, { useState } from "react";
+import CambiosEstadoBemo from "./Components/CambioEstados.jsx";
+import AuditarEstadisticas from "./Components/AuditarEstadisticas.jsx";
+import Inscripciones from "./Components/Inscripciones.jsx";
 
 function App() {
+  // Cambiar el estado inicial a "inscripciones" para que coincida con el default
+  const [activeComponent, setActiveComponent] = useState("inscripciones");
+
+  const renderComponent = () => {
+    
+    switch (activeComponent) {
+      case "inscripciones":
+        return <Inscripciones />;
+      case "cambios-estado":
+        return <CambiosEstadoBemo />;
+      case "auditar-estadisticas":
+        return <AuditarEstadisticas />;
+      default:
+        return <Inscripciones />;
+    }
+  };
+
   return (
-    <Router>
-      <div className="body">
+    <div className="body">
+      <div className="app-container">
         <div
-          style={{
-            backgroundColor: "#042344",
-            minHeight: "100vh",
-            padding: "20px",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-          }}
+          onClick={() => setActiveComponent("inscripciones")}
+          className="home-link"
+          style={{ cursor: "pointer" }}
         >
-          <Link to="/" style={{ textDecoration: "none", color: "#fff" }}>
-            <h1 style={{ marginBottom: "20px" }}>Kuepa Tools 🛠️</h1>
-          </Link>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "center",
-              gap: "10px",
-              marginBottom: "20px",
+          <h1 className="app-title">Generador de comandos <br/> Bemo 😎</h1>
+        </div>
+        <div className="nav-buttons">
+          <button
+            onClick={() => setActiveComponent("inscripciones")}
+            className="nav-button nav-button-primary"
+            style={{ 
+              opacity: activeComponent === "inscripciones" ? '1' : '0.5',
+              transition: 'opacity 0.3s ease'
             }}
           >
-            <Link
-              to="/comandos-bemo-inscripciones"
-              className="App-link"
-              style={{
-                padding: "10px 20px",
-                backgroundColor: "#007bff",
-                color: "#fff",
-                textDecoration: "none",
-                borderRadius: "5px",
-                fontWeight: "bold",
-              }}
-            >
-              Inscribir / eliminar estudiantes de grupos
-            </Link>
-            <Link
-              to="/cambios-estado-bemo"
-              className="App-link"
-              style={{
-                padding: "10px 20px",
-                backgroundColor: "#28a745",
-                color: "#fff",
-                textDecoration: "none",
-                borderRadius: "5px",
-                fontWeight: "bold",
-              }}
-            >
-              Cambios de Estado y Estadísticas
-            </Link>
-            <Link
-              to="/Auditar-Estadisticas"
-              className="App-link"
-              style={{
-                padding: "10px 20px",
-                backgroundColor: "#ffc107",
-                color: "#fff",
-                textDecoration: "none",
-                borderRadius: "5px",
-                fontWeight: "bold",
-              }}
-            >
-              Auditar Estadísticas
-            </Link>
-          </div>
-          <Routes>
-            <Route
-              path="/comandos-bemo-inscripciones"
-              element={<ComandosBemoInscripciones />}
-            />
-            <Route path="/cambios-estado-bemo" element={<CambiosEstadoBemo />} />
-            <Route path="/Auditar-Estadisticas" element={<SegundaPagina />} />
-          </Routes>
+            Inscribir | Eliminar Estudiantes de Grupos
+          </button>
+          <button
+            onClick={() => setActiveComponent("cambios-estado")}
+            className="nav-button nav-button-success"
+            style={{ 
+              opacity: activeComponent === "cambios-estado" ? '1' : '0.5',
+              transition: 'opacity 0.3s ease'
+            }}
+          >
+            Cambios de Estado y Estadísticas
+          </button>
+          <button
+            onClick={() => setActiveComponent("auditar-estadisticas")}
+            className="nav-button nav-button-warning"
+            style={{ 
+              opacity: activeComponent === "auditar-estadisticas" ? '1' : '0.7',
+              transition: 'opacity 0.3s ease'
+            }}
+          >
+            Auditar Estadísticas
+          </button>
         </div>
+        {renderComponent()}
       </div>
-    </Router>
+    </div>
   );
 }
 
