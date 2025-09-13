@@ -20,24 +20,7 @@ function CambiosEstadoBemo() {
   };
 
   return (
-    <div style={{
-      backgroundColor: '#042344',
-      minHeight: '100vh',
-      padding: '20px',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center'
-    }}>
-      <div style={{
-        backgroundColor: '#fff',
-        padding: '20px',
-        borderRadius: '10px',
-        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-        width: '100%',
-        maxWidth: '1200px',
-        maxHeight: '90vh',
-        overflowY: 'auto'
-      }}>
+    <div className='content-container'>
         <h3 style={{ textAlign: 'center', marginBottom: '20px' }}>Genere un cambio de estado con Bemo para estudiante de Nueva America</h3>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <input
@@ -75,7 +58,6 @@ function CambiosEstadoBemo() {
             <p style={{ margin: '10px 0', whiteSpace: 'pre-line' }}>{generatedCommand}</p>
           </div>
         )}
-      </div>
     </div>
   );
 }

@@ -96,7 +96,7 @@ function ExcelReader({ onDataRead, isVisible, onClose }) {
           style={{ display: "none" }}
         />
 
-        <div style={{ display: "flex", gap: "10px", justifyContent: "center" }}>
+        <div style={{ display: "flex", gap: "10px", flexDirection: "column", width: "100%" }}>
           <button
             className="btn btn-primary"
             onClick={triggerFileUpload}
@@ -107,7 +107,7 @@ function ExcelReader({ onDataRead, isVisible, onClose }) {
           <button
             className="btn btn-secondary"
             onClick={onClose}
-            style={{ padding: "10px 20px" }}
+            style={{ padding: "10px 20px", backgroundColor: "#dc4646" }}
           >
             Cancelar
           </button>
