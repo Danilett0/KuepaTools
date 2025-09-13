@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { FileSpreadsheet } from "lucide-react";
 import ExcelReader from "./ExcelReader";
+import CommandSender from "./CommandSender";
 // Componente ExcelReader integrado
 
 function ComandosBemoInscripciones() {
@@ -298,6 +299,7 @@ function ComandosBemoInscripciones() {
               <div className="command-output">
                 <strong>Comando generado:</strong>
                 <p className="command-text">{generatedCommand}</p>
+                <CommandSender commands={[generatedCommand]} />
               </div>
             )}
           </div>
@@ -394,6 +396,7 @@ function ComandosBemoInscripciones() {
               <div className="command-output">
                 <strong>Comando generado:</strong>
                 <p className="command-text">{generatedCommand2}</p>
+                <CommandSender commands={generatedCommand2.split('\n')} />
               </div>
             )}
           </div>
