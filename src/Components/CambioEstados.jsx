@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import '../Styles/styles.css';
 
+import CommandSender from './CommandSender';
+
 function CambiosEstadoBemo() {
   const [studentId, setStudentId] = useState('');
   const [programId, setProgramId] = useState('');
@@ -56,6 +58,7 @@ function CambiosEstadoBemo() {
           <div className="commands">
             <strong>Comando generado:</strong>
             <p style={{ margin: '10px 0', whiteSpace: 'pre-line' }}>{generatedCommand}</p>
+            <CommandSender commands={[generatedCommand]} />
           </div>
         )}
     </div>

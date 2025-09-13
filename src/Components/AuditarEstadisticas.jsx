@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import '../Styles/styles.css';
 
+import CommandSender from './CommandSender';
+
 function SegundaPagina() {
   const [secondStudentId, setSecondStudentId] = useState('');
   const [secondProgramId, setSecondProgramId] = useState('');
@@ -48,6 +50,7 @@ function SegundaPagina() {
           <div className="commands">
             <strong>Comandos generados:</strong>
             <p className="command-text">{generatedCommands.join('\n')}</p>
+            <CommandSender commands={generatedCommands} />
           </div>
         )}
       </div>

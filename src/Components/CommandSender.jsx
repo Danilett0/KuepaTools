@@ -1,11 +1,12 @@
-import React from 'react';
+import React, { useState, useCallback, memo } from 'react';
 
-const CommandSender = ({ commands }) => {
+const CommandSender = memo(({ commands }) => {
+  const [isLoading, setIsLoading] = useState(false);
 
-
-    console.log('Commands to send:', commands);
-
-  const sendCommands = async () => {
+  const sendCommands = useCallback(async () => {
+    if (isLoading) return;
+    
+    setIsLoading(true);
     try {
       const response = await fetch('https://danilett0.app.n8n.cloud/webhook/93e39801-5d8a-4c2b-84af-81f837088ea4', {
         method: 'POST',
@@ -25,22 +26,34 @@ const CommandSender = ({ commands }) => {
     } catch (error) {
       console.error('Error:', error);
       alert('Error al enviar los comandos: ' + error.message);
+    } finally {
+      setIsLoading(false);
     }
-  };
+  }, [commands, isLoading]);
 
   return (
-    <div className="command-sender">
+    <div className="command-sender" style={{ display: 'flex', justifyContent: 'flex-end' }}>
       {commands && commands.length > 0 && (
         <button 
           className="btn btn-success"
           onClick={sendCommands}
-          style={{ marginTop: '10px' }}
+          disabled={isLoading}
+          style={{ 
+            marginTop: '10px',
+            position: 'relative',
+            minWidth: '150px'
+          }}
         >
-          Enviar Comandos
+          {isLoading ? (
+            <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+          ) : null}
+          {isLoading ? 'Enviando...' : 'Enviar comandos a Bemo'}
         </button>
       )}
     </div>
   );
-};
+});
+
+CommandSender.displayName = 'CommandSender';
 
 export default CommandSender;

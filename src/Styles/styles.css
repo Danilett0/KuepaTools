@@ -8,6 +8,101 @@ body {
   justify-content: center;
 }
 
+.login-container {
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: #042344;
+}
+
+.login-box {
+  background-color: white;
+  padding: 2rem;
+  border-radius: 10px;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+  width: 90%;
+  max-width: 350px;
+  margin: 0 15px;
+}
+
+.login-box h2 {
+  text-align: center;
+  margin-bottom: 2rem;
+  color: #042344;
+  font-size: 1.5rem;
+}
+
+.password-input {
+  margin-bottom: 1rem;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.password-input input {
+  width: 100%;
+  padding: 0.8rem;
+  padding-right: 40px;
+  border: 2px solid #e1e1e1;
+  border-radius: 5px;
+  font-size: 1rem;
+  transition: border-color 0.3s ease;
+  box-sizing: border-box;
+}
+
+.password-input input:focus {
+  outline: none;
+  border-color: #042344;
+}
+
+.toggle-password {
+  position: absolute;
+  right: 10px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 5px;
+  color: #666;
+  transition: color 0.3s ease;
+}
+
+.toggle-password:hover {
+  color: #042344;
+}
+
+.toggle-password:focus {
+  outline: none;
+}
+
+.error-message {
+  color: #dc3545;
+  text-align: center;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+.login-button {
+  width: 100%;
+  padding: 0.8rem;
+  background-color: #042344;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.login-button:hover {
+  background-color: #031829;
+}
+
+.login-button:active {
+  transform: translateY(1px);
+}
+
 .Lotty {
   width: 50%;
   height: 600px;
@@ -21,6 +116,7 @@ body {
   gap: 10px;
   margin-bottom: 20px;
   width: 800px;
+  margin-top: 5%;
 }
 
 .page-container {

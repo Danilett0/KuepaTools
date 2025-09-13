@@ -3,12 +3,22 @@ import React, { useState } from "react";
 import CambiosEstadoBemo from "./Components/CambioEstados.jsx";
 import AuditarEstadisticas from "./Components/AuditarEstadisticas.jsx";
 import Inscripciones from "./Components/Inscripciones.jsx";
+import Login from "./Components/Login.jsx";
+import { AuthProvider, useAuth } from "./context/AuthContext";
 import Lottie from "lottie-react";
 import groovyWalkAnimation from "./medit.json";
 
-function App() {
-  // Cambiar el estado inicial a "inscripciones" para que coincida con el default
+function AppContent() {
+  const { isAuthenticated, logout } = useAuth();
   const [activeComponent, setActiveComponent] = useState("inscripciones");
+
+  if (!isAuthenticated) {
+    return <Login />;
+  }
+
+  const handleLogout = () => {
+    logout();
+  };
 
   const renderComponent = () => {
     switch (activeComponent) {
@@ -30,10 +40,32 @@ function App() {
         display: "flex",
         alignItems: "center",
         flexDirection: "column",
+        position: "relative",
       }}
     >
+      <button
+        onClick={handleLogout}
+        style={{
+          position: "absolute",
+          top: "20px",
+          right: "20px",
+          padding: "8px 16px",
+          backgroundColor: "#dc3545",
+          color: "white",
+          border: "none",
+          borderRadius: "4px",
+          cursor: "pointer",
+          zIndex: 1000,
+          fontWeight: "bold",
+          transition: "background-color 0.3s ease",
+        }}
+        onMouseOver={(e) => e.target.style.backgroundColor = "#c82333"}
+        onMouseOut={(e) => e.target.style.backgroundColor = "#dc3545"}
+      >
+        Cerrar Sesión
+      </button>
+      
       <Lottie style={{left: "20px"}} className="Lotty" animationData={groovyWalkAnimation} loop={true} />
-
 
       <div className="nav-buttons">
         <button
@@ -80,6 +112,14 @@ function App() {
         {renderComponent()}
       </div>
     </div>
+  );
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }
 
