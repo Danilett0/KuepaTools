@@ -1,4 +1,3 @@
-import "./App.css";
 import "./Styles/styles.css";
 import React, { useState } from "react";
 import CambiosEstadoBemo from "./Components/CambioEstados.jsx";
