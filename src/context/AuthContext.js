@@ -12,7 +12,7 @@ export const AuthProvider = ({ children }) => {
   });
 
   const login = useCallback((password) => {
-    const correctPassword = 'Danilett0';
+    const correctPassword = process.env.REACT_APP_LOGIN_PASSWORD;
     if (password === correctPassword) {
       setIsAuthenticated(true);
       try {
