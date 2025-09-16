@@ -1,5 +1,7 @@
 import "./Styles/styles.css";
-import React, { useState } from "react";
+import { useState } from "react";
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 import CambiosEstadoBemo from "./Components/CambioEstados.jsx";
 import AuditarEstadisticas from "./Components/AuditarEstadisticas.jsx";
 import Inscripciones from "./Components/Inscripciones.jsx";
@@ -59,13 +61,11 @@ function AppContent() {
           fontWeight: "bold",
           transition: "background-color 0.3s ease",
         }}
-        onMouseOver={(e) => e.target.style.backgroundColor = "#c82333"}
-        onMouseOut={(e) => e.target.style.backgroundColor = "#dc3545"}
+        onMouseOver={(e) => (e.target.style.backgroundColor = "#c82333")}
+        onMouseOut={(e) => (e.target.style.backgroundColor = "#dc3545")}
       >
         Cerrar Sesión
       </button>
-      
-      <Lottie style={{left: "20px"}} className="Lotty" animationData={groovyWalkAnimation} loop={true} />
 
       <div className="nav-buttons">
         <button
@@ -100,7 +100,13 @@ function AppContent() {
         </button>
       </div>
 
-      <Lottie style={{right: "20px"}} className="Lotty" animationData={groovyWalkAnimation} loop={true} />
+      <Lottie
+        style={{ right: "80px" }}
+        className="Lotty"
+        animationData={groovyWalkAnimation}
+        loop={true}
+        speed={0.3} // 0.5 significa que va a la mitad de la velocidad normal
+      />
 
       <div className="app-container">
         <div
@@ -119,6 +125,7 @@ function App() {
   return (
     <AuthProvider>
       <AppContent />
+      <ToastContainer />
     </AuthProvider>
   );
 }

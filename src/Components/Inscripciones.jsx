@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { FileSpreadsheet } from "lucide-react";
 import ExcelReader from "./ExcelReader";
-import CommandSender from "./CommandSender";
+import { sendCommands } from "../services/apiService";
+import { showSuccess, showError } from "../services/toastService";
 // Componente ExcelReader integrado
 
 function ComandosBemoInscripciones() {
@@ -13,8 +14,7 @@ function ComandosBemoInscripciones() {
   const [studentIds2, setStudentIds2] = useState(Array(10).fill(""));
   const [minInputsForm1] = useState(10); // Mínimo de inputs para Form1
   const [minInputsForm2] = useState(10); // Mínimo de inputs para Form2
-  const [generatedCommand, setGeneratedCommand] = useState("");
-  const [generatedCommand2, setGeneratedCommand2] = useState("");
+
   const [showExcelReader, setShowExcelReader] = useState(false);
   const [currentForm, setCurrentForm] = useState(null); // Para saber cuál formulario está activo
 
@@ -30,37 +30,44 @@ function ComandosBemoInscripciones() {
     }
   };
 
-  const handleEnroll = (isForm2 = false) => {
+  const handleEnroll = async (isForm2 = false) => {
     if (isForm2) {
       const estudiante = groupId2.trim();
       if (!estudiante) {
-        alert(
+        showError(
           "Por favor ingrese el ID del estudiante antes de generar el comando."
         );
         return;
       }
       const grupos = studentIds2.filter((id) => id.trim() !== "");
       if (grupos.length === 0) {
-        alert(
+        showError(
           "Por favor ingrese al menos un ID de grupo antes de generar el comando."
         );
         return;
       }
-      const comandos = grupos
-        .map((grupo) => `bemo run:prod enroll:user["${grupo}","${estudiante}"]`)
-        .join("\n");
-      setGeneratedCommand2(comandos);
+      const comandos = grupos.map(
+        (grupo) => `bemo run:prod enroll:user["${grupo}","${estudiante}"]`
+      );
+
+      const result = await sendCommands(comandos);
+      if (result.success) {
+        showSuccess("Comandos enviados exitosamente");
+        handleClear(true);
+      } else {
+        showError("Error al enviar los comandos: " + result.error);
+      }
     } else {
       const gId = groupId.trim();
       if (!gId) {
-        alert(
+        showError(
           "Por favor ingrese el ID del grupo académico antes de generar el comando."
         );
         return;
       }
       const filteredStudentIds = studentIds.filter((id) => id.trim() !== "");
       if (filteredStudentIds.length === 0) {
-        alert(
+        showError(
           "Por favor ingrese al menos un ID de estudiante antes de generar el comando."
         );
         return;
@@ -68,44 +75,56 @@ function ComandosBemoInscripciones() {
       const command = `bemo run:prod enroll:user["${gId}","${filteredStudentIds.join(
         '","'
       )}"]`;
-      setGeneratedCommand(command);
+
+      const result = await sendCommands([command]);
+      if (result.success) {
+        showSuccess("Comando enviado exitosamente");
+        handleClear(false);
+      } else {
+        showError("Error al enviar el comando: " + result.error);
+      }
     }
   };
 
-  const handleRemove = (isForm2 = false) => {
+  const handleRemove = async (isForm2 = false) => {
     if (isForm2) {
       const estudiante = groupId2.trim();
       if (!estudiante) {
-        alert(
+        showError(
           "Por favor ingrese el ID del estudiante antes de generar el comando."
         );
         return;
       }
       const grupos = studentIds2.filter((id) => id.trim() !== "");
       if (grupos.length === 0) {
-        alert(
+        showError(
           "Por favor ingrese al menos un ID de grupo antes de generar el comando."
         );
         return;
       }
-      const comandos = grupos
-        .map(
-          (grupo) =>
-            `bemo run:prod pull:user:from:group["${grupo}","${estudiante}"]`
-        )
-        .join("\n");
-      setGeneratedCommand2(comandos);
+      const comandos = grupos.map(
+        (grupo) =>
+          `bemo run:prod pull:user:from:group["${grupo}","${estudiante}"]`
+      );
+
+      const result = await sendCommands(comandos);
+      if (result.success) {
+        showSuccess("Comandos enviados exitosamente");
+        handleClear(true);
+      } else {
+        showError("Error al enviar los comandos: " + result.error);
+      }
     } else {
       const gId = groupId.trim();
       if (!gId) {
-        alert(
+        showError(
           "Por favor ingrese el ID del grupo académico antes de generar el comando."
         );
         return;
       }
       const filteredStudentIds = studentIds.filter((id) => id.trim() !== "");
       if (filteredStudentIds.length === 0) {
-        alert(
+        showError(
           "Por favor ingrese al menos un ID de estudiante antes de generar el comando."
         );
         return;
@@ -113,7 +132,14 @@ function ComandosBemoInscripciones() {
       const command = `bemo run:prod pull:user:from:group["${gId}","${filteredStudentIds.join(
         '","'
       )}"]`;
-      setGeneratedCommand(command);
+
+      const result = await sendCommands([command]);
+      if (result.success) {
+        showSuccess("Comando enviado exitosamente");
+        handleClear(false);
+      } else {
+        showError("Error al enviar el comando: " + result.error);
+      }
     }
   };
 
@@ -121,11 +147,9 @@ function ComandosBemoInscripciones() {
     if (isForm2) {
       setGroupId2("");
       setStudentIds2(Array(minInputsForm2).fill(""));
-      setGeneratedCommand2("");
     } else {
       setGroupId("");
       setStudentIds(Array(minInputsForm1).fill(""));
-      setGeneratedCommand("");
     }
   };
 
@@ -147,7 +171,7 @@ function ComandosBemoInscripciones() {
       });
 
       setStudentIds2(newStudentIds2);
-      alert(
+      showSuccess(
         `Se importaron ${data.length} registros correctamente. Se crearon ${requiredInputs} campos de entrada.`
       );
     } else {
@@ -160,7 +184,7 @@ function ComandosBemoInscripciones() {
       });
 
       setStudentIds(newStudentIds);
-      alert(
+      showSuccess(
         `Se importaron ${data.length} registros correctamente. Se crearon ${requiredInputs} campos de entrada.`
       );
     }
@@ -255,11 +279,6 @@ function ComandosBemoInscripciones() {
                 className="btn btn-primary"
                 onClick={() => handleEnroll(false)}
                 style={{
-                  opacity:
-                    !generatedCommand ||
-                    generatedCommand.includes("enroll:user")
-                      ? "1"
-                      : "0.7",
                   transition: "opacity 0.3s ease",
                 }}
               >
@@ -269,11 +288,6 @@ function ComandosBemoInscripciones() {
                 className="btn btn-danger"
                 onClick={() => handleRemove(false)}
                 style={{
-                  opacity:
-                    !generatedCommand ||
-                    generatedCommand.includes("pull:user:from:group")
-                      ? "1"
-                      : "0.7",
                   transition: "opacity 0.3s ease",
                 }}
               >
@@ -295,13 +309,6 @@ function ComandosBemoInscripciones() {
                 🧹
               </button>
             </div>
-            {generatedCommand && (
-              <div className="command-output">
-                <strong>Comando generado:</strong>
-                <p className="command-text">{generatedCommand}</p>
-                <CommandSender commands={[generatedCommand]} />
-              </div>
-            )}
           </div>
         )}
 
@@ -351,30 +358,14 @@ function ComandosBemoInscripciones() {
               <button
                 className="btn btn-primary"
                 onClick={() => handleEnroll(true)}
-                style={{
-                  opacity:
-                    !generatedCommand2 ||
-                    generatedCommand2.includes("enroll:user")
-                      ? "1"
-                      : "0.7",
-                  transition: "opacity 0.3s ease",
-                }}
               >
-                Generar comandos para inscribirlos
+                Inscribir estudiante a grupos
               </button>
               <button
                 className="btn btn-danger"
                 onClick={() => handleRemove(true)}
-                style={{
-                  opacity:
-                    !generatedCommand2 ||
-                    generatedCommand2.includes("pull:user:from:group")
-                      ? "1"
-                      : "0.7",
-                  transition: "opacity 0.3s ease",
-                }}
               >
-                Generar comandos para sacarlo
+                Retirar estudiante de grupos
               </button>
               <button
                 className="btn btn-success"
@@ -392,13 +383,6 @@ function ComandosBemoInscripciones() {
                 🧹
               </button>
             </div>
-            {generatedCommand2 && (
-              <div className="command-output">
-                <strong>Comando generado:</strong>
-                <p className="command-text">{generatedCommand2}</p>
-                <CommandSender commands={generatedCommand2.split('\n')} />
-              </div>
-            )}
           </div>
         )}
       </div>

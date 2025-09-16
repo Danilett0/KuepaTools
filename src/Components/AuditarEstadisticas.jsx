@@ -1,32 +1,40 @@
-import React, { useState } from 'react';
-import '../Styles/styles.css';
-
-import CommandSender from './CommandSender';
+import React, { useState } from "react";
+import "../Styles/styles.css";
+import { sendCommands } from "../services/apiService";
+import { showSuccess, showError } from "../services/toastService";
 
 function SegundaPagina() {
-  const [secondStudentId, setSecondStudentId] = useState('');
-  const [secondProgramId, setSecondProgramId] = useState('');
-  const [generatedCommands, setGeneratedCommands] = useState([]);
+  const [secondStudentId, setSecondStudentId] = useState("");
+  const [secondProgramId, setSecondProgramId] = useState("");
 
-  const handleAction = () => {
+  const handleAction = async () => {
     if (!secondProgramId.trim() || !secondStudentId.trim()) {
-      alert('Por favor, complete ambos campos.');
+      showError("Por favor, complete ambos campos.");
       return;
     }
 
     const commands = [
       `bemo run:prod audit:level["${secondProgramId}","${secondStudentId}"]`,
       `bemo run:prod audit:statistics["${secondProgramId}","${secondStudentId}"]`,
-      `bemo run:prod audit:compacts["${secondProgramId}","${secondStudentId}"]`
+      `bemo run:prod audit:compacts["${secondProgramId}","${secondStudentId}"]`,
     ];
 
-    setGeneratedCommands(commands);
+    const result = await sendCommands(commands);
+
+    if (result.success) {
+      showSuccess("Comandos enviados exitosamente");
+    } else {
+      showError("Error al enviar los comandos: " + result.error);
+    }
   };
 
   return (
     <div className="page-container">
       <div className="content-container">
-        <h3 className="title">Genere los comandos para auditar estadisticas de estudiante de Nueva America</h3>
+        <h3 className="title">
+          Genere los comandos para auditar estadisticas de estudiante de Nueva
+          America
+        </h3>
         <div className="input-group">
           <input
             type="text"
@@ -46,13 +54,6 @@ function SegundaPagina() {
             ▶
           </button>
         </div>
-        {generatedCommands.length > 0 && (
-          <div className="commands">
-            <strong>Comandos generados:</strong>
-            <p className="command-text">{generatedCommands.join('\n')}</p>
-            <CommandSender commands={generatedCommands} />
-          </div>
-        )}
       </div>
     </div>
   );
