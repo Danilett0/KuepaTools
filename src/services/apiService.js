@@ -1,4 +1,4 @@
-const API_URL = 'https://danilett0.app.n8n.cloud/webhook/93e39801-5d8a-4c2b-84af-81f837088ea4';
+const API_URL = process.env.REACT_APP_ENPOINT_N8N_URL;
 
 export const sendCommands = async (commands) => {
   try {
