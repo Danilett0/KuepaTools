@@ -6,16 +6,19 @@ import groovyWalkAnimation from "../Login.json";
 
 const Login = memo(() => {
   const { login } = useAuth();
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    const success = login(password);
+    setError(""); // Limpiar error anterior
+    
+    const result = await login(username, password);
 
-    if (!success) {
-      setError("Contraseña incorrecta");
+    if (!result.success) {
+      setError(result.message || "Error al iniciar sesión");
       setPassword("");
     }
   };
@@ -31,6 +34,16 @@ const Login = memo(() => {
         />
 
         <form onSubmit={handleSubmit}>
+          <div className="password-input">
+            <input
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="Ingrese su usuario"
+              required
+              autoComplete="username"
+            />
+          </div>
           <div className="password-input">
             <input
               type={showPassword ? "text" : "password"}
