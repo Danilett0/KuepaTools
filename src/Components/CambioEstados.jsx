@@ -61,6 +61,8 @@ function CambiosEstadoBemo() {
           <option value="640a563e1cbb9f11665ef129">Al día</option>
           <option value="632b97df8f3bba0fc2708b78">Nuevo</option>
           <option value="6303ed683138387a1669d8a3">Regular</option>
+          <option value="648b908a55ba6c0c84c5013f">Aplazado</option>
+          <option value="639b2fe70605300cc60ccf5d">Regular en verificacion</option>
           <option value="650dfeba1bc4f0480d1fa128">Matricula no exitosa</option>
         </select>
         <button onClick={handleGenerateCommand} className="button">
