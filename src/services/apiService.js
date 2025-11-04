@@ -1,6 +1,7 @@
 const API_URL = process.env.REACT_APP_ENPOINT_N8N_URL;
 
 export const sendCommands = async (commands) => {
+  console.log(API_URL);
   try {
     const userData = JSON.parse(localStorage.getItem('userData')) || {};
     const response = await fetch(API_URL, {
