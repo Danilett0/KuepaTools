@@ -17,7 +17,7 @@ function CambiosEstadoBemo() {
       return;
     }
 
-    const command = `bemo run:prod status:change["${trimmedProgramId}","${selectedState}","${trimmedStudentId}"]`;
+    const command = `magik run:prod status:change["${trimmedProgramId}","${selectedState}","${trimmedStudentId}"]`;
 
     const result = await sendCommands([command]);
 
