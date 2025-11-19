@@ -14,9 +14,9 @@ function SegundaPagina() {
     }
 
     const commands = [
-      `bemo run:prod audit:level["${secondProgramId}","${secondStudentId}"]`,
-      `bemo run:prod audit:statistics["${secondProgramId}","${secondStudentId}"]`,
-      `bemo run:prod audit:compacts["${secondProgramId}","${secondStudentId}"]`,
+      `magik run:prod audit:level["${secondProgramId}","${secondStudentId}"]`,
+      `magik run:prod audit:statistics["${secondProgramId}","${secondStudentId}"]`,
+      `magik run:prod audit:compacts["${secondProgramId}","${secondStudentId}"]`,
     ];
 
     const result = await sendCommands(commands);
