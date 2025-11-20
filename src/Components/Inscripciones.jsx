@@ -72,7 +72,7 @@ function ComandosBemoInscripciones() {
         );
         return;
       }
-      const command = `magik run:prod enroll:user["${gId}","${filteredStudentIds.join(
+      const command = ` magik run:prod enroll:user["${gId}","${filteredStudentIds.join(
         '","'
       )}"]`;
 
@@ -104,7 +104,7 @@ function ComandosBemoInscripciones() {
       }
       const comandos = grupos.map(
         (grupo) =>
-          `magik run:prod pull:user:from:group["${grupo}","${estudiante}"]`
+          ` magik run:prod pull:user:from:group["${grupo}","${estudiante}"]`
       );
 
       const result = await sendCommands(comandos);
@@ -129,7 +129,7 @@ function ComandosBemoInscripciones() {
         );
         return;
       }
-      const command = `magik run:prod pull:user:from:group["${gId}","${filteredStudentIds.join(
+      const command = ` magik run:prod pull:user:from:group["${gId}","${filteredStudentIds.join(
         '","'
       )}"]`;
 
