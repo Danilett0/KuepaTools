@@ -10,10 +10,11 @@ function ComandosBemoInscripciones() {
   const [showForm2, setShowForm2] = useState(true); // Este DEBE estar en true
   const [groupId, setGroupId] = useState("");
   const [groupId2, setGroupId2] = useState("");
-  const [studentIds, setStudentIds] = useState(Array(10).fill(""));
-  const [studentIds2, setStudentIds2] = useState(Array(10).fill(""));
-  const [minInputsForm1] = useState(10); // Mínimo de inputs para Form1
-  const [minInputsForm2] = useState(10); // Mínimo de inputs para Form2
+  const [txareaIds, setTxareaIds] = useState("");
+  const [studentIds, setStudentIds] = useState(Array(8).fill(""));
+  const [studentIds2, setStudentIds2] = useState(Array(8).fill(""));
+  const [minInputsForm1] = useState(8); // Mínimo de inputs para Form1
+  const [minInputsForm2] = useState(8); // Mínimo de inputs para Form2
 
   const [showExcelReader, setShowExcelReader] = useState(false);
   const [currentForm, setCurrentForm] = useState(null); // Para saber cuál formulario está activo
@@ -144,6 +145,8 @@ function ComandosBemoInscripciones() {
   };
 
   const handleClear = (isForm2 = false) => {
+    setTxareaIds("");
+
     if (isForm2) {
       setGroupId2("");
       setStudentIds2(Array(minInputsForm2).fill(""));
@@ -151,6 +154,42 @@ function ComandosBemoInscripciones() {
       setGroupId("");
       setStudentIds(Array(minInputsForm1).fill(""));
     }
+  };
+
+  const handleGenerate = (isForm2 = false) => {
+    const ids = txareaIds
+      .split("\n")
+      .map((linea) => linea.trim())
+      .filter((linea) => linea !== "");
+
+    const flatIds = ids.map((linea) => {
+      if (linea.includes(" - ")) {
+        return linea.split(" - ")[1].trim();
+      } else {
+        return linea;
+      }
+    });
+
+    if (isForm2) {
+      const requiredInputs = Math.max(flatIds.length, minInputsForm2);
+      const newStudentIds2 = Array(requiredInputs).fill("");
+
+      flatIds.forEach((id, index) => {
+        newStudentIds2[index] = id;
+      });
+      setStudentIds2(newStudentIds2);
+      showSuccess(`Se importaron ${flatIds.length} registros correctamente.`);
+    } else {
+      const requiredInputs = Math.max(flatIds.length, minInputsForm1);
+      const newStudentIds = Array(requiredInputs).fill("");
+      flatIds.forEach((id, index) => {
+        newStudentIds[index] = id;
+      });
+      setStudentIds(newStudentIds);
+      showSuccess(`Se importaron ${flatIds.length} registros correctamente.`);
+    }
+
+    setTxareaIds("");
   };
 
   const handleExcelExport = (isForm2 = false) => {
@@ -171,9 +210,7 @@ function ComandosBemoInscripciones() {
       });
 
       setStudentIds2(newStudentIds2);
-      showSuccess(
-        `Se importaron ${data.length} registros correctamente. Se crearon ${requiredInputs} campos de entrada.`
-      );
+      showSuccess(`Se importaron ${data.length} registros correctamente.`);
     } else {
       // Form1: Los datos van a studentIds (IDs de estudiantes)
       const requiredInputs = Math.max(data.length, minInputsForm1);
@@ -184,9 +221,7 @@ function ComandosBemoInscripciones() {
       });
 
       setStudentIds(newStudentIds);
-      showSuccess(
-        `Se importaron ${data.length} registros correctamente. Se crearon ${requiredInputs} campos de entrada.`
-      );
+      showSuccess(`Se importaron ${data.length} registros correctamente.`);
     }
 
     setShowExcelReader(false);
@@ -273,6 +308,12 @@ function ComandosBemoInscripciones() {
                   />
                 ))}
               </div>
+              <textarea
+                className="txareaids"
+                value={txareaIds}
+                placeholder="Ingrese listado de IDS separados por salto de linea"
+                onChange={(e) => setTxareaIds(e.target.value)}
+              />
             </div>
             <div className="inscripciones-buttons">
               <button
@@ -307,6 +348,13 @@ function ComandosBemoInscripciones() {
                 style={{ flex: "none" }}
               >
                 🧹
+              </button>
+              <button
+                className="btn btn-black"
+                onClick={() => handleGenerate(false)}
+                style={{ flex: "none" }}
+              >
+                ✨
               </button>
             </div>
           </div>
@@ -353,6 +401,12 @@ function ComandosBemoInscripciones() {
                   />
                 ))}
               </div>
+              <textarea
+                className="txareaids"
+                value={txareaIds}
+                placeholder="Ingrese listado de IDS separados por salto de linea"
+                onChange={(e) => setTxareaIds(e.target.value)}
+              />
             </div>
             <div className="inscripciones-buttons">
               <button
@@ -381,6 +435,14 @@ function ComandosBemoInscripciones() {
                 style={{ flex: "none" }}
               >
                 🧹
+              </button>
+
+              <button
+                className="btn btn-black"
+                onClick={() => handleGenerate(true)}
+                style={{ flex: "none" }}
+              >
+                ✨
               </button>
             </div>
           </div>
