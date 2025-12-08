@@ -377,3 +377,21 @@ body {
   font-size: 16px;
   box-sizing: border-box;
 }
+
+.buscarIds{
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.buscarIds button{
+  padding: 10px;
+  border-radius: 50%;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 40px;
+  height: 40px;
+}

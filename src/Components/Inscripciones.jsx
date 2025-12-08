@@ -3,6 +3,9 @@ import { FileSpreadsheet } from "lucide-react";
 import ExcelReader from "./ExcelReader";
 import { sendCommands } from "../services/apiService";
 import { showSuccess, showError } from "../services/toastService";
+import users from "../data/users.json";
+import { toast } from "react-toastify";
+
 // Componente ExcelReader integrado
 
 function ComandosBemoInscripciones() {
@@ -153,6 +156,25 @@ function ComandosBemoInscripciones() {
     } else {
       setGroupId("");
       setStudentIds(Array(minInputsForm1).fill(""));
+    }
+  };
+
+  const BuscarId = (isForm2 = false) => {
+    if (isForm2 && groupId2.trim() !== "") {
+      const codigo = Number(groupId2.trim());
+
+      // Buscar en el JSON
+      const encontrado = users.find(
+        (user) => user.incremental_user_code === codigo
+      );
+
+      if (encontrado) {
+        setGroupId2(encontrado._id.$oid);
+      } else {
+        toast.error("INC de estudiante no encontrado.");
+      }
+    } else {
+      toast.error("Por favor ingrese el INC del estudiante a buscar.");
     }
   };
 
@@ -368,14 +390,20 @@ function ComandosBemoInscripciones() {
             </h5>
 
             <div className="inscripciones-form">
-              <input
-                type="text"
-                id="groupId2"
-                value={groupId2}
-                onChange={(e) => setGroupId2(e.target.value)}
-                className="inscripciones-input"
-                placeholder="ID Estudiante"
-              />
+              <div className="buscarIds">
+                <input
+                  type="text"
+                  id="groupId2"
+                  value={groupId2}
+                  onChange={(e) => setGroupId2(e.target.value)}
+                  className="inscripciones-input"
+                  placeholder="ID Estudiante"
+                />
+                <button className="btn" onClick={() => BuscarId(true)}>
+                  🔍
+                </button>
+              </div>
+
               <hr className="inscripciones-divider" />
               <div
                 className="inscripciones-grid"
