@@ -180,7 +180,7 @@ function ComandosBemoInscripciones() {
 
   const handleGenerate = (isForm2 = false) => {
     const flatIds = [];
-    const ids = txareaIds.split("\n").map(e => e.trim()).filter(e => e != "")
+    const ids = txareaIds.split("\n").map(e => e.trim()).filter(e => e !== "")
         .map(e => e.split(" ").filter(e => e.length > 20))
 
     ids.forEach(element => {
