@@ -179,17 +179,16 @@ function ComandosBemoInscripciones() {
   };
 
   const handleGenerate = (isForm2 = false) => {
-    const ids = txareaIds
-      .split("\n")
-      .map((linea) => linea.trim())
-      .filter((linea) => linea !== "");
+       let flatIds = [];
+    ids = txareaIds.split("\n").map(e => e.trim()).filter(e => e != "")
+        .map(e => e.split(" ").filter(e => e.length > 20))
 
-    const flatIds = ids.map((linea) => {
-      if (linea.includes(" - ")) {
-        return linea.split(" - ")[1].trim();
-      } else {
-        return linea;
-      }
+    ids.forEach(element => {
+        if (element.length > 1) {
+            element.forEach(e => flatIds.push(e))
+        } else {
+            flatIds.push(element[0])
+        }
     });
 
     if (isForm2) {
