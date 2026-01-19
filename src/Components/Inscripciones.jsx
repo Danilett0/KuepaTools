@@ -178,40 +178,31 @@ function ComandosBemoInscripciones() {
     }
   };
 
-  const handleGenerate = (isForm2 = false) => {
-    const flatIds = [];
-    const ids = txareaIds.split("\n").map(e => e.trim()).filter(e => e !== "")
-        .map(e => e.split(" ").filter(e => e.length > 20))
+const handleGenerate = (isForm2 = false) => {
+  const flatIds = txareaIds
+    .split(/\s+/)
+    .map(e => e.trim())
+    .filter(e => e.length >= 24);
 
-    ids.forEach(element => {
-        if (element.length > 1) {
-            element.forEach(e => flatIds.push(e))
-        } else {
-            flatIds.push(element[0])
-        }
-    });
+  const minInputs = isForm2 ? minInputsForm2 : minInputsForm1;
+  const requiredInputs = Math.max(flatIds.length, minInputs);
 
-    if (isForm2) {
-      const requiredInputs = Math.max(flatIds.length, minInputsForm2);
-      const newStudentIds2 = Array(requiredInputs).fill("");
+  const newIds = Array(requiredInputs).fill("");
 
-      flatIds.forEach((id, index) => {
-        newStudentIds2[index] = id;
-      });
-      setStudentIds2(newStudentIds2);
-      showSuccess(`Se importaron ${flatIds.length} registros correctamente.`);
-    } else {
-      const requiredInputs = Math.max(flatIds.length, minInputsForm1);
-      const newStudentIds = Array(requiredInputs).fill("");
-      flatIds.forEach((id, index) => {
-        newStudentIds[index] = id;
-      });
-      setStudentIds(newStudentIds);
-      showSuccess(`Se importaron ${flatIds.length} registros correctamente.`);
-    }
+  flatIds.forEach((id, index) => {
+    newIds[index] = id;
+  });
 
-    setTxareaIds("");
-  };
+  if (isForm2) {
+    setStudentIds2(newIds);
+  } else {
+    setStudentIds(newIds);
+  }
+
+  showSuccess(`Se importaron ${flatIds.length} registros correctamente.`);
+  setTxareaIds("");
+};
+
 
   const handleExcelExport = (isForm2 = false) => {
     setCurrentForm(isForm2);
