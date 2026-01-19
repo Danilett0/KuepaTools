@@ -27,7 +27,7 @@ function ExcelReader({ onDataRead, isVisible, onClose }) {
           .map((row) => row[0]) // Obtener primera columna
           .filter((cell) => cell !== undefined && cell !== null && cell !== "") // Filtrar valores vacíos
           .map((cell) => String(cell).trim()) // Convertir a string y eliminar espacios
-          .filter((cell) => cell !== "" && cell !== "_id"); // Filtra vacíos Y "_id"
+          .filter((cell) => cell !== "" && cell.length >= 23); // Filtra vacíos Y "_id"
 
         console.log("Datos leídos del Excel:", firstColumnData);
 
