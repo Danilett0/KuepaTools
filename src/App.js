@@ -5,6 +5,7 @@ import "react-toastify/dist/ReactToastify.css";
 import CambiosEstadoBemo from "./Components/CambioEstados.jsx";
 import AuditarEstadisticas from "./Components/AuditarEstadisticas.jsx";
 import Inscripciones from "./Components/Inscripciones.jsx";
+import EnvioComandos from "./Components/EnvioComandos.jsx";
 import Login from "./Components/Login.jsx";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import Lottie from "lottie-react";
@@ -124,6 +125,8 @@ function AppContent() {
         return <CambiosEstadoBemo />;
       case "auditar-estadisticas":
         return <AuditarEstadisticas />;
+      case "envio-comandos":
+        return <EnvioComandos />;
       default:
         return <Inscripciones />;
     }
@@ -238,6 +241,24 @@ function AppContent() {
             >
               <i className="fas fa-chart-line" style={{ marginRight: '8px' }} />
               Auditar Estadísticas
+            </div>
+            <div
+              onClick={() => {
+                setActiveComponent("envio-comandos");
+                setShowFunctionsMenu(false);
+              }}
+              style={{
+                padding: '8px 16px',
+                cursor: 'pointer',
+                transition: 'background-color 0.3s ease',
+                backgroundColor: activeComponent === "envio-comandos" ? '#f8f9fa' : 'transparent',
+                color: activeComponent === "envio-comandos" ? '#0056b3' : '#333',
+              }}
+              onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
+              onMouseOut={(e) => e.currentTarget.style.backgroundColor = activeComponent === "envio-comandos" ? '#f8f9fa' : 'transparent'}
+            >
+              <i className="fas fa-terminal" style={{ marginRight: '8px' }} />
+              Envio Comandos Libre
             </div>
           </div>
         )}
