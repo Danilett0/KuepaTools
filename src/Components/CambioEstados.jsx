@@ -31,11 +31,11 @@ function CambiosEstadoBemo() {
   };
 
   return (
-    <div className="content-container" style={{ flexDirection: "column", alignItems: "stretch" }}>
-      <h3 style={{ textAlign: "center", marginBottom: "20px" }}>
+    <div className="content-container">
+      <h3 style={{ textAlign: "center", margin: 0 }}>
         Genere un cambio de estado con Bemo para estudiante de Nueva America
       </h3>
-      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+      <div className="input-group">
         <input
           type="text"
           placeholder="ID Estudiante"
@@ -65,7 +65,7 @@ function CambiosEstadoBemo() {
           <option value="650dfeb91bc4f0480d1fa118">Requisitos Académicos</option>
         </select>
         <button onClick={handleGenerateCommand} className="button">▶</button>
-        <button onClick={handleClear} className="btn btn-warning" style={{ padding: "8px 12px" }}>🧹</button>
+        <button onClick={handleClear} className="btn btn-warning btn-icon">🧹</button>
       </div>
 
       <CommandsDisplay commands={generatedCommands} onClear={() => setGeneratedCommands([])} />
