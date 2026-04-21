@@ -1,15 +1,17 @@
 import React, { useState } from "react";
 import "../Styles/styles.css";
-import { sendCommands } from "../services/apiService";
+import CommandsDisplay from "./CommandsDisplay";
 import { showSuccess, showError } from "../services/toastService";
 
 function SegundaPagina() {
   const [secondStudentId, setSecondStudentId] = useState("");
   const [secondProgramId, setSecondProgramId] = useState("");
-
   const [grupoAcademicoId, setGrupoAcademicoId] = useState("");
 
-  const handleAction = async () => {
+  const [commandsEstudiante, setCommandsEstudiante] = useState([]);
+  const [commandsGrupo, setCommandsGrupo] = useState([]);
+
+  const handleAction = () => {
     if (!secondProgramId.trim() || !secondStudentId.trim()) {
       showError("Por favor, complete ambos campos.");
       return;
@@ -21,57 +23,24 @@ function SegundaPagina() {
       `magik run:prod audit:compacts["${secondProgramId}","${secondStudentId}"]`,
     ];
 
-    // Función auxiliar para esperar X milisegundos
-    const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-    try {
-      for (let i = 0; i < commands.length; i++) {
-        const cmd = commands[i];
-        console.log(`Enviando comando: ${cmd}`);
-
-        const result = await sendCommands([cmd]);
-
-        if (!result.success) {
-          showError("Error al enviar el comando: " + result.error);
-          return;
-        }
-
-        if (i < commands.length - 1) {
-          await delay(10000);
-        }
-      }
-
-      // Si todos fueron exitosos
-      showSuccess("Comandos enviados exitosamente");
-    } catch (error) {
-      showError("Error inesperado: " + error.message);
-    }
+    setCommandsEstudiante(commands);
+    showSuccess("3 comandos generados");
   };
 
-  const auditarGrupo = async () => {
+  const auditarGrupo = () => {
     if (!grupoAcademicoId.trim()) {
       showError("Por favor, complete el campo de ID grupo académico.");
       return;
     }
 
     const command = `magik run:prod audit:group["${grupoAcademicoId}"]`;
-
-    try {
-      const result = await sendCommands([command]);
-
-      if (result.success) {
-        showSuccess("Comando enviado exitosamente");
-      } else {
-        showError("Error al enviar el comando: " + result.error);
-      }
-    } catch (error) {
-      showError("Error inesperado: " + error.message);
-    }
+    setCommandsGrupo([command]);
+    showSuccess("Comando generado");
   };
 
   return (
     <div className="page-container" style={{ flexDirection: "column" }}>
-      <div className="content-container">
+      <div className="content-container" style={{ flexDirection: "column", alignItems: "stretch" }}>
         <h3 className="title">Auditar estadisticas estudiante</h3>
         <div className="input-group">
           <input
@@ -88,13 +57,21 @@ function SegundaPagina() {
             onChange={(e) => setSecondStudentId(e.target.value)}
             className="input"
           />
-          <button onClick={handleAction} className="button">
-            ▶
+          <button onClick={handleAction} className="button">▶</button>
+          <button
+            onClick={() => { setSecondStudentId(""); setSecondProgramId(""); setCommandsEstudiante([]); }}
+            className="btn btn-warning"
+            style={{ padding: "8px 12px" }}
+          >
+            🧹
           </button>
         </div>
+        <CommandsDisplay commands={commandsEstudiante} onClear={() => setCommandsEstudiante([])} />
       </div>
-      <br />{" "}
-      <div className="content-container">
+
+      <br />
+
+      <div className="content-container" style={{ flexDirection: "column", alignItems: "stretch" }}>
         <h3 className="title">Auditar grupo académico</h3>
         <div className="input-group">
           <input
@@ -104,10 +81,16 @@ function SegundaPagina() {
             onChange={(e) => setGrupoAcademicoId(e.target.value)}
             className="input"
           />
-          <button onClick={auditarGrupo} className="button">
-            ▶
+          <button onClick={auditarGrupo} className="button">▶</button>
+          <button
+            onClick={() => { setGrupoAcademicoId(""); setCommandsGrupo([]); }}
+            className="btn btn-warning"
+            style={{ padding: "8px 12px" }}
+          >
+            🧹
           </button>
         </div>
+        <CommandsDisplay commands={commandsGrupo} onClear={() => setCommandsGrupo([])} />
       </div>
     </div>
   );
