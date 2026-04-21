@@ -245,17 +245,17 @@ function ComandosBemoInscripciones() {
               />
             </div>
             <div className="inscripciones-buttons">
-              <button className="btn btn-primary" onClick={() => handleEnroll(false)} style={{ transition: "opacity 0.3s ease" }}>
+              <button className="btn btn-primary" onClick={() => handleEnroll(false)}>
                 Inscribir estudiantes al grupo
               </button>
-              <button className="btn btn-danger" onClick={() => handleRemove(false)} style={{ transition: "opacity 0.3s ease" }}>
+              <button className="btn btn-danger" onClick={() => handleRemove(false)}>
                 Eliminar estudiantes del grupo
               </button>
-              <button className="btn btn-success" onClick={() => handleExcelExport(false)} style={{ flex: "none", padding: "8px 12px" }} title="Importar IDs de estudiantes desde Excel">
+              <button className="btn btn-success btn-icon" onClick={() => handleExcelExport(false)} title="Importar IDs de estudiantes desde Excel">
                 <FileSpreadsheet size={20} />
               </button>
-              <button className="btn btn-warning" onClick={() => handleClear(false)} style={{ flex: "none" }}>🧹</button>
-              <button className="btn btn-black" onClick={() => handleGenerate(false)} style={{ flex: "none" }}>✨</button>
+              <button className="btn btn-warning btn-icon" onClick={() => handleClear(false)}>🧹</button>
+              <button className="btn btn-black btn-icon" onClick={() => handleGenerate(false)}>✨</button>
             </div>
 
             <CommandsDisplay commands={generatedCommands} onClear={() => setGeneratedCommands([])} />
@@ -316,11 +316,11 @@ function ComandosBemoInscripciones() {
               <button className="btn btn-danger" onClick={() => handleRemove(true)}>
                 Retirar estudiante de grupos
               </button>
-              <button className="btn btn-success" onClick={() => handleExcelExport(true)} style={{ flex: "none", padding: "8px 12px" }} title="Importar IDs de grupos desde Excel">
+              <button className="btn btn-success btn-icon" onClick={() => handleExcelExport(true)} title="Importar IDs de grupos desde Excel">
                 <FileSpreadsheet size={20} />
               </button>
-              <button className="btn btn-warning" onClick={() => handleClear(true)} style={{ flex: "none" }}>🧹</button>
-              <button className="btn btn-black" onClick={() => handleGenerate(true)} style={{ flex: "none" }}>✨</button>
+              <button className="btn btn-warning btn-icon" onClick={() => handleClear(true)}>🧹</button>
+              <button className="btn btn-black btn-icon" onClick={() => handleGenerate(true)}>✨</button>
             </div>
 
             <CommandsDisplay commands={generatedCommands} onClear={() => setGeneratedCommands([])} />

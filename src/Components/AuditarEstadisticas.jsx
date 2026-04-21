@@ -39,8 +39,8 @@ function SegundaPagina() {
   };
 
   return (
-    <div className="page-container" style={{ flexDirection: "column" }}>
-      <div className="content-container" style={{ flexDirection: "column", alignItems: "stretch" }}>
+    <div className="page-container">
+      <div className="content-container">
         <h3 className="title">Auditar estadisticas estudiante</h3>
         <div className="input-group">
           <input
@@ -60,8 +60,7 @@ function SegundaPagina() {
           <button onClick={handleAction} className="button">▶</button>
           <button
             onClick={() => { setSecondStudentId(""); setSecondProgramId(""); setCommandsEstudiante([]); }}
-            className="btn btn-warning"
-            style={{ padding: "8px 12px" }}
+            className="btn btn-warning btn-icon"
           >
             🧹
           </button>
@@ -69,9 +68,7 @@ function SegundaPagina() {
         <CommandsDisplay commands={commandsEstudiante} onClear={() => setCommandsEstudiante([])} />
       </div>
 
-      <br />
-
-      <div className="content-container" style={{ flexDirection: "column", alignItems: "stretch" }}>
+      <div className="content-container">
         <h3 className="title">Auditar grupo académico</h3>
         <div className="input-group">
           <input
@@ -84,8 +81,7 @@ function SegundaPagina() {
           <button onClick={auditarGrupo} className="button">▶</button>
           <button
             onClick={() => { setGrupoAcademicoId(""); setCommandsGrupo([]); }}
-            className="btn btn-warning"
-            style={{ padding: "8px 12px" }}
+            className="btn btn-warning btn-icon"
           >
             🧹
           </button>
