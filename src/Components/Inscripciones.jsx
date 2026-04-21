@@ -1,26 +1,27 @@
 import React, { useState } from "react";
 import { FileSpreadsheet } from "lucide-react";
 import ExcelReader from "./ExcelReader";
-import { sendCommands } from "../services/apiService";
-import { showSuccess, showError } from "../services/toastService";
+import CommandsDisplay from "./CommandsDisplay";
+import { showError, showSuccess } from "../services/toastService";
 import users from "../data/users.json";
 import { toast } from "react-toastify";
 
-// Componente ExcelReader integrado
-
 function ComandosBemoInscripciones() {
   const [showForm1, setShowForm1] = useState(false);
-  const [showForm2, setShowForm2] = useState(true); // Este DEBE estar en true
+  const [showForm2, setShowForm2] = useState(true);
   const [groupId, setGroupId] = useState("");
   const [groupId2, setGroupId2] = useState("");
   const [txareaIds, setTxareaIds] = useState("");
   const [studentIds, setStudentIds] = useState(Array(8).fill(""));
   const [studentIds2, setStudentIds2] = useState(Array(8).fill(""));
-  const [minInputsForm1] = useState(8); // Mínimo de inputs para Form1
-  const [minInputsForm2] = useState(8); // Mínimo de inputs para Form2
+  const [minInputsForm1] = useState(8);
+  const [minInputsForm2] = useState(8);
 
   const [showExcelReader, setShowExcelReader] = useState(false);
-  const [currentForm, setCurrentForm] = useState(null); // Para saber cuál formulario está activo
+  const [currentForm, setCurrentForm] = useState(null);
+
+  // State for generated commands
+  const [generatedCommands, setGeneratedCommands] = useState([]);
 
   const handleStudentIdChange = (index, value, isForm2 = false) => {
     if (isForm2) {
@@ -34,122 +35,77 @@ function ComandosBemoInscripciones() {
     }
   };
 
-  const handleEnroll = async (isForm2 = false) => {
+  const handleEnroll = (isForm2 = false) => {
     if (isForm2) {
       const estudiante = groupId2.trim();
       if (!estudiante) {
-        showError(
-          "Por favor ingrese el ID del estudiante antes de generar el comando."
-        );
+        showError("Por favor ingrese el ID del estudiante antes de generar el comando.");
         return;
       }
       const grupos = studentIds2.filter((id) => id.trim() !== "");
       if (grupos.length === 0) {
-        showError(
-          "Por favor ingrese al menos un ID de grupo antes de generar el comando."
-        );
+        showError("Por favor ingrese al menos un ID de grupo antes de generar el comando.");
         return;
       }
       const comandos = grupos.map(
         (grupo) => `magik run:prod enroll:user["${grupo}","${estudiante}"]`
       );
-
-      const result = await sendCommands(comandos);
-      if (result.success) {
-        showSuccess("Comandos enviados exitosamente");
-        handleClear(true);
-      } else {
-        showError("Error al enviar los comandos: " + result.error);
-      }
+      setGeneratedCommands(comandos);
+      showSuccess(`${comandos.length} comando${comandos.length !== 1 ? "s" : ""} generado${comandos.length !== 1 ? "s" : ""}`);
     } else {
       const gId = groupId.trim();
       if (!gId) {
-        showError(
-          "Por favor ingrese el ID del grupo académico antes de generar el comando."
-        );
+        showError("Por favor ingrese el ID del grupo académico antes de generar el comando.");
         return;
       }
       const filteredStudentIds = studentIds.filter((id) => id.trim() !== "");
       if (filteredStudentIds.length === 0) {
-        showError(
-          "Por favor ingrese al menos un ID de estudiante antes de generar el comando."
-        );
+        showError("Por favor ingrese al menos un ID de estudiante antes de generar el comando.");
         return;
       }
-      const command = ` magik run:prod enroll:user["${gId}","${filteredStudentIds.join(
-        '","'
-      )}"]`;
-
-      const result = await sendCommands([command]);
-      if (result.success) {
-        showSuccess("Comando enviado exitosamente");
-        handleClear(false);
-      } else {
-        showError("Error al enviar el comando: " + result.error);
-      }
+      const command = `magik run:prod enroll:user["${gId}","${filteredStudentIds.join('","')}"]`;
+      setGeneratedCommands([command]);
+      showSuccess("Comando generado");
     }
   };
 
-  const handleRemove = async (isForm2 = false) => {
+  const handleRemove = (isForm2 = false) => {
     if (isForm2) {
       const estudiante = groupId2.trim();
       if (!estudiante) {
-        showError(
-          "Por favor ingrese el ID del estudiante antes de generar el comando."
-        );
+        showError("Por favor ingrese el ID del estudiante antes de generar el comando.");
         return;
       }
       const grupos = studentIds2.filter((id) => id.trim() !== "");
       if (grupos.length === 0) {
-        showError(
-          "Por favor ingrese al menos un ID de grupo antes de generar el comando."
-        );
+        showError("Por favor ingrese al menos un ID de grupo antes de generar el comando.");
         return;
       }
       const comandos = grupos.map(
-        (grupo) =>
-          ` magik run:prod pull:user:from:group["${grupo}","${estudiante}"]`
+        (grupo) => `magik run:prod pull:user:from:group["${grupo}","${estudiante}"]`
       );
-
-      const result = await sendCommands(comandos);
-      if (result.success) {
-        showSuccess("Comandos enviados exitosamente");
-        handleClear(true);
-      } else {
-        showError("Error al enviar los comandos: " + result.error);
-      }
+      setGeneratedCommands(comandos);
+      showSuccess(`${comandos.length} comando${comandos.length !== 1 ? "s" : ""} generado${comandos.length !== 1 ? "s" : ""}`);
     } else {
       const gId = groupId.trim();
       if (!gId) {
-        showError(
-          "Por favor ingrese el ID del grupo académico antes de generar el comando."
-        );
+        showError("Por favor ingrese el ID del grupo académico antes de generar el comando.");
         return;
       }
       const filteredStudentIds = studentIds.filter((id) => id.trim() !== "");
       if (filteredStudentIds.length === 0) {
-        showError(
-          "Por favor ingrese al menos un ID de estudiante antes de generar el comando."
-        );
+        showError("Por favor ingrese al menos un ID de estudiante antes de generar el comando.");
         return;
       }
-      const command = ` magik run:prod pull:user:from:group["${gId}","${filteredStudentIds.join(
-        '","'
-      )}"]`;
-
-      const result = await sendCommands([command]);
-      if (result.success) {
-        showSuccess("Comando enviado exitosamente");
-        handleClear(false);
-      } else {
-        showError("Error al enviar el comando: " + result.error);
-      }
+      const command = `magik run:prod pull:user:from:group["${gId}","${filteredStudentIds.join('","')}"]`;
+      setGeneratedCommands([command]);
+      showSuccess("Comando generado");
     }
   };
 
   const handleClear = (isForm2 = false) => {
     setTxareaIds("");
-
+    setGeneratedCommands([]);
     if (isForm2) {
       setGroupId2("");
       setStudentIds2(Array(minInputsForm2).fill(""));
@@ -162,12 +118,9 @@ function ComandosBemoInscripciones() {
   const BuscarId = (isForm2 = false) => {
     if (isForm2 && groupId2.trim() !== "") {
       const codigo = Number(groupId2.trim());
-
-      // Buscar en el JSON
       const encontrado = users.find(
         (user) => user.incremental_user_code === codigo
       );
-
       if (encontrado) {
         setGroupId2(encontrado._id.$oid);
       } else {
@@ -178,31 +131,26 @@ function ComandosBemoInscripciones() {
     }
   };
 
-const handleGenerate = (isForm2 = false) => {
-  const flatIds = txareaIds
-    .split(/\s+/)
-    .map(e => e.trim())
-    .filter(e => e.length >= 24);
+  const handleGenerate = (isForm2 = false) => {
+    const flatIds = txareaIds
+      .split(/\s+/)
+      .map((e) => e.trim())
+      .filter((e) => e.length >= 24);
 
-  const minInputs = isForm2 ? minInputsForm2 : minInputsForm1;
-  const requiredInputs = Math.max(flatIds.length, minInputs);
+    const minInputs = isForm2 ? minInputsForm2 : minInputsForm1;
+    const requiredInputs = Math.max(flatIds.length, minInputs);
+    const newIds = Array(requiredInputs).fill("");
+    flatIds.forEach((id, index) => { newIds[index] = id; });
 
-  const newIds = Array(requiredInputs).fill("");
+    if (isForm2) {
+      setStudentIds2(newIds);
+    } else {
+      setStudentIds(newIds);
+    }
 
-  flatIds.forEach((id, index) => {
-    newIds[index] = id;
-  });
-
-  if (isForm2) {
-    setStudentIds2(newIds);
-  } else {
-    setStudentIds(newIds);
-  }
-
-  showSuccess(`Se importaron ${flatIds.length} registros correctamente.`);
-  setTxareaIds("");
-};
-
+    showSuccess(`Se importaron ${flatIds.length} registros correctamente.`);
+    setTxareaIds("");
+  };
 
   const handleExcelExport = (isForm2 = false) => {
     setCurrentForm(isForm2);
@@ -210,32 +158,19 @@ const handleGenerate = (isForm2 = false) => {
   };
 
   const handleExcelDataRead = (data) => {
-    console.log("Datos recibidos del Excel:", data);
-
     if (currentForm) {
-      // Form2: Los datos van a studentIds2 (IDs de grupos)
       const requiredInputs = Math.max(data.length, minInputsForm2);
       const newStudentIds2 = Array(requiredInputs).fill("");
-
-      data.forEach((id, index) => {
-        newStudentIds2[index] = id;
-      });
-
+      data.forEach((id, index) => { newStudentIds2[index] = id; });
       setStudentIds2(newStudentIds2);
       showSuccess(`Se importaron ${data.length} registros correctamente.`);
     } else {
-      // Form1: Los datos van a studentIds (IDs de estudiantes)
       const requiredInputs = Math.max(data.length, minInputsForm1);
       const newStudentIds = Array(requiredInputs).fill("");
-
-      data.forEach((id, index) => {
-        newStudentIds[index] = id;
-      });
-
+      data.forEach((id, index) => { newStudentIds[index] = id; });
       setStudentIds(newStudentIds);
       showSuccess(`Se importaron ${data.length} registros correctamente.`);
     }
-
     setShowExcelReader(false);
     setCurrentForm(null);
   };
@@ -251,40 +186,24 @@ const handleGenerate = (isForm2 = false) => {
         <div className="inscripciones-buttons-main">
           <button
             className="btn btn-black btn-lg"
-            style={{
-              opacity: showForm2 ? "1" : "0.5",
-              transition: "opacity 0.3s ease",
-            }}
-            onClick={() => {
-              if (!showForm2) {
-                setShowForm2(true);
-                setShowForm1(false);
-              }
-            }}
+            style={{ opacity: showForm2 ? "1" : "0.5", transition: "opacity 0.3s ease" }}
+            onClick={() => { if (!showForm2) { setShowForm2(true); setShowForm1(false); setGeneratedCommands([]); } }}
           >
             Inscribir grupos a un estudiante
           </button>
           <button
             className="btn btn-black btn-lg"
-            style={{
-              opacity: showForm1 ? "1" : "0.5",
-              transition: "opacity 0.3s ease",
-            }}
-            onClick={() => {
-              if (!showForm1) {
-                setShowForm1(true);
-                setShowForm2(false);
-              }
-            }}
+            style={{ opacity: showForm1 ? "1" : "0.5", transition: "opacity 0.3s ease" }}
+            onClick={() => { if (!showForm1) { setShowForm1(true); setShowForm2(false); setGeneratedCommands([]); } }}
           >
             Incribir varios estudiantes a un grupo
           </button>
         </div>
+
         {showForm1 && (
           <div className="inscripciones-form-container">
             <h5 className="inscripciones-title">
-              Ingrese el grupo academico, seguido de los estudiantes que desea
-              inscribirle o retirarle
+              Ingrese el grupo academico, seguido de los estudiantes que desea inscribirle o retirarle
             </h5>
             <div className="inscripciones-form">
               <input
@@ -312,9 +231,7 @@ const handleGenerate = (isForm2 = false) => {
                     type="text"
                     id={`studentId-${index}`}
                     value={studentId}
-                    onChange={(e) =>
-                      handleStudentIdChange(index, e.target.value)
-                    }
+                    onChange={(e) => handleStudentIdChange(index, e.target.value)}
                     className="inscripciones-input"
                     placeholder="ID Estudiante"
                   />
@@ -328,57 +245,28 @@ const handleGenerate = (isForm2 = false) => {
               />
             </div>
             <div className="inscripciones-buttons">
-              <button
-                className="btn btn-primary"
-                onClick={() => handleEnroll(false)}
-                style={{
-                  transition: "opacity 0.3s ease",
-                }}
-              >
+              <button className="btn btn-primary" onClick={() => handleEnroll(false)} style={{ transition: "opacity 0.3s ease" }}>
                 Inscribir estudiantes al grupo
               </button>
-              <button
-                className="btn btn-danger"
-                onClick={() => handleRemove(false)}
-                style={{
-                  transition: "opacity 0.3s ease",
-                }}
-              >
+              <button className="btn btn-danger" onClick={() => handleRemove(false)} style={{ transition: "opacity 0.3s ease" }}>
                 Eliminar estudiantes del grupo
               </button>
-              <button
-                className="btn btn-success"
-                onClick={() => handleExcelExport(false)}
-                style={{ flex: "none", padding: "8px 12px" }}
-                title="Importar IDs de estudiantes desde Excel"
-              >
+              <button className="btn btn-success" onClick={() => handleExcelExport(false)} style={{ flex: "none", padding: "8px 12px" }} title="Importar IDs de estudiantes desde Excel">
                 <FileSpreadsheet size={20} />
               </button>
-              <button
-                className="btn btn-warning"
-                onClick={() => handleClear(false)}
-                style={{ flex: "none" }}
-              >
-                🧹
-              </button>
-              <button
-                className="btn btn-black"
-                onClick={() => handleGenerate(false)}
-                style={{ flex: "none" }}
-              >
-                ✨
-              </button>
+              <button className="btn btn-warning" onClick={() => handleClear(false)} style={{ flex: "none" }}>🧹</button>
+              <button className="btn btn-black" onClick={() => handleGenerate(false)} style={{ flex: "none" }}>✨</button>
             </div>
+
+            <CommandsDisplay commands={generatedCommands} onClear={() => setGeneratedCommands([])} />
           </div>
         )}
 
         {showForm2 && (
           <div className="inscripciones-form-container">
             <h5 className="inscripciones-title">
-              Ingrese el estudiante al cual desea inscribirle o retirarle grupos
-              academicos
+              Ingrese el estudiante al cual desea inscribirle o retirarle grupos academicos
             </h5>
-
             <div className="inscripciones-form">
               <div className="buscarIds">
                 <input
@@ -389,11 +277,8 @@ const handleGenerate = (isForm2 = false) => {
                   className="inscripciones-input"
                   placeholder="ID Estudiante"
                 />
-                <button className="btn" onClick={() => BuscarId(true)}>
-                  🔍
-                </button>
+                <button className="btn" onClick={() => BuscarId(true)}>🔍</button>
               </div>
-
               <hr className="inscripciones-divider" />
               <div
                 className="inscripciones-grid"
@@ -411,9 +296,7 @@ const handleGenerate = (isForm2 = false) => {
                     type="text"
                     id={`studentId2-${index}`}
                     value={studentId}
-                    onChange={(e) =>
-                      handleStudentIdChange(index, e.target.value, true)
-                    }
+                    onChange={(e) => handleStudentIdChange(index, e.target.value, true)}
                     className="inscripciones-input"
                     placeholder="ID Grupo"
                   />
@@ -427,42 +310,20 @@ const handleGenerate = (isForm2 = false) => {
               />
             </div>
             <div className="inscripciones-buttons">
-              <button
-                className="btn btn-primary"
-                onClick={() => handleEnroll(true)}
-              >
+              <button className="btn btn-primary" onClick={() => handleEnroll(true)}>
                 Inscribir estudiante a grupos
               </button>
-              <button
-                className="btn btn-danger"
-                onClick={() => handleRemove(true)}
-              >
+              <button className="btn btn-danger" onClick={() => handleRemove(true)}>
                 Retirar estudiante de grupos
               </button>
-              <button
-                className="btn btn-success"
-                onClick={() => handleExcelExport(true)}
-                style={{ flex: "none", padding: "8px 12px" }}
-                title="Importar IDs de grupos desde Excel"
-              >
+              <button className="btn btn-success" onClick={() => handleExcelExport(true)} style={{ flex: "none", padding: "8px 12px" }} title="Importar IDs de grupos desde Excel">
                 <FileSpreadsheet size={20} />
               </button>
-              <button
-                className="btn btn-warning"
-                onClick={() => handleClear(true)}
-                style={{ flex: "none" }}
-              >
-                🧹
-              </button>
-
-              <button
-                className="btn btn-black"
-                onClick={() => handleGenerate(true)}
-                style={{ flex: "none" }}
-              >
-                ✨
-              </button>
+              <button className="btn btn-warning" onClick={() => handleClear(true)} style={{ flex: "none" }}>🧹</button>
+              <button className="btn btn-black" onClick={() => handleGenerate(true)} style={{ flex: "none" }}>✨</button>
             </div>
+
+            <CommandsDisplay commands={generatedCommands} onClear={() => setGeneratedCommands([])} />
           </div>
         )}
       </div>

@@ -1,14 +1,15 @@
 import React, { useState } from "react";
 import "../Styles/styles.css";
-import { sendCommands } from "../services/apiService";
+import CommandsDisplay from "./CommandsDisplay";
 import { showSuccess, showError } from "../services/toastService";
 
 function CambiosEstadoBemo() {
   const [studentId, setStudentId] = useState("");
   const [programId, setProgramId] = useState("");
   const [selectedState, setSelectedState] = useState("");
+  const [generatedCommands, setGeneratedCommands] = useState([]);
 
-  const handleGenerateCommand = async () => {
+  const handleGenerateCommand = () => {
     const trimmedStudentId = studentId.trim();
     const trimmedProgramId = programId.trim();
 
@@ -18,22 +19,19 @@ function CambiosEstadoBemo() {
     }
 
     const command = `magik run:prod status:change["${trimmedProgramId}","${selectedState}","${trimmedStudentId}"]`;
+    setGeneratedCommands([command]);
+    showSuccess("Comando generado");
+  };
 
-    const result = await sendCommands([command]);
-
-    if (result.success) {
-      showSuccess("Comando enviado exitosamente");
-      // Limpiar los campos después de un envío exitoso
-      setStudentId("");
-      setProgramId("");
-      setSelectedState("");
-    } else {
-      showError("Error al enviar el comando: " + result.error);
-    }
+  const handleClear = () => {
+    setStudentId("");
+    setProgramId("");
+    setSelectedState("");
+    setGeneratedCommands([]);
   };
 
   return (
-    <div className="content-container">
+    <div className="content-container" style={{ flexDirection: "column", alignItems: "stretch" }}>
       <h3 style={{ textAlign: "center", marginBottom: "20px" }}>
         Genere un cambio de estado con Bemo para estudiante de Nueva America
       </h3>
@@ -66,10 +64,11 @@ function CambiosEstadoBemo() {
           <option value="650dfeba1bc4f0480d1fa128">Matricula no exitosa</option>
           <option value="650dfeb91bc4f0480d1fa118">Requisitos Académicos</option>
         </select>
-        <button onClick={handleGenerateCommand} className="button">
-          ▶
-        </button>
+        <button onClick={handleGenerateCommand} className="button">▶</button>
+        <button onClick={handleClear} className="btn btn-warning" style={{ padding: "8px 12px" }}>🧹</button>
       </div>
+
+      <CommandsDisplay commands={generatedCommands} onClear={() => setGeneratedCommands([])} />
     </div>
   );
 }
