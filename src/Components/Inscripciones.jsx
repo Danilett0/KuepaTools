@@ -1,14 +1,14 @@
 import React, { useState } from "react";
-import { FileSpreadsheet } from "lucide-react";
-import ExcelReader from "./ExcelReader";
+import { Eraser, UserPlus, UserMinus, ChevronDown, ChevronRight } from "lucide-react";
 import CommandsDisplay from "./CommandsDisplay";
 import { showError, showSuccess } from "../services/toastService";
 import users from "../data/users.json";
 import { toast } from "react-toastify";
 
-function ComandosBemoInscripciones() {
-  const [showForm1, setShowForm1] = useState(false);
-  const [showForm2, setShowForm2] = useState(true);
+function ComandosBemoInscripciones({ formType = "estudiante" }) {
+  const showForm2 = formType === "estudiante";
+  const showForm1 = formType === "grupo";
+  
   const [groupId, setGroupId] = useState("");
   const [groupId2, setGroupId2] = useState("");
   const [txareaIds, setTxareaIds] = useState("");
@@ -17,10 +17,9 @@ function ComandosBemoInscripciones() {
   const [minInputsForm1] = useState(8);
   const [minInputsForm2] = useState(8);
 
-  const [showExcelReader, setShowExcelReader] = useState(false);
-  const [currentForm, setCurrentForm] = useState(null);
+  const [showManualInputsForm1, setShowManualInputsForm1] = useState(false);
+  const [showManualInputsForm2, setShowManualInputsForm2] = useState(false);
 
-  // State for generated commands
   const [generatedCommands, setGeneratedCommands] = useState([]);
 
   const handleStudentIdChange = (index, value, isForm2 = false) => {
@@ -132,10 +131,21 @@ function ComandosBemoInscripciones() {
   };
 
   const handleGenerate = (isForm2 = false) => {
+    if (!txareaIds || txareaIds.trim() === "") return;
+
     const flatIds = txareaIds
       .split(/\s+/)
       .map((e) => e.trim())
-      .filter((e) => e.length >= 24);
+      .filter((e) => {
+        const isCorrectLength = e.length >= 24 && e.length <= 26;
+        const isAlphanumeric = /^[a-zA-Z0-9]+$/.test(e);
+        return isCorrectLength && isAlphanumeric;
+      });
+
+    if (flatIds.length === 0) {
+      setTxareaIds("");
+      return;
+    }
 
     const minInputs = isForm2 ? minInputsForm2 : minInputsForm1;
     const requiredInputs = Math.max(flatIds.length, minInputs);
@@ -152,110 +162,105 @@ function ComandosBemoInscripciones() {
     setTxareaIds("");
   };
 
-  const handleExcelExport = (isForm2 = false) => {
-    setCurrentForm(isForm2);
-    setShowExcelReader(true);
-  };
-
-  const handleExcelDataRead = (data) => {
-    if (currentForm) {
-      const requiredInputs = Math.max(data.length, minInputsForm2);
-      const newStudentIds2 = Array(requiredInputs).fill("");
-      data.forEach((id, index) => { newStudentIds2[index] = id; });
-      setStudentIds2(newStudentIds2);
-      showSuccess(`Se importaron ${data.length} registros correctamente.`);
-    } else {
-      const requiredInputs = Math.max(data.length, minInputsForm1);
-      const newStudentIds = Array(requiredInputs).fill("");
-      data.forEach((id, index) => { newStudentIds[index] = id; });
-      setStudentIds(newStudentIds);
-      showSuccess(`Se importaron ${data.length} registros correctamente.`);
-    }
-    setShowExcelReader(false);
-    setCurrentForm(null);
-  };
-
-  const closeExcelReader = () => {
-    setShowExcelReader(false);
-    setCurrentForm(null);
-  };
-
   return (
     <div className="inscripciones-container">
       <div className="inscripciones-content">
-        <div className="inscripciones-buttons-main">
-          <button
-            className="btn btn-black btn-lg"
-            style={{ opacity: showForm2 ? "1" : "0.5", transition: "opacity 0.3s ease" }}
-            onClick={() => { if (!showForm2) { setShowForm2(true); setShowForm1(false); setGeneratedCommands([]); } }}
-          >
-            Inscribir grupos a un estudiante
-          </button>
-          <button
-            className="btn btn-black btn-lg"
-            style={{ opacity: showForm1 ? "1" : "0.5", transition: "opacity 0.3s ease" }}
-            onClick={() => { if (!showForm1) { setShowForm1(true); setShowForm2(false); setGeneratedCommands([]); } }}
-          >
-            Incribir varios estudiantes a un grupo
-          </button>
-        </div>
-
         {showForm1 && (
-          <div className="inscripciones-form-container">
-            <h5 className="inscripciones-title">
-              Ingrese el grupo academico, seguido de los estudiantes que desea inscribirle o retirarle
+          <div className="inscripciones-form-container" style={{ marginTop: 0 }}>
+            <h5 className="inscripciones-title" style={{ fontSize: "20px", color: "var(--primary)", fontWeight: "800" }}>
+              Inscribir varios estudiantes a un grupo
             </h5>
             <div className="inscripciones-form">
-              <input
-                type="text"
-                id="groupId"
-                value={groupId}
-                onChange={(e) => setGroupId(e.target.value)}
-                className="inscripciones-input"
-                placeholder="ID GRUPO ACADEMICO"
-              />
-              <hr className="inscripciones-divider" />
-              <div
-                className="inscripciones-grid"
-                style={{
-                  maxHeight: studentIds.length > 20 ? "400px" : "auto",
-                  overflowY: studentIds.length > 20 ? "auto" : "visible",
-                  border: studentIds.length > 20 ? "1px solid #ddd" : "none",
-                  borderRadius: studentIds.length > 20 ? "5px" : "0",
-                  padding: studentIds.length > 20 ? "10px" : "0",
-                }}
-              >
-                {studentIds.map((studentId, index) => (
-                  <input
-                    key={index}
-                    type="text"
-                    id={`studentId-${index}`}
-                    value={studentId}
-                    onChange={(e) => handleStudentIdChange(index, e.target.value)}
-                    className="inscripciones-input"
-                    placeholder="ID Estudiante"
-                  />
-                ))}
+              <div className="input-wrapper">
+                <label className="input-label">ID Grupo Académico</label>
+                <input
+                  type="text"
+                  id="groupId"
+                  value={groupId}
+                  onChange={(e) => setGroupId(e.target.value)}
+                  className="inscripciones-input"
+                />
               </div>
-              <textarea
-                className="txareaids"
-                value={txareaIds}
-                placeholder="Ingrese listado de IDS separados por salto de linea"
-                onChange={(e) => setTxareaIds(e.target.value)}
-              />
+              <hr className="inscripciones-divider" />
+              
+              <div 
+                style={{ 
+                  display: "flex", 
+                  alignItems: "center", 
+                  gap: "8px", 
+                  cursor: "pointer", 
+                  color: "var(--primary)", 
+                  fontSize: "14px", 
+                  fontWeight: "700",
+                  marginTop: "8px",
+                  marginBottom: showManualInputsForm1 ? "16px" : "8px",
+                  userSelect: "none"
+                }}
+                onClick={() => setShowManualInputsForm1(!showManualInputsForm1)}
+              >
+                {showManualInputsForm1 ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+                {showManualInputsForm1 ? "Ocultar ingreso manual" : "Ingresar IDs manualmente"}
+                {studentIds.filter(id => id.trim() !== "").length > 0 && !showManualInputsForm1 && (
+                  <span style={{ 
+                    background: "var(--primary)", 
+                    color: "#090909", 
+                    padding: "2px 8px", 
+                    borderRadius: "100px", 
+                    fontSize: "11px", 
+                    marginLeft: "auto"
+                  }}>
+                    {studentIds.filter(id => id.trim() !== "").length} detectados
+                  </span>
+                )}
+              </div>
+
+              {showManualInputsForm1 && (
+                <div
+                  className="inscripciones-grid"
+                  style={{
+                    maxHeight: studentIds.length > 20 ? "400px" : "auto",
+                    overflowY: studentIds.length > 20 ? "auto" : "visible",
+                    border: studentIds.length > 20 ? "1px solid var(--glass-border)" : "none",
+                    borderRadius: studentIds.length > 20 ? "12px" : "0",
+                    padding: studentIds.length > 20 ? "10px" : "0",
+                  }}
+                >
+                  {studentIds.map((studentId, index) => (
+                    <div className="input-wrapper" key={index}>
+                      <label className="input-label">ID Estudiante {index + 1}</label>
+                      <input
+                        type="text"
+                        id={`studentId-${index}`}
+                        value={studentId}
+                        onChange={(e) => handleStudentIdChange(index, e.target.value)}
+                        className="inscripciones-input"
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="input-wrapper" style={{ marginTop: "16px" }}>
+                <label className="input-label">Lista de los ID que seran detectados automaticamente</label>
+                <textarea
+                  className="txareaids"
+                  value={txareaIds}
+                  onChange={(e) => setTxareaIds(e.target.value)}
+                  onBlur={() => handleGenerate(false)}
+                  style={{ minHeight: "150px" }}
+                />
+              </div>
             </div>
             <div className="inscripciones-buttons">
               <button className="btn btn-primary" onClick={() => handleEnroll(false)}>
-                Inscribir estudiantes al grupo
+                <UserPlus size={20} /> Inscribir estudiantes
               </button>
               <button className="btn btn-danger" onClick={() => handleRemove(false)}>
-                Eliminar estudiantes del grupo
+                <UserMinus size={20} /> Eliminar estudiantes
               </button>
-              <button className="btn btn-success btn-icon" onClick={() => handleExcelExport(false)} title="Importar IDs de estudiantes desde Excel">
-                <FileSpreadsheet size={20} />
+              <button className="btn btn-warning btn-icon" onClick={() => handleClear(false)} title="Limpiar">
+                <Eraser size={20} />
               </button>
-              <button className="btn btn-warning btn-icon" onClick={() => handleClear(false)}>🧹</button>
-              <button className="btn btn-black btn-icon" onClick={() => handleGenerate(false)}>✨</button>
             </div>
 
             <CommandsDisplay commands={generatedCommands} onClear={() => setGeneratedCommands([])} />
@@ -263,76 +268,120 @@ function ComandosBemoInscripciones() {
         )}
 
         {showForm2 && (
-          <div className="inscripciones-form-container">
-            <h5 className="inscripciones-title">
-              Ingrese el estudiante al cual desea inscribirle o retirarle grupos academicos
+          <div className="inscripciones-form-container" style={{ marginTop: 0 }}>
+            <h5 className="inscripciones-title" style={{ fontSize: "20px", color: "var(--primary)", fontWeight: "800" }}>
+              Inscribir grupos a un estudiante
             </h5>
             <div className="inscripciones-form">
               <div className="buscarIds">
-                <input
-                  type="text"
-                  id="groupId2"
-                  value={groupId2}
-                  onChange={(e) => setGroupId2(e.target.value)}
-                  className="inscripciones-input"
-                  placeholder="ID Estudiante"
-                />
-                <button className="btn" onClick={() => BuscarId(true)}>🔍</button>
+                <div className="input-wrapper" style={{ flex: 1 }}>
+                  <label className="input-label">ID Estudiante</label>
+                  <input
+                    type="text"
+                    id="groupId2"
+                    value={groupId2}
+                    onChange={(e) => setGroupId2(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        BuscarId(true);
+                      }
+                    }}
+                    onBlur={() => {
+                      if (groupId2.trim().length > 0 && groupId2.trim().length < 7) {
+                        BuscarId(true);
+                      }
+                    }}
+                    className="inscripciones-input"
+                  />
+                </div>
               </div>
               <hr className="inscripciones-divider" />
-              <div
-                className="inscripciones-grid"
-                style={{
-                  maxHeight: studentIds2.length > 20 ? "400px" : "auto",
-                  overflowY: studentIds2.length > 20 ? "auto" : "visible",
-                  border: studentIds2.length > 20 ? "1px solid #ddd" : "none",
-                  borderRadius: studentIds2.length > 20 ? "5px" : "0",
-                  padding: studentIds2.length > 20 ? "10px" : "0",
+              
+              <div 
+                style={{ 
+                  display: "flex", 
+                  alignItems: "center", 
+                  gap: "8px", 
+                  cursor: "pointer", 
+                  color: "var(--primary)", 
+                  fontSize: "14px", 
+                  fontWeight: "700",
+                  marginTop: "8px",
+                  marginBottom: showManualInputsForm2 ? "16px" : "8px",
+                  userSelect: "none"
                 }}
+                onClick={() => setShowManualInputsForm2(!showManualInputsForm2)}
               >
-                {studentIds2.map((studentId, index) => (
-                  <input
-                    key={index}
-                    type="text"
-                    id={`studentId2-${index}`}
-                    value={studentId}
-                    onChange={(e) => handleStudentIdChange(index, e.target.value, true)}
-                    className="inscripciones-input"
-                    placeholder="ID Grupo"
-                  />
-                ))}
+                {showManualInputsForm2 ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+                {showManualInputsForm2 ? "Ocultar ingreso manual" : "Ingresar IDs manualmente"}
+                {studentIds2.filter(id => id.trim() !== "").length > 0 && !showManualInputsForm2 && (
+                  <span style={{ 
+                    background: "var(--primary)", 
+                    color: "#090909", 
+                    padding: "2px 8px", 
+                    borderRadius: "100px", 
+                    fontSize: "11px", 
+                    marginLeft: "auto"
+                  }}>
+                    {studentIds2.filter(id => id.trim() !== "").length} detectados
+                  </span>
+                )}
               </div>
-              <textarea
-                className="txareaids"
-                value={txareaIds}
-                placeholder="Ingrese listado de IDS separados por salto de linea"
-                onChange={(e) => setTxareaIds(e.target.value)}
-              />
+
+              {showManualInputsForm2 && (
+                <div
+                  className="inscripciones-grid"
+                  style={{
+                    maxHeight: studentIds2.length > 20 ? "400px" : "auto",
+                    overflowY: studentIds2.length > 20 ? "auto" : "visible",
+                    border: studentIds2.length > 20 ? "1px solid var(--glass-border)" : "none",
+                    borderRadius: studentIds2.length > 20 ? "12px" : "0",
+                    padding: studentIds2.length > 20 ? "10px" : "0",
+                  }}
+                >
+                  {studentIds2.map((studentId, index) => (
+                    <div className="input-wrapper" key={index}>
+                      <label className="input-label">ID Grupo {index + 1}</label>
+                      <input
+                        type="text"
+                        id={`studentId2-${index}`}
+                        value={studentId}
+                        onChange={(e) => handleStudentIdChange(index, e.target.value, true)}
+                        className="inscripciones-input"
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="input-wrapper" style={{ marginTop: "16px" }}>
+                <label className="input-label">Lista de los ID que seran detectados automaticamente</label>
+                <textarea
+                  className="txareaids"
+                  value={txareaIds}
+                  onChange={(e) => setTxareaIds(e.target.value)}
+                  onBlur={() => handleGenerate(true)}
+                  style={{ minHeight: "150px" }}
+                />
+              </div>
             </div>
             <div className="inscripciones-buttons">
               <button className="btn btn-primary" onClick={() => handleEnroll(true)}>
-                Inscribir estudiante a grupos
+                <UserPlus size={20} /> Inscribir a grupos
               </button>
               <button className="btn btn-danger" onClick={() => handleRemove(true)}>
-                Retirar estudiante de grupos
+                <UserMinus size={20} /> Retirar de grupos
               </button>
-              <button className="btn btn-success btn-icon" onClick={() => handleExcelExport(true)} title="Importar IDs de grupos desde Excel">
-                <FileSpreadsheet size={20} />
+              <button className="btn btn-warning btn-icon" onClick={() => handleClear(true)} title="Limpiar">
+                <Eraser size={20} />
               </button>
-              <button className="btn btn-warning btn-icon" onClick={() => handleClear(true)}>🧹</button>
-              <button className="btn btn-black btn-icon" onClick={() => handleGenerate(true)}>✨</button>
             </div>
 
             <CommandsDisplay commands={generatedCommands} onClear={() => setGeneratedCommands([])} />
           </div>
         )}
       </div>
-
-      <ExcelReader
-        isVisible={showExcelReader}
-        onDataRead={handleExcelDataRead}
-        onClose={closeExcelReader}
-      />
     </div>
   );
 }

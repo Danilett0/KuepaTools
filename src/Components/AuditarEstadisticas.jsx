@@ -1,92 +1,65 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import "../Styles/styles.css";
 import CommandsDisplay from "./CommandsDisplay";
-import { showSuccess, showError } from "../services/toastService";
 
 function SegundaPagina() {
   const [secondStudentId, setSecondStudentId] = useState("");
   const [secondProgramId, setSecondProgramId] = useState("");
-  const [grupoAcademicoId, setGrupoAcademicoId] = useState("");
 
   const [commandsEstudiante, setCommandsEstudiante] = useState([]);
-  const [commandsGrupo, setCommandsGrupo] = useState([]);
 
-  const handleAction = () => {
-    if (!secondProgramId.trim() || !secondStudentId.trim()) {
-      showError("Por favor, complete ambos campos.");
-      return;
+  useEffect(() => {
+    const student = secondStudentId.trim();
+    const program = secondProgramId.trim();
+
+    if (student && program) {
+      const commands = [
+        `magik run:prod audit:level["${program}","${student}"]`,
+        `magik run:prod audit:statistics["${program}","${student}"]`,
+        `magik run:prod audit:compacts["${program}","${student}"]`,
+      ];
+      setCommandsEstudiante(commands);
+    } else {
+      setCommandsEstudiante([]);
     }
-
-    const commands = [
-      `magik run:prod audit:level["${secondProgramId}","${secondStudentId}"]`,
-      `magik run:prod audit:statistics["${secondProgramId}","${secondStudentId}"]`,
-      `magik run:prod audit:compacts["${secondProgramId}","${secondStudentId}"]`,
-    ];
-
-    setCommandsEstudiante(commands);
-    showSuccess("3 comandos generados");
-  };
-
-  const auditarGrupo = () => {
-    if (!grupoAcademicoId.trim()) {
-      showError("Por favor, complete el campo de ID grupo académico.");
-      return;
-    }
-
-    const command = `magik run:prod audit:group["${grupoAcademicoId}"]`;
-    setCommandsGrupo([command]);
-    showSuccess("Comando generado");
-  };
+  }, [secondStudentId, secondProgramId]);
 
   return (
-    <div className="page-container">
-      <div className="content-container">
-        <h3 className="title">Auditar estadisticas estudiante</h3>
-        <div className="input-group">
-          <input
-            type="text"
-            placeholder="ID Programa"
-            value={secondProgramId}
-            onChange={(e) => setSecondProgramId(e.target.value)}
-            className="input"
-          />
-          <input
-            type="text"
-            placeholder="ID Estudiante"
-            value={secondStudentId}
-            onChange={(e) => setSecondStudentId(e.target.value)}
-            className="input"
-          />
-          <button onClick={handleAction} className="button">▶</button>
-          <button
-            onClick={() => { setSecondStudentId(""); setSecondProgramId(""); setCommandsEstudiante([]); }}
-            className="btn btn-warning btn-icon"
-          >
-            🧹
-          </button>
+    <div className="inscripciones-container" style={{ display: "flex", flexDirection: "column", gap: "32px" }}>
+      {/* Estudiante */}
+      <div className="inscripciones-content">
+        <h3 className="inscripciones-title" style={{ fontSize: "20px", color: "var(--primary)", fontWeight: "800" }}>
+          Auditar estadísticas de estudiante
+        </h3>
+        <div className="inscripciones-form">
+          <p style={{ marginBottom: "8px", color: "var(--on-surface-variant)" }}>
+            Ingrese los IDs. Los comandos se generarán automáticamente.
+          </p>
+          <div className="inscripciones-grid">
+            <div className="input-wrapper">
+              <label className="input-label">ID Estudiante</label>
+              <input
+                type="text"
+                value={secondStudentId}
+                onChange={(e) => setSecondStudentId(e.target.value)}
+                className="inscripciones-input"
+              />
+            </div>
+            <div className="input-wrapper">
+              <label className="input-label">ID Programa</label>
+              <input
+                type="text"
+                value={secondProgramId}
+                onChange={(e) => setSecondProgramId(e.target.value)}
+                className="inscripciones-input"
+              />
+            </div>
+          </div>
         </div>
-        <CommandsDisplay commands={commandsEstudiante} onClear={() => setCommandsEstudiante([])} />
-      </div>
+        
+        {/* Buttons removed entirely for automatic generation */}
 
-      <div className="content-container">
-        <h3 className="title">Auditar grupo académico</h3>
-        <div className="input-group">
-          <input
-            type="text"
-            placeholder="ID grupo académico"
-            value={grupoAcademicoId}
-            onChange={(e) => setGrupoAcademicoId(e.target.value)}
-            className="input"
-          />
-          <button onClick={auditarGrupo} className="button">▶</button>
-          <button
-            onClick={() => { setGrupoAcademicoId(""); setCommandsGrupo([]); }}
-            className="btn btn-warning btn-icon"
-          >
-            🧹
-          </button>
-        </div>
-        <CommandsDisplay commands={commandsGrupo} onClear={() => setCommandsGrupo([])} />
+        <CommandsDisplay commands={commandsEstudiante} onClear={() => setCommandsEstudiante([])} />
       </div>
     </div>
   );
