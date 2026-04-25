@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { toast } from "react-toastify";
-import { Copy, Check, X } from "lucide-react";
+import { Copy, Check, X, Download } from "lucide-react";
 
 function CommandsDisplay({ commands, onClear }) {
   const [copiedIndex, setCopiedIndex] = useState(null);
@@ -24,8 +24,23 @@ function CommandsDisplay({ commands, onClear }) {
     });
   };
 
+  const handleDownload = () => {
+    const text = commands.map((c) => c.trim()).join("\n");
+    const blob = new Blob([text], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `comandos_kuepatools_${new Date().getTime()}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast.success("Archivo descargado correctamente");
+  };
+
   return (
     <div
+      className="animate-slide-down"
       style={{
         marginTop: "24px",
         borderRadius: "16px",
@@ -69,6 +84,27 @@ function CommandsDisplay({ commands, onClear }) {
             }}
           >
             {copiedAll ? <><Check size={16} /> Copiado</> : <><Copy size={16} /> Copiar todo</>}
+          </button>
+          <button
+            onClick={handleDownload}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              padding: "6px 16px",
+              borderRadius: "100px",
+              border: "none",
+              backgroundColor: "rgba(255, 255, 255, 0.1)",
+              color: "var(--on-surface)",
+              cursor: "pointer",
+              fontWeight: 700,
+              fontSize: "13px",
+              transition: "all 0.2s ease",
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "rgba(255, 255, 255, 0.15)"}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "rgba(255, 255, 255, 0.1)"}
+          >
+            <Download size={16} /> Descargar .txt
           </button>
           <button
             onClick={onClear}

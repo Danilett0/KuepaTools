@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
+import { useLocalStorage } from "../hooks/useLocalStorage";
 import "../Styles/styles.css";
 import CommandsDisplay from "./CommandsDisplay";
 import { showSuccess, showError } from "../services/toastService";
@@ -16,9 +17,9 @@ const stateOptions = [
 ];
 
 function CambiosEstadoBemo() {
-  const [studentId, setStudentId] = useState("");
-  const [programId, setProgramId] = useState("");
-  const [selectedState, setSelectedState] = useState("");
+  const [studentId, setStudentId] = useLocalStorage("cambioEstados-studentId", "");
+  const [programId, setProgramId] = useLocalStorage("cambioEstados-programId", "");
+  const [selectedState, setSelectedState] = useLocalStorage("cambioEstados-selectedState", "");
   const [generatedCommands, setGeneratedCommands] = useState([]);
   
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -33,6 +34,23 @@ function CambiosEstadoBemo() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  const handleClear = useCallback(() => {
+    setStudentId("");
+    setProgramId("");
+    setSelectedState("");
+    setGeneratedCommands([]);
+  }, [setStudentId, setProgramId, setSelectedState]);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        handleClear();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleClear]);
 
   const handleGenerateCommand = (newStateValue) => {
     const trimmedStudentId = studentId.trim();

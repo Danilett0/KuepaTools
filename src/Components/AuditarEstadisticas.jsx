@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
+import { useLocalStorage } from "../hooks/useLocalStorage";
 import "../Styles/styles.css";
 import CommandsDisplay from "./CommandsDisplay";
 
 function SegundaPagina() {
-  const [secondStudentId, setSecondStudentId] = useState("");
-  const [secondProgramId, setSecondProgramId] = useState("");
+  const [secondStudentId, setSecondStudentId] = useLocalStorage("auditar-secondStudentId", "");
+  const [secondProgramId, setSecondProgramId] = useLocalStorage("auditar-secondProgramId", "");
 
   const [commandsEstudiante, setCommandsEstudiante] = useState([]);
 
@@ -23,6 +24,22 @@ function SegundaPagina() {
       setCommandsEstudiante([]);
     }
   }, [secondStudentId, secondProgramId]);
+
+  const handleClear = useCallback(() => {
+    setSecondStudentId("");
+    setSecondProgramId("");
+    setCommandsEstudiante([]);
+  }, [setSecondStudentId, setSecondProgramId]);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        handleClear();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleClear]);
 
   return (
     <div className="inscripciones-container" style={{ display: "flex", flexDirection: "column", gap: "32px" }}>
