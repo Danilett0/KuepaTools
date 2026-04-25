@@ -1,189 +1,118 @@
 import "./Styles/styles.css";
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import CambiosEstadoBemo from "./Components/CambioEstados.jsx";
 import AuditarEstadisticas from "./Components/AuditarEstadisticas.jsx";
 import Inscripciones from "./Components/Inscripciones.jsx";
-import EnvioComandos from "./Components/EnvioComandos.jsx";
 import Lottie from "lottie-react";
 import groovyWalkAnimation from "./medit.json";
+import { Users, RefreshCw, BarChart2, Shield, ChevronDown, ChevronRight } from "lucide-react";
 
 function App() {
-  const [activeComponent, setActiveComponent] = useState("inscripciones");
-  const [showFunctionsMenu, setShowFunctionsMenu] = useState(false);
-  const menuRef = useRef(null);
-
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (menuRef.current && !menuRef.current.contains(event.target)) {
-        setShowFunctionsMenu(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, []);
+  const [activeComponent, setActiveComponent] = useState("inscripciones-estudiante");
+  const [expandedMenu, setExpandedMenu] = useState("inscripciones");
 
   const renderComponent = () => {
     switch (activeComponent) {
-      case "inscripciones":
-        return <Inscripciones />;
+      case "inscripciones-estudiante":
+        return <Inscripciones formType="estudiante" />;
+      case "inscripciones-grupo":
+        return <Inscripciones formType="grupo" />;
       case "cambios-estado":
         return <CambiosEstadoBemo />;
       case "auditar-estadisticas":
         return <AuditarEstadisticas />;
-      case "envio-comandos":
-        return <EnvioComandos />;
       default:
-        return <Inscripciones />;
+        return <Inscripciones formType="estudiante" />;
     }
   };
 
+  const navItems = [
+    { 
+      id: "inscripciones", 
+      label: "Inscripciones", 
+      icon: Users,
+      subItems: [
+        { id: "inscripciones-estudiante", label: "Inscribir grupos a un estudiante" },
+        { id: "inscripciones-grupo", label: "Inscribir varios estudiantes a un grupo" }
+      ]
+    },
+    { id: "cambios-estado", label: "Cambios de Estado", icon: RefreshCw },
+    { id: "auditar-estadisticas", label: "Auditar Estadísticas", icon: BarChart2 },
+  ];
+
   return (
-    <div
-      style={{
-        width: "100%",
-        display: "flex",
-        alignItems: "center",
-        flexDirection: "column",
-        position: "relative",
-      }}
-    >
-      <div style={{
-          position: "absolute",
-          top: "20px",
-          right: "20px",
-          zIndex: 1000,
-          display: "flex",
-          gap: "10px",
-          alignItems: "center"
-        }}
-        ref={menuRef}
-      >
-        <div
-          onClick={() => setShowFunctionsMenu(!showFunctionsMenu)}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            cursor: 'pointer',
-            padding: '8px 12px',
-            borderRadius: '4px',
-            backgroundColor: 'rgba(255, 255, 255, 0.1)',
-            color: '#fff',
-            transition: 'background-color 0.3s ease',
-          }}
-          onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.2)'}
-          onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'}
-        >
-          <span style={{ fontWeight: '500' }}>Funcionalidades BEMO</span>
-          <i className="fas fa-chevron-down" style={{ fontSize: '12px' }} />
-        </div>
-
-        {showFunctionsMenu && (
-          <div style={{
-            position: 'absolute',
-            top: '100%',
-            left: '0',
-            marginTop: '8px',
-            backgroundColor: 'white',
-            borderRadius: '4px',
-            boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
-            padding: '8px 0',
-            minWidth: '200px',
-          }}>
-            <div
-              onClick={() => {
-                setActiveComponent("inscripciones");
-                setShowFunctionsMenu(false);
-              }}
-              style={{
-                padding: '8px 16px',
-                cursor: 'pointer',
-                transition: 'background-color 0.3s ease',
-                backgroundColor: activeComponent === "inscripciones" ? '#f8f9fa' : 'transparent',
-                color: activeComponent === "inscripciones" ? '#0056b3' : '#333',
-              }}
-              onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
-              onMouseOut={(e) => e.currentTarget.style.backgroundColor = activeComponent === "inscripciones" ? '#f8f9fa' : 'transparent'}
-            >
-              <i className="fas fa-users" style={{ marginRight: '8px' }} />
-              Inscripciones a Grupos
-            </div>
-            <div
-              onClick={() => {
-                setActiveComponent("cambios-estado");
-                setShowFunctionsMenu(false);
-              }}
-              style={{
-                padding: '8px 16px',
-                cursor: 'pointer',
-                transition: 'background-color 0.3s ease',
-                backgroundColor: activeComponent === "cambios-estado" ? '#f8f9fa' : 'transparent',
-                color: activeComponent === "cambios-estado" ? '#0056b3' : '#333',
-              }}
-              onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
-              onMouseOut={(e) => e.currentTarget.style.backgroundColor = activeComponent === "cambios-estado" ? '#f8f9fa' : 'transparent'}
-            >
-              <i className="fas fa-exchange-alt" style={{ marginRight: '8px' }} />
-              Cambios de Estado
-            </div>
-            <div
-              onClick={() => {
-                setActiveComponent("auditar-estadisticas");
-                setShowFunctionsMenu(false);
-              }}
-              style={{
-                padding: '8px 16px',
-                cursor: 'pointer',
-                transition: 'background-color 0.3s ease',
-                backgroundColor: activeComponent === "auditar-estadisticas" ? '#f8f9fa' : 'transparent',
-                color: activeComponent === "auditar-estadisticas" ? '#0056b3' : '#333',
-              }}
-              onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
-              onMouseOut={(e) => e.currentTarget.style.backgroundColor = activeComponent === "auditar-estadisticas" ? '#f8f9fa' : 'transparent'}
-            >
-              <i className="fas fa-chart-line" style={{ marginRight: '8px' }} />
-              Auditar Estadísticas
-            </div>
-            <div
-              onClick={() => {
-                setActiveComponent("envio-comandos");
-                setShowFunctionsMenu(false);
-              }}
-              style={{
-                padding: '8px 16px',
-                cursor: 'pointer',
-                transition: 'background-color 0.3s ease',
-                backgroundColor: activeComponent === "envio-comandos" ? '#f8f9fa' : 'transparent',
-                color: activeComponent === "envio-comandos" ? '#0056b3' : '#333',
-              }}
-              onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
-              onMouseOut={(e) => e.currentTarget.style.backgroundColor = activeComponent === "envio-comandos" ? '#f8f9fa' : 'transparent'}
-            >
-              <i className="fas fa-terminal" style={{ marginRight: '8px' }} />
-              Envio Comandos Libre
-            </div>
+    <div className="app-wrapper">
+      <aside className="sidebar">
+        <div className="sidebar-title">
+          <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#090909' }}>
+            <Shield size={24} />
           </div>
-        )}
-      </div>
+          KuepaTools
+        </div>
+        <div className="sidebar-menu">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const isExpanded = expandedMenu === item.id;
+            const isActive = activeComponent.startsWith(item.id) || activeComponent === item.id;
 
-      <Lottie
-        style={{ right: "80px" }}
-        className="Lotty"
-        animationData={groovyWalkAnimation}
-        loop={true}
-        speed={0.3}
-      />
+            return (
+              <div key={item.id} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <div
+                  className={`sidebar-item ${isActive && !item.subItems ? 'active' : ''}`}
+                  style={item.subItems && isActive ? { color: 'var(--primary)' } : {}}
+                  onClick={() => {
+                    if (item.subItems) {
+                      setExpandedMenu(isExpanded ? null : item.id);
+                      if (!isExpanded && !activeComponent.startsWith(item.id)) {
+                        setActiveComponent(item.subItems[0].id);
+                      }
+                    } else {
+                      setActiveComponent(item.id);
+                      setExpandedMenu(null);
+                    }
+                  }}
+                >
+                  <Icon size={20} />
+                  <span style={{ flex: 1 }}>{item.label}</span>
+                  {item.subItems && (
+                    isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />
+                  )}
+                </div>
+                {item.subItems && isExpanded && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', paddingLeft: '28px', marginTop: '4px' }}>
+                    {item.subItems.map((sub) => (
+                      <div
+                        key={sub.id}
+                        className={`sidebar-item ${activeComponent === sub.id ? 'active' : ''}`}
+                        style={{ padding: '10px 16px', fontSize: '13px' }}
+                        onClick={() => setActiveComponent(sub.id)}
+                      >
+                        {sub.label}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </aside>
 
-      <div className="app-container" style={{ marginTop: '5%' }}>
-        {renderComponent()}
-      </div>
+      <main className="main-content">
+        <Lottie
+          className="Lotty"
+          animationData={groovyWalkAnimation}
+          loop={true}
+          speed={0.3}
+        />
+        <div className="app-container">
+          {renderComponent()}
+        </div>
+      </main>
 
-      <ToastContainer />
+      <ToastContainer theme="dark" toastStyle={{ background: 'var(--surface-low)', color: 'var(--on-surface)', borderRadius: '12px', border: '1px solid var(--glass-border)' }} />
     </div>
   );
 }
