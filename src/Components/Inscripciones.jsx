@@ -133,14 +133,16 @@ function ComandosBemoInscripciones({ formType = "estudiante" }) {
   const handleGenerate = (isForm2 = false) => {
     if (!txareaIds || txareaIds.trim() === "") return;
 
-    const flatIds = txareaIds
-      .split(/\s+/)
-      .map((e) => e.trim())
-      .filter((e) => {
-        const isCorrectLength = e.length >= 24 && e.length <= 26;
-        const isAlphanumeric = /^[a-zA-Z0-9]+$/.test(e);
-        return isCorrectLength && isAlphanumeric;
-      });
+    const flatIds = Array.from(new Set(
+      txareaIds
+        .split(/\s+/)
+        .map((e) => e.trim())
+        .filter((e) => {
+          const isCorrectLength = e.length >= 24 && e.length <= 26;
+          const isAlphanumeric = /^[a-zA-Z0-9]+$/.test(e);
+          return isCorrectLength && isAlphanumeric;
+        })
+    ));
 
     if (flatIds.length === 0) {
       setTxareaIds("");
