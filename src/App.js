@@ -16,15 +16,15 @@ function App() {
   const renderComponent = () => {
     switch (activeComponent) {
       case "inscripciones-estudiante":
-        return <Inscripciones formType="estudiante" />;
+        return <Inscripciones key="inscripciones-estudiante" formType="estudiante" />;
       case "inscripciones-grupo":
-        return <Inscripciones formType="grupo" />;
+        return <Inscripciones key="inscripciones-grupo" formType="grupo" />;
       case "cambios-estado":
-        return <CambiosEstadoBemo />;
+        return <CambiosEstadoBemo key="cambios-estado" />;
       case "auditar-estadisticas":
-        return <AuditarEstadisticas />;
+        return <AuditarEstadisticas key="auditar-estadisticas" />;
       default:
-        return <Inscripciones formType="estudiante" />;
+        return <Inscripciones key="default" formType="estudiante" />;
     }
   };
 

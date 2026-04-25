@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
+import { useLocalStorage } from "../hooks/useLocalStorage";
 import { Eraser, UserPlus, UserMinus, ChevronDown, ChevronRight } from "lucide-react";
 import CommandsDisplay from "./CommandsDisplay";
 import { showError, showSuccess } from "../services/toastService";
@@ -9,11 +10,11 @@ function ComandosBemoInscripciones({ formType = "estudiante" }) {
   const showForm2 = formType === "estudiante";
   const showForm1 = formType === "grupo";
   
-  const [groupId, setGroupId] = useState("");
-  const [groupId2, setGroupId2] = useState("");
-  const [txareaIds, setTxareaIds] = useState("");
-  const [studentIds, setStudentIds] = useState(Array(8).fill(""));
-  const [studentIds2, setStudentIds2] = useState(Array(8).fill(""));
+  const [groupId, setGroupId] = useLocalStorage(`groupId-${formType}`, "");
+  const [groupId2, setGroupId2] = useLocalStorage(`groupId2-${formType}`, "");
+  const [txareaIds, setTxareaIds] = useLocalStorage(`txareaIds-${formType}`, "");
+  const [studentIds, setStudentIds] = useLocalStorage(`studentIds-${formType}`, Array(8).fill(""));
+  const [studentIds2, setStudentIds2] = useLocalStorage(`studentIds2-${formType}`, Array(8).fill(""));
   const [minInputsForm1] = useState(8);
   const [minInputsForm2] = useState(8);
 
@@ -102,7 +103,7 @@ function ComandosBemoInscripciones({ formType = "estudiante" }) {
     }
   };
 
-  const handleClear = (isForm2 = false) => {
+  const handleClear = useCallback((isForm2 = false) => {
     setTxareaIds("");
     setGeneratedCommands([]);
     if (isForm2) {
@@ -112,7 +113,17 @@ function ComandosBemoInscripciones({ formType = "estudiante" }) {
       setGroupId("");
       setStudentIds(Array(minInputsForm1).fill(""));
     }
-  };
+  }, [minInputsForm1, minInputsForm2, setGroupId, setGroupId2, setStudentIds, setStudentIds2, setTxareaIds]);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        handleClear(showForm2);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [showForm2, handleClear]);
 
   const BuscarId = (isForm2 = false) => {
     if (isForm2 && groupId2.trim() !== "") {
@@ -181,6 +192,7 @@ function ComandosBemoInscripciones({ formType = "estudiante" }) {
                   value={groupId}
                   onChange={(e) => setGroupId(e.target.value)}
                   className="inscripciones-input"
+                  style={{ borderColor: groupId.trim().length > 0 && groupId.trim().length < 24 ? "#ff4757" : undefined }}
                 />
               </div>
               <hr className="inscripciones-divider" />
@@ -236,6 +248,7 @@ function ComandosBemoInscripciones({ formType = "estudiante" }) {
                         value={studentId}
                         onChange={(e) => handleStudentIdChange(index, e.target.value)}
                         className="inscripciones-input"
+                        style={{ borderColor: studentId.trim().length > 0 && studentId.trim().length < 24 ? "#ff4757" : undefined }}
                       />
                     </div>
                   ))}
@@ -243,7 +256,7 @@ function ComandosBemoInscripciones({ formType = "estudiante" }) {
               )}
 
               <div className="input-wrapper" style={{ marginTop: "16px" }}>
-                <label className="input-label">Lista de los ID que seran detectados automaticamente</label>
+                <label className="input-label">Pegar lista de IDs</label>
                 <textarea
                   className="txareaids"
                   value={txareaIds}
@@ -351,6 +364,7 @@ function ComandosBemoInscripciones({ formType = "estudiante" }) {
                         value={studentId}
                         onChange={(e) => handleStudentIdChange(index, e.target.value, true)}
                         className="inscripciones-input"
+                        style={{ borderColor: studentId.trim().length > 0 && studentId.trim().length < 24 ? "#ff4757" : undefined }}
                       />
                     </div>
                   ))}
@@ -358,7 +372,7 @@ function ComandosBemoInscripciones({ formType = "estudiante" }) {
               )}
 
               <div className="input-wrapper" style={{ marginTop: "16px" }}>
-                <label className="input-label">Lista de los ID que seran detectados automaticamente</label>
+                <label className="input-label">Pegar lista de IDs</label>
                 <textarea
                   className="txareaids"
                   value={txareaIds}
