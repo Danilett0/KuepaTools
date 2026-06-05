@@ -9,12 +9,21 @@ import { toast } from "react-toastify";
 function ComandosBemoInscripciones({ formType = "estudiante" }) {
   const showForm2 = formType === "estudiante";
   const showForm1 = formType === "grupo";
+  const showForm3 = formType === "multi";
+  const showForm4 = formType === "especificos";
   
   const [groupId, setGroupId] = useLocalStorage(`groupId-${formType}`, "");
   const [groupId2, setGroupId2] = useLocalStorage(`groupId2-${formType}`, "");
   const [txareaIds, setTxareaIds] = useLocalStorage(`txareaIds-${formType}`, "");
   const [studentIds, setStudentIds] = useLocalStorage(`studentIds-${formType}`, Array(8).fill(""));
   const [studentIds2, setStudentIds2] = useLocalStorage(`studentIds2-${formType}`, Array(8).fill(""));
+  
+  const [txareaMultiStudents, setTxareaMultiStudents] = useLocalStorage(`txareaMultiStudents-${formType}`, "");
+  const [txareaMultiGroups, setTxareaMultiGroups] = useLocalStorage(`txareaMultiGroups-${formType}`, "");
+
+  const [txareaEspecStudents, setTxareaEspecStudents] = useLocalStorage(`txareaEspecStudents-${formType}`, "");
+  const [txareaEspecGroups, setTxareaEspecGroups] = useLocalStorage(`txareaEspecGroups-${formType}`, "");
+
   const [minInputsForm1] = useState(8);
   const [minInputsForm2] = useState(8);
 
@@ -104,26 +113,39 @@ function ComandosBemoInscripciones({ formType = "estudiante" }) {
   };
 
   const handleClear = useCallback((isForm2 = false) => {
-    setTxareaIds("");
     setGeneratedCommands([]);
-    if (isForm2) {
+    if (showForm4) {
+      setTxareaEspecStudents("");
+      setTxareaEspecGroups("");
+    } else if (showForm3) {
+      setTxareaMultiStudents("");
+      setTxareaMultiGroups("");
+    } else if (isForm2) {
+      setTxareaIds("");
       setGroupId2("");
       setStudentIds2(Array(minInputsForm2).fill(""));
     } else {
+      setTxareaIds("");
       setGroupId("");
       setStudentIds(Array(minInputsForm1).fill(""));
     }
-  }, [minInputsForm1, minInputsForm2, setGroupId, setGroupId2, setStudentIds, setStudentIds2, setTxareaIds]);
+  }, [minInputsForm1, minInputsForm2, setGroupId, setGroupId2, setStudentIds, setStudentIds2, setTxareaIds, showForm3, setTxareaMultiStudents, setTxareaMultiGroups, showForm4, setTxareaEspecStudents, setTxareaEspecGroups]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === "Escape") {
-        handleClear(showForm2);
+        if (showForm4) {
+          handleClear(false);
+        } else if (showForm3) {
+          handleClear(false);
+        } else {
+          handleClear(showForm2);
+        }
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [showForm2, handleClear]);
+  }, [showForm2, showForm3, showForm4, handleClear]);
 
   const BuscarId = (isForm2 = false) => {
     if (isForm2 && groupId2.trim() !== "") {
@@ -173,6 +195,104 @@ function ComandosBemoInscripciones({ formType = "estudiante" }) {
 
     showSuccess(`Se importaron ${flatIds.length} registros correctamente.`);
     setTxareaIds("");
+  };
+
+  const handleMultiGenerate = (isRemove = false) => {
+    const validateIds = (text) => {
+      if (!text || text.trim() === "") return { valid: false, ids: [], error: "vacío" };
+      const ids = text.split(/\s+/).map(e => e.trim()).filter(e => e !== "");
+      if (ids.length === 0) return { valid: false, ids: [], error: "vacío" };
+      
+      for (const id of ids) {
+        const isCorrectLength = id.length >= 24 && id.length <= 26;
+        const isAlphanumeric = /^[a-zA-Z0-9]+$/.test(id);
+        if (!isCorrectLength || !isAlphanumeric) {
+          return { valid: false, ids: [], error: "inválido" };
+        }
+      }
+      return { valid: true, ids };
+    };
+
+    const studentsValidation = validateIds(txareaMultiStudents);
+    if (!studentsValidation.valid) {
+      if (studentsValidation.error === "inválido") {
+        showError("Hay registros no válidos que no se reconocen como ID en el campo de ESTUDIANTES.");
+      } else {
+        showError("Por favor ingrese al menos un ID de estudiante.");
+      }
+      return;
+    }
+
+    const groupsValidation = validateIds(txareaMultiGroups);
+    if (!groupsValidation.valid) {
+      if (groupsValidation.error === "inválido") {
+        showError("Hay registros no válidos que no se reconocen como ID en el campo de GRUPOS.");
+      } else {
+        showError("Por favor ingrese al menos un ID de grupo.");
+      }
+      return;
+    }
+
+    if (studentsValidation.ids.length !== groupsValidation.ids.length) {
+      showError(`La cantidad de estudiantes (${studentsValidation.ids.length}) no coincide con la cantidad de grupos (${groupsValidation.ids.length}).`);
+      return;
+    }
+
+    const commands = studentsValidation.ids.map((studentId, index) => {
+      const groupId = groupsValidation.ids[index];
+      const action = isRemove ? "pull:user:from:group" : "enroll:user";
+      return `magik run:prod ${action}["${groupId}","${studentId}"]`;
+    });
+
+    setGeneratedCommands(commands);
+    showSuccess(`${commands.length} comando${commands.length !== 1 ? "s" : ""} generado${commands.length !== 1 ? "s" : ""}`);
+  };
+
+  const handleEspecGenerate = (isRemove = false) => {
+    const validateIds = (text) => {
+      if (!text || text.trim() === "") return { valid: false, ids: [], error: "vacío" };
+      const rawIds = text.split(/\s+/).map(e => e.trim()).filter(e => e !== "");
+      if (rawIds.length === 0) return { valid: false, ids: [], error: "vacío" };
+      
+      const ids = Array.from(new Set(rawIds));
+      for (const id of ids) {
+        const isCorrectLength = id.length >= 24 && id.length <= 26;
+        const isAlphanumeric = /^[a-zA-Z0-9]+$/.test(id);
+        if (!isCorrectLength || !isAlphanumeric) {
+          return { valid: false, ids: [], error: "inválido" };
+        }
+      }
+      return { valid: true, ids };
+    };
+
+    const studentsValidation = validateIds(txareaEspecStudents);
+    if (!studentsValidation.valid) {
+      if (studentsValidation.error === "inválido") {
+        showError("Hay registros no válidos que no se reconocen como ID en el campo de ESTUDIANTES.");
+      } else {
+        showError("Por favor ingrese al menos un ID de estudiante.");
+      }
+      return;
+    }
+
+    const groupsValidation = validateIds(txareaEspecGroups);
+    if (!groupsValidation.valid) {
+      if (groupsValidation.error === "inválido") {
+        showError("Hay registros no válidos que no se reconocen como ID en el campo de GRUPOS.");
+      } else {
+        showError("Por favor ingrese al menos un ID de grupo.");
+      }
+      return;
+    }
+
+    const studentsJoined = studentsValidation.ids.join('","');
+    const commands = groupsValidation.ids.map(groupId => {
+      const action = isRemove ? "pull:user:from:group" : "enroll:user";
+      return `magik run:prod ${action}["${groupId}","${studentsJoined}"]`;
+    });
+
+    setGeneratedCommands(commands);
+    showSuccess(`${commands.length} comando${commands.length !== 1 ? "s" : ""} generado${commands.length !== 1 ? "s" : ""}`);
   };
 
   return (
@@ -390,6 +510,108 @@ function ComandosBemoInscripciones({ formType = "estudiante" }) {
                 <UserMinus size={20} /> Retirar de grupos
               </button>
               <button className="btn btn-warning btn-icon" onClick={() => handleClear(true)} title="Limpiar">
+                <Eraser size={20} />
+              </button>
+            </div>
+
+            <CommandsDisplay commands={generatedCommands} onClear={() => setGeneratedCommands([])} />
+          </div>
+        )}
+
+        {showForm3 && (
+          <div className="inscripciones-form-container" style={{ marginTop: 0 }}>
+            <h5 className="inscripciones-title" style={{ fontSize: "20px", color: "var(--primary)", fontWeight: "800" }}>
+              Inscribir varios estudiantes a varios grupos
+            </h5>
+            <div className="inscripciones-form">
+              <div style={{ display: "flex", gap: "16px", marginTop: "16px" }}>
+                <div className="input-wrapper" style={{ flex: 1 }}>
+                  <label className="input-label" style={{ textAlign: "center", display: "block", marginBottom: "8px" }}>ID DE ESTUDIANTES</label>
+                  <textarea
+                    className="txareaids"
+                    value={txareaMultiStudents}
+                    onChange={(e) => setTxareaMultiStudents(e.target.value)}
+                    style={{ minHeight: "300px", resize: "vertical" }}
+                    placeholder="Ingrese un ID por línea..."
+                  />
+                </div>
+                <div className="input-wrapper" style={{ flex: 1 }}>
+                  <label className="input-label" style={{ textAlign: "center", display: "block", marginBottom: "8px" }}>ID DE LOS GRUPOS</label>
+                  <textarea
+                    className="txareaids"
+                    value={txareaMultiGroups}
+                    onChange={(e) => setTxareaMultiGroups(e.target.value)}
+                    style={{ minHeight: "300px", resize: "vertical" }}
+                    placeholder="Ingrese un ID por línea..."
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="inscripciones-buttons" style={{ marginTop: "24px" }}>
+              <button 
+                className="btn btn-primary" 
+                onClick={() => handleMultiGenerate(false)}
+              >
+                <UserPlus size={20} /> Inscribir estudiantes
+              </button>
+              <button 
+                className="btn btn-danger" 
+                onClick={() => handleMultiGenerate(true)}
+              >
+                <UserMinus size={20} /> Retirar estudiantes
+              </button>
+              <button className="btn btn-warning btn-icon" onClick={() => handleClear(false)} title="Limpiar">
+                <Eraser size={20} />
+              </button>
+            </div>
+
+            <CommandsDisplay commands={generatedCommands} onClear={() => setGeneratedCommands([])} />
+          </div>
+        )}
+
+        {showForm4 && (
+          <div className="inscripciones-form-container" style={{ marginTop: 0 }}>
+            <h5 className="inscripciones-title" style={{ fontSize: "20px", color: "var(--primary)", fontWeight: "800" }}>
+              Varios estudiantes a grupos específicos
+            </h5>
+            <div className="inscripciones-form">
+              <div style={{ display: "flex", gap: "16px", marginTop: "16px" }}>
+                <div className="input-wrapper" style={{ flex: 1 }}>
+                  <label className="input-label" style={{ textAlign: "center", display: "block", marginBottom: "8px" }}>ID DE ESTUDIANTES</label>
+                  <textarea
+                    className="txareaids"
+                    value={txareaEspecStudents}
+                    onChange={(e) => setTxareaEspecStudents(e.target.value)}
+                    style={{ minHeight: "300px", resize: "vertical" }}
+                    placeholder="Ingrese un ID por línea..."
+                  />
+                </div>
+                <div className="input-wrapper" style={{ flex: 1 }}>
+                  <label className="input-label" style={{ textAlign: "center", display: "block", marginBottom: "8px" }}>ID DE LOS GRUPOS</label>
+                  <textarea
+                    className="txareaids"
+                    value={txareaEspecGroups}
+                    onChange={(e) => setTxareaEspecGroups(e.target.value)}
+                    style={{ minHeight: "300px", resize: "vertical" }}
+                    placeholder="Ingrese un ID por línea..."
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="inscripciones-buttons" style={{ marginTop: "24px" }}>
+              <button 
+                className="btn btn-primary" 
+                onClick={() => handleEspecGenerate(false)}
+              >
+                <UserPlus size={20} /> Inscribir estudiantes
+              </button>
+              <button 
+                className="btn btn-danger" 
+                onClick={() => handleEspecGenerate(true)}
+              >
+                <UserMinus size={20} /> Retirar estudiantes
+              </button>
+              <button className="btn btn-warning btn-icon" onClick={() => handleClear(false)} title="Limpiar">
                 <Eraser size={20} />
               </button>
             </div>

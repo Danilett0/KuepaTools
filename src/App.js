@@ -19,6 +19,10 @@ function App() {
         return <Inscripciones key="inscripciones-estudiante" formType="estudiante" />;
       case "inscripciones-grupo":
         return <Inscripciones key="inscripciones-grupo" formType="grupo" />;
+      case "inscripciones-multi":
+        return <Inscripciones key="inscripciones-multi" formType="multi" />;
+      case "inscripciones-especificos":
+        return <Inscripciones key="inscripciones-especificos" formType="especificos" />;
       case "cambios-estado":
         return <CambiosEstadoBemo key="cambios-estado" />;
       case "auditar-estadisticas":
@@ -35,7 +39,9 @@ function App() {
       icon: Users,
       subItems: [
         { id: "inscripciones-estudiante", label: "Inscribir grupos a un estudiante" },
-        { id: "inscripciones-grupo", label: "Inscribir varios estudiantes a un grupo" }
+        { id: "inscripciones-grupo", label: "Inscribir varios estudiantes a un grupo" },
+        { id: "inscripciones-multi", label: "Inscribir varios estudiantes a varios grupos" },
+        { id: "inscripciones-especificos", label: "Varios estudiantes a grupos específicos" }
       ]
     },
     { id: "cambios-estado", label: "Cambios de Estado", icon: RefreshCw },
