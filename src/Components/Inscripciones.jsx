@@ -238,11 +238,22 @@ function ComandosBemoInscripciones({ formType = "estudiante" }) {
       return;
     }
 
-    const commands = studentsValidation.ids.map((studentId, index) => {
+    const groupedStudents = {};
+    studentsValidation.ids.forEach((studentId, index) => {
       const groupId = groupsValidation.ids[index];
-      const action = isRemove ? "pull:user:from:group" : "enroll:user";
-      return `magik run:prod ${action}["${groupId}","${studentId}"]`;
+      if (!groupedStudents[groupId]) {
+        groupedStudents[groupId] = [];
+      }
+      groupedStudents[groupId].push(studentId);
     });
+
+    const commands = [];
+    const action = isRemove ? "pull:user:from:group" : "enroll:user";
+
+    for (const [groupId, students] of Object.entries(groupedStudents)) {
+      const studentsJoined = students.join('","');
+      commands.push(`magik run:prod ${action}["${groupId}","${studentsJoined}"]`);
+    }
 
     setGeneratedCommands(commands);
     showSuccess(`${commands.length} comando${commands.length !== 1 ? "s" : ""} generado${commands.length !== 1 ? "s" : ""}`);

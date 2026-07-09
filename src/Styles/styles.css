@@ -358,3 +358,22 @@ h1, h2, h3, h4, h5, h6 {
 .animate-slide-down {
   animation: slideDownFade 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
+
+/* ─── Buttons ─── */
+.btn-clear {
+  background: var(--surface-low);
+  border: 1px solid var(--glass-border);
+  color: var(--on-surface-variant);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.btn-clear:hover {
+  background: var(--primary-container);
+  color: var(--on-surface);
+  border-color: var(--primary);
+}

@@ -5,9 +5,10 @@ import "react-toastify/dist/ReactToastify.css";
 import CambiosEstadoBemo from "./Components/CambioEstados.jsx";
 import AuditarEstadisticas from "./Components/AuditarEstadisticas.jsx";
 import Inscripciones from "./Components/Inscripciones.jsx";
+import Informacion from "./Components/Informacion.jsx";
 import Lottie from "lottie-react";
 import groovyWalkAnimation from "./medit.json";
-import { Users, RefreshCw, BarChart2, Shield, ChevronDown, ChevronRight } from "lucide-react";
+import { Users, RefreshCw, BarChart2, Shield, ChevronDown, ChevronRight, Info } from "lucide-react";
 
 function App() {
   const [activeComponent, setActiveComponent] = useState("inscripciones-estudiante");
@@ -27,6 +28,8 @@ function App() {
         return <CambiosEstadoBemo key="cambios-estado" />;
       case "auditar-estadisticas":
         return <AuditarEstadisticas key="auditar-estadisticas" />;
+      case "informacion":
+        return <Informacion key="informacion" />;
       default:
         return <Inscripciones key="default" formType="estudiante" />;
     }
@@ -104,6 +107,18 @@ function App() {
             );
           })}
         </div>
+        <div className="sidebar-bottom" style={{ marginTop: 'auto', paddingTop: '20px', borderTop: '1px solid var(--glass-border)' }}>
+          <div
+            className={`sidebar-item ${activeComponent === 'informacion' ? 'active' : ''}`}
+            onClick={() => {
+              setActiveComponent('informacion');
+              setExpandedMenu(null);
+            }}
+          >
+            <Info size={20} />
+            <span style={{ flex: 1 }}>Información</span>
+          </div>
+        </div>
       </aside>
 
       <main className="main-content">
@@ -113,7 +128,7 @@ function App() {
           loop={true}
           speed={0.3}
         />
-        <div className="app-container">
+        <div className="app-container" style={activeComponent === 'informacion' ? { maxWidth: '100%', height: '100%' } : {}}>
           {renderComponent()}
         </div>
       </main>

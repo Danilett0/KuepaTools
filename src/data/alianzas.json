@@ -1,0 +1,104 @@
+[
+  {
+    "_id": {
+      "$oid": "5f6e05b023c40448f0c05483"
+    },
+    "name": "KuepaEdutech Admin"
+  },
+  {
+    "_id": {
+      "$oid": "64665792197ba833c55b1448"
+    },
+    "name": "Pago por Resultados"
+  },
+  {
+    "_id": {
+      "$oid": "618c048f769c928d448f8de7"
+    },
+    "name": "CTF"
+  },
+  {
+    "_id": {
+      "$oid": "60cca40f86dd7a8362d49cc9"
+    },
+    "name": "Kuepa Tech"
+  },
+  {
+    "_id": {
+      "$oid": "68c097f172a8f18ff2db5e5e"
+    },
+    "name": "Nexus"
+  },
+  {
+    "_id": {
+      "$oid": "66c4d89a567831f5bf75f166"
+    },
+    "name": "Empleo sin Barreras"
+  },
+  {
+    "_id": {
+      "$oid": "6a3599f9a0176b401c37fb86"
+    },
+    "name": "Socios Talento Capital SDDE 3.0"
+  },
+  {
+    "_id": {
+      "$oid": "695eb7282b3c3816b6940b87"
+    },
+    "name": "Proyecto Suba"
+  },
+  {
+    "_id": {
+      "$oid": "602169e217b5c8a27f9e9c06"
+    },
+    "name": "Kuepa Colombia"
+  },
+  {
+    "_id": {
+      "$oid": "6303ed663138387a1669d82a"
+    },
+    "name": "Nueva América"
+  },
+  {
+    "_id": {
+      "$oid": "6a4d69f299ff2ed0ddcc025d"
+    },
+    "name": "Mujer es poder"
+  },
+  {
+    "_id": {
+      "$oid": "5fc1417018d8cca721c0ba02"
+    },
+    "name": "512"
+  },
+  {
+    "_id": {
+      "$oid": "5fc1417018d8cca721c0b9fc"
+    },
+    "name": "IQ Primaria"
+  },
+  {
+    "_id": {
+      "$oid": "67eeba2ce794ed68aeb5cbc9"
+    },
+    "name": "Talento Capital"
+  },
+  {
+    "_id": {
+      "$oid": "6876945bd0bebe6f8e82ac8e"
+    },
+    "name": "Socios Talento Capital SDDE"
+  },
+  {
+    "_id": {
+      "$oid": "6303ed6b3138387a1669d8da"
+    },
+    "name": "IQ Secundaria"
+  },
+  {
+    "_id": {
+      "$oid": "651b0bdc937e02db3e0a347d"
+    },
+    "name": "Colsubsidio"
+  }
+]

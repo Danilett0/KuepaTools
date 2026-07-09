@@ -1,0 +1,155 @@
+[
+  {
+    "_id": {
+      "$oid": "6532ff9770251a14ef1d2868"
+    },
+    "name": "Finanzas y Negocios Internacionales",
+    "alliance_id": {
+      "$oid": "6303ed663138387a1669d82a"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "63062f8a855c33102319cd85"
+    },
+    "name": "Técnico Profesional en Procesos Administrativos Empresariales",
+    "alliance_id": {
+      "$oid": "6303ed663138387a1669d82a"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "644af2d56e7e2c7ca673723e"
+    },
+    "name": "Marketing y Publicidad",
+    "alliance_id": {
+      "$oid": "6303ed663138387a1669d82a"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "653558f10b21543c8b76650b"
+    },
+    "name": "Ingeniería Industrial",
+    "alliance_id": {
+      "$oid": "6303ed663138387a1669d82a"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "6a073f13e7b37c5a3706f0cf"
+    },
+    "name": "Técnico Profesional en Procesos de Comercialización y Comunicación Publicitaria",
+    "alliance_id": {
+      "$oid": "6303ed663138387a1669d82a"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "6532fa10529bf715d8d31c93"
+    },
+    "name": "Ingeniería en Ciencia de Datos",
+    "alliance_id": {
+      "$oid": "6303ed663138387a1669d82a"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "6762f07eb06a040faf06a786"
+    },
+    "name": "Profesional mal",
+    "alliance_id": {
+      "$oid": "6303ed663138387a1669d82a"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "690e82509fc16301d2d87328"
+    },
+    "name": "Ingeniería Mecatrónica",
+    "alliance_id": {
+      "$oid": "6303ed663138387a1669d82a"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "69161d096bf7f1161d548837"
+    },
+    "name": "ing Industrial ",
+    "alliance_id": {
+      "$oid": "6303ed663138387a1669d82a"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "687e758fac8bae0fda2a3917"
+    },
+    "name": "Profesional en Ingeniería de Sistemas",
+    "alliance_id": {
+      "$oid": "6303ed663138387a1669d82a"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "67449c4559843b129d4d4cb9"
+    },
+    "name": "Profesional en Administración de Empresas.",
+    "alliance_id": {
+      "$oid": "6303ed663138387a1669d82a"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "6345d3be3ed50d10092860c3"
+    },
+    "name": "Técnico Profesional en Procesos Contables",
+    "alliance_id": {
+      "$oid": "6303ed663138387a1669d82a"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "6345d41c3ed50d10092868d4"
+    },
+    "name": "Técnico profesional en Procesos de Programación de Software",
+    "alliance_id": {
+      "$oid": "6303ed663138387a1669d82a"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "659e9aeb34e1550ef505c6dc"
+    },
+    "name": "Tecnólogo en Gestión Contable y Financiera",
+    "alliance_id": {
+      "$oid": "6303ed663138387a1669d82a"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "6581e669e02d22076e798300"
+    },
+    "name": "Tecnólogo en Gestión Administrativa",
+    "alliance_id": {
+      "$oid": "6303ed663138387a1669d82a"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "677ea4f61a49997e7464e532"
+    },
+    "name": "Profesional en Contaduría Pública",
+    "alliance_id": {
+      "$oid": "6303ed663138387a1669d82a"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "659e9ab011f3e60efe3825da"
+    },
+    "name": "Tecnólogo en Gestión de Software y Sistemas",
+    "alliance_id": {
+      "$oid": "6303ed663138387a1669d82a"
+    }
+  }
+]

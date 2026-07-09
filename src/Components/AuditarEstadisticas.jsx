@@ -6,30 +6,39 @@ import CommandsDisplay from "./CommandsDisplay";
 function SegundaPagina() {
   const [secondStudentId, setSecondStudentId] = useLocalStorage("auditar-secondStudentId", "");
   const [secondProgramId, setSecondProgramId] = useLocalStorage("auditar-secondProgramId", "");
+  const [groupId, setGroupId] = useLocalStorage("auditar-groupId", "");
 
-  const [commandsEstudiante, setCommandsEstudiante] = useState([]);
+  const [commands, setCommands] = useState([]);
 
   useEffect(() => {
     const student = secondStudentId.trim();
     const program = secondProgramId.trim();
+    const group = groupId.trim();
 
     if (student && program) {
-      const commands = [
+      const newCommands = [
         `magik run:prod audit:level["${program}","${student}"]`,
         `magik run:prod audit:statistics["${program}","${student}"]`,
-        `magik run:prod audit:compacts["${program}","${student}"]`,
       ];
-      setCommandsEstudiante(commands);
+      
+      if (group) {
+        newCommands.push(`magik run:prod audit:subject ["${group}", "${student}"]`);
+      }
+
+      newCommands.push(`magik run:prod audit:compacts["${program}","${student}"]`);
+      
+      setCommands(newCommands);
     } else {
-      setCommandsEstudiante([]);
+      setCommands([]);
     }
-  }, [secondStudentId, secondProgramId]);
+  }, [secondStudentId, secondProgramId, groupId]);
 
   const handleClear = useCallback(() => {
     setSecondStudentId("");
     setSecondProgramId("");
-    setCommandsEstudiante([]);
-  }, [setSecondStudentId, setSecondProgramId]);
+    setGroupId("");
+    setCommands([]);
+  }, [setSecondStudentId, setSecondProgramId, setGroupId]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -43,16 +52,21 @@ function SegundaPagina() {
 
   return (
     <div className="inscripciones-container" style={{ display: "flex", flexDirection: "column", gap: "32px" }}>
-      {/* Estudiante */}
       <div className="inscripciones-content">
-        <h3 className="inscripciones-title" style={{ fontSize: "20px", color: "var(--primary)", fontWeight: "800" }}>
-          Auditar estadísticas de estudiante
-        </h3>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+          <h3 className="inscripciones-title" style={{ fontSize: "20px", color: "var(--primary)", fontWeight: "800", margin: 0 }}>
+            Auditar estadísticas de estudiante
+          </h3>
+          <button
+            onClick={handleClear}
+            className="btn-clear"
+            title="Limpiar campos"
+          >
+            Limpiar
+          </button>
+        </div>
         <div className="inscripciones-form">
-          <p style={{ marginBottom: "8px", color: "var(--on-surface-variant)" }}>
-            Ingrese los IDs. Los comandos se generarán automáticamente.
-          </p>
-          <div className="inscripciones-grid">
+          <div className="inscripciones-grid" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
             <div className="input-wrapper">
               <label className="input-label">ID Estudiante</label>
               <input
@@ -71,12 +85,19 @@ function SegundaPagina() {
                 className="inscripciones-input"
               />
             </div>
+            <div className="input-wrapper">
+              <label className="input-label">ID Grupo (Opcional)</label>
+              <input
+                type="text"
+                value={groupId}
+                onChange={(e) => setGroupId(e.target.value)}
+                className="inscripciones-input"
+              />
+            </div>
           </div>
         </div>
-        
-        {/* Buttons removed entirely for automatic generation */}
 
-        <CommandsDisplay commands={commandsEstudiante} onClear={() => setCommandsEstudiante([])} />
+        <CommandsDisplay commands={commands} onClear={() => setCommands([])} />
       </div>
     </div>
   );
