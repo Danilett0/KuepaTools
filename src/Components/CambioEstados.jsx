@@ -2,7 +2,6 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useLocalStorage } from "../hooks/useLocalStorage";
 import "../Styles/styles.css";
 import CommandsDisplay from "./CommandsDisplay";
-import { showSuccess, showError } from "../services/toastService";
 import { ChevronDown } from "lucide-react";
 import { toast } from "react-toastify";
 
