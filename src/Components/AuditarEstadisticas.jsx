@@ -53,10 +53,7 @@ function SegundaPagina() {
   return (
     <div className="inscripciones-container" style={{ display: "flex", flexDirection: "column", gap: "32px" }}>
       <div className="inscripciones-content">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-          <h3 className="inscripciones-title" style={{ fontSize: "20px", color: "var(--primary)", fontWeight: "800", margin: 0 }}>
-            Auditar estadísticas de estudiante
-          </h3>
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "16px" }}>
           <button
             onClick={handleClear}
             className="btn-clear"

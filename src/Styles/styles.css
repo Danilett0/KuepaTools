@@ -147,7 +147,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .inscripciones-title {
-  text-align: center;
+  text-align: left;
   font-weight: 700;
   margin: 0 0 24px 0;
   color: var(--on-surface-variant);
