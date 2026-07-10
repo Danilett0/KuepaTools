@@ -151,5 +151,383 @@
     "alliance_id": {
       "$oid": "6303ed663138387a1669d82a"
     }
+  },
+  {
+    "_id": {
+      "$oid": "61841cc5b8a4860f32ed9bfe"
+    },
+    "name": "Hi Bogotá",
+    "alliance_id": {
+      "$oid": "602169e217b5c8a27f9e9c06"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "6202fbb14da2701b03d1381d"
+    },
+    "name": "Inglés Intensivo",
+    "alliance_id": {
+      "$oid": "602169e217b5c8a27f9e9c06"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "6279265fdb9de50f6405ad9d"
+    },
+    "name": "Técnico Laboral en Auxiliar de Mercadeo y Ventas",
+    "alliance_id": {
+      "$oid": "602169e217b5c8a27f9e9c06"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "629e7a7b3289d80f7d3d575e"
+    },
+    "name": "Técnico laboral en procesamiento de datos",
+    "alliance_id": {
+      "$oid": "602169e217b5c8a27f9e9c06"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "6331e5abad4e8f10237048e2"
+    },
+    "name": "Preicfes",
+    "alliance_id": {
+      "$oid": "602169e217b5c8a27f9e9c06"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "6340383b7dde6f68f95fcf83"
+    },
+    "name": "EFE - Técnico Laboral Auxiliar Administrativo",
+    "alliance_id": {
+      "$oid": "602169e217b5c8a27f9e9c06"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "63405ef29822f3135a19f67b"
+    },
+    "name": "EFE - Técnico Laboral Auxiliar en Mercadeo y Ventas 2023",
+    "alliance_id": {
+      "$oid": "602169e217b5c8a27f9e9c06"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "644b19d1ab123e1126cbd2a0"
+    },
+    "name": "Bachillerato - Educa Joven",
+    "alliance_id": {
+      "$oid": "602169e217b5c8a27f9e9c06"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "6494c845683d480ca22f1f47"
+    },
+    "name": "EFE - Técnico Laboral Servicios Hoteleros y Turismo 2023",
+    "alliance_id": {
+      "$oid": "602169e217b5c8a27f9e9c06"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "64b847111c6495204eb3e119"
+    },
+    "name": "Técnico laboral en servicios turísticos y hoteleros",
+    "alliance_id": {
+      "$oid": "602169e217b5c8a27f9e9c06"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "64b8471d3e86f21966ae7070"
+    },
+    "name": "Técnico laboral en servicios turísticos y hoteleros...",
+    "alliance_id": {
+      "$oid": "602169e217b5c8a27f9e9c06"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "67991cdeb03470069b774ee9"
+    },
+    "name": "EFE - Técnico Laboral Auxiliar Administrativo BBVA",
+    "alliance_id": {
+      "$oid": "602169e217b5c8a27f9e9c06"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "65eb4271441c110f0a76db73"
+    },
+    "name": "Técnico Laboral en Desarrollo de Software",
+    "alliance_id": {
+      "$oid": "602169e217b5c8a27f9e9c06"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "65eb45c11592a80f09decf06"
+    },
+    "name": "Técnico Laboral Auxiliar en Recursos Humanos y Riesgo Laboral",
+    "alliance_id": {
+      "$oid": "602169e217b5c8a27f9e9c06"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "65eb45e58372400f07c0691e"
+    },
+    "name": "Técnico Laboral Auxiliar en Recursos Humanos ",
+    "alliance_id": {
+      "$oid": "602169e217b5c8a27f9e9c06"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "668d32f23f9b190fabc5a1c1"
+    },
+    "name": "EFE - Técnico Laboral Servicios Hoteleros y Turismo 2024",
+    "alliance_id": {
+      "$oid": "602169e217b5c8a27f9e9c06"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "66bf59c6344be30faef91e7d"
+    },
+    "name": "EFE - Técnico Laboral Auxiliar en Mercadeo y Ventas 2024",
+    "alliance_id": {
+      "$oid": "602169e217b5c8a27f9e9c06"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "67632885dc767f0fae6d2383"
+    },
+    "name": "Bachillerato - ACNUR",
+    "alliance_id": {
+      "$oid": "602169e217b5c8a27f9e9c06"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "67bbbc326b1d000fb530abb5"
+    },
+    "name": "Técnico Laboral en Recursos Humanos y Riesgo Laboral",
+    "alliance_id": {
+      "$oid": "602169e217b5c8a27f9e9c06"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "67bc7d70d15f4c0fb4a482c1"
+    },
+    "name": "Técnico Laboral en Programación de Sistemas de Información",
+    "alliance_id": {
+      "$oid": "602169e217b5c8a27f9e9c06"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "680bb2aa612ba401e7f3cd26"
+    },
+    "name": "DIAN - Curso Intensivo de Ingles",
+    "alliance_id": {
+      "$oid": "602169e217b5c8a27f9e9c06"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "686c410c8412fe0fdb2ba763"
+    },
+    "name": "EFE_Atenea TL. Hoteleria y turismo",
+    "alliance_id": {
+      "$oid": "602169e217b5c8a27f9e9c06"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "689a3c4ddd40951e8451e2ca"
+    },
+    "name": "T.L. Hotelería y turismo_efe",
+    "alliance_id": {
+      "$oid": "602169e217b5c8a27f9e9c06"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "69a5e93653d4080ea3673c0f"
+    },
+    "name": "T.L en Auxiliar de Mercadeo y Ventas (Profundización)",
+    "alliance_id": {
+      "$oid": "602169e217b5c8a27f9e9c06"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "69a5f3019eeb013757724cc8"
+    },
+    "name": "T.L en Auxiliar Administrativo (Profundización)",
+    "alliance_id": {
+      "$oid": "602169e217b5c8a27f9e9c06"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "6a0f4eca9a21002fdc2e244d"
+    },
+    "name": "Curso Intensivo de Ingles_EFE",
+    "alliance_id": {
+      "$oid": "602169e217b5c8a27f9e9c06"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "686c40d38412fe0fdb2ba57a"
+    },
+    "name": "EFE TLHT",
+    "alliance_id": {
+      "$oid": "602169e217b5c8a27f9e9c06"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "69fa48a2e5301e1004f57ebc"
+    },
+    "name": "Inglés",
+    "alliance_id": {
+      "$oid": "602169e217b5c8a27f9e9c06"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "670e626ab638550218b827c0"
+    },
+    "name": "T.L. en Auxiliar Administrativo",
+    "alliance_id": {
+      "$oid": "602169e217b5c8a27f9e9c06"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "6810ff2fba8d1305eb777ef0"
+    },
+    "name": "T.L en Auxiliar de Mercadeo y Ventas",
+    "alliance_id": {
+      "$oid": "602169e217b5c8a27f9e9c06"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "686c479ad09df00ac3d1959a"
+    },
+    "name": "T.L en Procesamiento y Digitación de Datos",
+    "alliance_id": {
+      "$oid": "602169e217b5c8a27f9e9c06"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "641c61b8c3ac9a0ca7c56bd3"
+    },
+    "name": "Bachillerato Crepes & Waffles",
+    "alliance_id": {
+      "$oid": "602169e217b5c8a27f9e9c06"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "66fecda90cc4330faddd4409"
+    },
+    "name": "Inactivo T.L. en Auxiliar de Mercadeo y Venta",
+    "alliance_id": {
+      "$oid": "602169e217b5c8a27f9e9c06"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "60d2657686a7940eab68ad81"
+    },
+    "name": "Bachillerato Plus Onsite",
+    "alliance_id": {
+      "$oid": "602169e217b5c8a27f9e9c06"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "686c3f4dd09df00ac3d14ae2"
+    },
+    "name": "T.L en Servicios Turisticos y Hoteleros",
+    "alliance_id": {
+      "$oid": "602169e217b5c8a27f9e9c06"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "62d97a4194e16b0f655fe1ca"
+    },
+    "name": "Bachillerato Crepes",
+    "alliance_id": {
+      "$oid": "602169e217b5c8a27f9e9c06"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "678e56f347a9c4130b4e4ac7"
+    },
+    "name": "T.L. en Contabilidad y Finanzas",
+    "alliance_id": {
+      "$oid": "602169e217b5c8a27f9e9c06"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "688a56a48752930de2c3e970"
+    },
+    "name": "EFE - Mujeres es poder",
+    "alliance_id": {
+      "$oid": "602169e217b5c8a27f9e9c06"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "6a0f4e919a21002fdc2e1ea5"
+    },
+    "name": "Ingles_EFE",
+    "alliance_id": {
+      "$oid": "602169e217b5c8a27f9e9c06"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "627d48d06c7678122e01d1b6"
+    },
+    "name": "Técnico Laboral en Auxiliar Administrativo",
+    "alliance_id": {
+      "$oid": "602169e217b5c8a27f9e9c06"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "60d2653f86a7940eab68ad80"
+    },
+    "name": "Bachillerato Plus Online",
+    "alliance_id": {
+      "$oid": "602169e217b5c8a27f9e9c06"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "60d2650e86a7940eab68ad7f"
+    },
+    "name": "Bachillerato Flex",
+    "alliance_id": {
+      "$oid": "602169e217b5c8a27f9e9c06"
+    }
   }
 ]

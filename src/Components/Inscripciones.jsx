@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useLocalStorage } from "../hooks/useLocalStorage";
-import { Eraser, UserPlus, UserMinus, ChevronDown, ChevronRight } from "lucide-react";
+import { UserPlus, UserMinus, ChevronDown, ChevronRight } from "lucide-react";
 import CommandsDisplay from "./CommandsDisplay";
 import { showError, showSuccess } from "../services/toastService";
-import users from "../data/users.json";
+import usuariosCompletos from "../data/usuarios_completos.json";
 import { toast } from "react-toastify";
 
 function ComandosBemoInscripciones({ formType = "estudiante" }) {
@@ -29,8 +29,16 @@ function ComandosBemoInscripciones({ formType = "estudiante" }) {
 
   const [showManualInputsForm1, setShowManualInputsForm1] = useState(false);
   const [showManualInputsForm2, setShowManualInputsForm2] = useState(false);
+  const [alianza, setAlianza] = useState("na"); // "na" = Nueva América, "kuepa" = Kuepa
 
   const [generatedCommands, setGeneratedCommands] = useState([]);
+
+  useEffect(() => {
+    if (generatedCommands.length > 0) {
+      setGeneratedCommands([]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupId, groupId2, studentIds, studentIds2, txareaIds, txareaMultiStudents, txareaMultiGroups, txareaEspecStudents, txareaEspecGroups, alianza]);
 
   const handleStudentIdChange = (index, value, isForm2 = false) => {
     if (isForm2) {
@@ -150,8 +158,12 @@ function ComandosBemoInscripciones({ formType = "estudiante" }) {
   const BuscarId = (isForm2 = false) => {
     if (isForm2 && groupId2.trim() !== "") {
       const codigo = Number(groupId2.trim());
-      const encontrado = users.find(
-        (user) => user.incremental_user_code === codigo
+      const allianceId = alianza === "kuepa" 
+        ? "602169e217b5c8a27f9e9c06" 
+        : "6303ed663138387a1669d82a";
+        
+      const encontrado = usuariosCompletos.find(
+        (user) => user.incremental_user_code === codigo && user.alliance_id?.$oid === allianceId
       );
       if (encontrado) {
         setGroupId2(encontrado._id.$oid);
@@ -311,9 +323,11 @@ function ComandosBemoInscripciones({ formType = "estudiante" }) {
       <div className="inscripciones-content">
         {showForm1 && (
           <div className="inscripciones-form-container" style={{ marginTop: 0 }}>
-            <h5 className="inscripciones-title" style={{ fontSize: "20px", color: "var(--primary)", fontWeight: "800" }}>
-              Inscribir varios estudiantes a un grupo
-            </h5>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "16px" }}>
+              <button className="btn-clear" onClick={() => handleClear(false)} title="Limpiar campos">
+                Limpiar
+              </button>
+            </div>
             <div className="inscripciones-form">
               <div className="input-wrapper">
                 <label className="input-label">ID Grupo Académico</label>
@@ -404,9 +418,6 @@ function ComandosBemoInscripciones({ formType = "estudiante" }) {
               <button className="btn btn-danger" onClick={() => handleRemove(false)}>
                 <UserMinus size={20} /> Eliminar estudiantes
               </button>
-              <button className="btn btn-warning btn-icon" onClick={() => handleClear(false)} title="Limpiar">
-                <Eraser size={20} />
-              </button>
             </div>
 
             <CommandsDisplay commands={generatedCommands} onClear={() => setGeneratedCommands([])} />
@@ -415,13 +426,49 @@ function ComandosBemoInscripciones({ formType = "estudiante" }) {
 
         {showForm2 && (
           <div className="inscripciones-form-container" style={{ marginTop: 0 }}>
-            <h5 className="inscripciones-title" style={{ fontSize: "20px", color: "var(--primary)", fontWeight: "800" }}>
-              Inscribir grupos a un estudiante
-            </h5>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "16px" }}>
+              <button className="btn-clear" onClick={() => handleClear(true)} title="Limpiar campos">
+                Limpiar
+              </button>
+            </div>
             <div className="inscripciones-form">
               <div className="buscarIds">
                 <div className="input-wrapper" style={{ flex: 1 }}>
-                  <label className="input-label">ID Estudiante</label>
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "6px" }}>
+                    <label className="input-label" style={{ marginBottom: 0 }}>ID Estudiante</label>
+                    <div style={{ display: "flex", alignItems: "center", gap: "4px", background: "var(--glass-border)", borderRadius: "8px", padding: "3px" }}>
+                      <button
+                        onClick={() => { if (alianza !== "na") { handleClear(true); setAlianza("na"); } }}
+                        style={{
+                          fontSize: "11px",
+                          fontWeight: "600",
+                          padding: "3px 10px",
+                          borderRadius: "6px",
+                          border: "none",
+                          cursor: "pointer",
+                          transition: "all 0.2s ease",
+                          background: alianza === "na" ? "#22c55e" : "transparent",
+                          color: alianza === "na" ? "#0a0a0a" : "var(--text-muted)",
+                          boxShadow: alianza === "na" ? "0 1px 4px rgba(34,197,94,0.4)" : "none",
+                        }}
+                      >Nueva América</button>
+                      <button
+                        onClick={() => { if (alianza !== "kuepa") { handleClear(true); setAlianza("kuepa"); } }}
+                        style={{
+                          fontSize: "11px",
+                          fontWeight: "600",
+                          padding: "3px 10px",
+                          borderRadius: "6px",
+                          border: "none",
+                          cursor: "pointer",
+                          transition: "all 0.2s ease",
+                          background: alianza === "kuepa" ? "#22c55e" : "transparent",
+                          color: alianza === "kuepa" ? "#0a0a0a" : "var(--text-muted)",
+                          boxShadow: alianza === "kuepa" ? "0 1px 4px rgba(34,197,94,0.4)" : "none",
+                        }}
+                      >Kuepa</button>
+                    </div>
+                  </div>
                   <input
                     type="text"
                     id="groupId2"
@@ -520,9 +567,6 @@ function ComandosBemoInscripciones({ formType = "estudiante" }) {
               <button className="btn btn-danger" onClick={() => handleRemove(true)}>
                 <UserMinus size={20} /> Retirar de grupos
               </button>
-              <button className="btn btn-warning btn-icon" onClick={() => handleClear(true)} title="Limpiar">
-                <Eraser size={20} />
-              </button>
             </div>
 
             <CommandsDisplay commands={generatedCommands} onClear={() => setGeneratedCommands([])} />
@@ -531,13 +575,15 @@ function ComandosBemoInscripciones({ formType = "estudiante" }) {
 
         {showForm3 && (
           <div className="inscripciones-form-container" style={{ marginTop: 0 }}>
-            <h5 className="inscripciones-title" style={{ fontSize: "20px", color: "var(--primary)", fontWeight: "800" }}>
-              Inscribir varios estudiantes a varios grupos
-            </h5>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "16px" }}>
+              <button className="btn-clear" onClick={() => handleClear(false)} title="Limpiar campos">
+                Limpiar
+              </button>
+            </div>
             <div className="inscripciones-form">
               <div style={{ display: "flex", gap: "16px", marginTop: "16px" }}>
                 <div className="input-wrapper" style={{ flex: 1 }}>
-                  <label className="input-label" style={{ textAlign: "center", display: "block", marginBottom: "8px" }}>ID DE ESTUDIANTES</label>
+                  <label className="input-label" style={{ marginBottom: "8px" }}>ID DE ESTUDIANTES</label>
                   <textarea
                     className="txareaids"
                     value={txareaMultiStudents}
@@ -547,7 +593,7 @@ function ComandosBemoInscripciones({ formType = "estudiante" }) {
                   />
                 </div>
                 <div className="input-wrapper" style={{ flex: 1 }}>
-                  <label className="input-label" style={{ textAlign: "center", display: "block", marginBottom: "8px" }}>ID DE LOS GRUPOS</label>
+                  <label className="input-label" style={{ marginBottom: "8px" }}>ID DE LOS GRUPOS</label>
                   <textarea
                     className="txareaids"
                     value={txareaMultiGroups}
@@ -571,9 +617,6 @@ function ComandosBemoInscripciones({ formType = "estudiante" }) {
               >
                 <UserMinus size={20} /> Retirar estudiantes
               </button>
-              <button className="btn btn-warning btn-icon" onClick={() => handleClear(false)} title="Limpiar">
-                <Eraser size={20} />
-              </button>
             </div>
 
             <CommandsDisplay commands={generatedCommands} onClear={() => setGeneratedCommands([])} />
@@ -582,13 +625,15 @@ function ComandosBemoInscripciones({ formType = "estudiante" }) {
 
         {showForm4 && (
           <div className="inscripciones-form-container" style={{ marginTop: 0 }}>
-            <h5 className="inscripciones-title" style={{ fontSize: "20px", color: "var(--primary)", fontWeight: "800" }}>
-              Varios estudiantes a grupos específicos
-            </h5>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "16px" }}>
+              <button className="btn-clear" onClick={() => handleClear(false)} title="Limpiar campos">
+                Limpiar
+              </button>
+            </div>
             <div className="inscripciones-form">
               <div style={{ display: "flex", gap: "16px", marginTop: "16px" }}>
                 <div className="input-wrapper" style={{ flex: 1 }}>
-                  <label className="input-label" style={{ textAlign: "center", display: "block", marginBottom: "8px" }}>ID DE ESTUDIANTES</label>
+                  <label className="input-label" style={{ marginBottom: "8px" }}>ID DE ESTUDIANTES</label>
                   <textarea
                     className="txareaids"
                     value={txareaEspecStudents}
@@ -598,7 +643,7 @@ function ComandosBemoInscripciones({ formType = "estudiante" }) {
                   />
                 </div>
                 <div className="input-wrapper" style={{ flex: 1 }}>
-                  <label className="input-label" style={{ textAlign: "center", display: "block", marginBottom: "8px" }}>ID DE LOS GRUPOS</label>
+                  <label className="input-label" style={{ marginBottom: "8px" }}>ID DE LOS GRUPOS</label>
                   <textarea
                     className="txareaids"
                     value={txareaEspecGroups}
@@ -621,9 +666,6 @@ function ComandosBemoInscripciones({ formType = "estudiante" }) {
                 onClick={() => handleEspecGenerate(true)}
               >
                 <UserMinus size={20} /> Retirar estudiantes
-              </button>
-              <button className="btn btn-warning btn-icon" onClick={() => handleClear(false)} title="Limpiar">
-                <Eraser size={20} />
               </button>
             </div>
 

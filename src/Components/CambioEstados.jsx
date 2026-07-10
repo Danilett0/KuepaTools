@@ -140,10 +140,7 @@ function CambiosEstadoBemo() {
   return (
     <div className="inscripciones-container">
       <div className="inscripciones-content">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-          <h3 className="inscripciones-title" style={{ fontSize: "20px", color: "var(--primary)", fontWeight: "800", margin: 0 }}>
-            Generar cambio de estado masivo
-          </h3>
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "16px" }}>
           <button
             onClick={handleClear}
             className="btn-clear"
@@ -155,7 +152,7 @@ function CambiosEstadoBemo() {
         <div className="inscripciones-form">
           <div style={{ display: "flex", gap: "16px", marginTop: "16px" }}>
             <div className="input-wrapper" style={{ flex: 1 }}>
-              <label className="input-label" style={{ textAlign: "center", display: "block", marginBottom: "8px" }}>ID DE ESTUDIANTES</label>
+              <label className="input-label" style={{ marginBottom: "8px" }}>ID DE ESTUDIANTES</label>
               <textarea
                 className="txareaids"
                 value={studentIdsText}
@@ -165,7 +162,7 @@ function CambiosEstadoBemo() {
               />
             </div>
             <div className="input-wrapper" style={{ flex: 1 }}>
-              <label className="input-label" style={{ textAlign: "center", display: "block", marginBottom: "8px" }}>ID DE LOS PROGRAMAS</label>
+              <label className="input-label" style={{ marginBottom: "8px" }}>ID DE LOS PROGRAMAS</label>
               <textarea
                 className="txareaids"
                 value={programIdsText}

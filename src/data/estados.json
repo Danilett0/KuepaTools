@@ -1,0 +1,546 @@
+[{
+  "_id": {
+    "$oid": "66aba0820334ef33e3fa2f98"
+  },
+  "name": "riesgo de pago "
+},
+{
+  "_id": {
+    "$oid": "66ad2b05da677019973d93d3"
+  },
+  "name": "prueba "
+},
+{
+  "_id": {
+    "$oid": "60e8b7445348bf79648860ec"
+  },
+  "name": "Estado Cartera"
+},
+{
+  "_id": {
+    "$oid": "63d82c1967c1dc1a075dbdf0"
+  },
+  "name": "Matrícula no exitosa"
+},
+{
+  "_id": {
+    "$oid": "60e8b7445348bf79648860e8"
+  },
+  "name": "Finalización parcial"
+},
+{
+  "_id": {
+    "$oid": "648b908a55ba6c0c84c5013f"
+  },
+  "name": "Aplazado"
+},
+{
+  "_id": {
+    "$oid": "60e8b7445348bf79648860e6"
+  },
+  "name": "Graduado"
+},
+{
+  "_id": {
+    "$oid": "60e8b7445348bf79648860f1"
+  },
+  "name": "Paz y Salvo"
+},
+{
+  "_id": {
+    "$oid": "650dfeb91bc4f0480d1fa116"
+  },
+  "name": "Sin documentación"
+},
+{
+  "_id": {
+    "$oid": "650dfeb91bc4f0480d1fa118"
+  },
+  "name": "Requisitos académicos"
+},
+{
+  "_id": {
+    "$oid": "650dfeb91bc4f0480d1fa11a"
+  },
+  "name": "Suspendido por mora"
+},
+{
+  "_id": {
+    "$oid": "650dfeba1bc4f0480d1fa11d"
+  },
+  "name": "Graduado"
+},
+{
+  "_id": {
+    "$oid": "650dfeba1bc4f0480d1fa11f"
+  },
+  "name": "Certificado"
+},
+{
+  "_id": {
+    "$oid": "650dfeba1bc4f0480d1fa123"
+  },
+  "name": "Finalización en espera de grado"
+},
+{
+  "_id": {
+    "$oid": "650dfeba1bc4f0480d1fa126"
+  },
+  "name": "Retiro oficial"
+},
+{
+  "_id": {
+    "$oid": "671964b617972b0491184204"
+  },
+  "name": "Pausa Académica"
+},
+{
+  "_id": {
+    "$oid": "65440777328e8feb31109b54"
+  },
+  "name": "Suspendido por mora"
+},
+{
+  "_id": {
+    "$oid": "65383891eea9a293fb22ca0b"
+  },
+  "name": "En riesgo de abandono"
+},
+{
+  "_id": {
+    "$oid": "60e8b7445348bf79648860ee"
+  },
+  "name": "Mora"
+},
+{
+  "_id": {
+    "$oid": "60e8b7445348bf79648860ef"
+  },
+  "name": "Al día con deuda Castigada"
+},
+{
+  "_id": {
+    "$oid": "60e8b7445348bf79648860f0"
+  },
+  "name": "Mora con deuda castigada"
+},
+{
+  "_id": {
+    "$oid": "650dfeba1bc4f0480d1fa128"
+  },
+  "name": "Matricula no exitosa"
+},
+{
+  "_id": {
+    "$oid": "60e8b7445348bf79648860ed"
+  },
+  "name": "Al día"
+},
+{
+  "_id": {
+    "$oid": "6303ed683138387a1669d8ac"
+  },
+  "name": "Estado Cartera"
+},
+{
+  "_id": {
+    "$oid": "63a9fa5c3110b56b5be740e9"
+  },
+  "name": "Solicitud de Retiro"
+},
+{
+  "_id": {
+    "$oid": "6303ed683138387a1669d8ab"
+  },
+  "name": "Abandono"
+},
+{
+  "_id": {
+    "$oid": "6303ed683138387a1669d8a8"
+  },
+  "name": "Finalización de requisitos académicos"
+},
+{
+  "_id": {
+    "$oid": "6303ed683138387a1669d8a9"
+  },
+  "name": "Finalización parcial"
+},
+{
+  "_id": {
+    "$oid": "60e8b7445348bf79648860e4"
+  },
+  "name": "Aplazado"
+},
+{
+  "_id": {
+    "$oid": "638e52cbc288e599d70a2487"
+  },
+  "name": "Prematriculado con abono"
+},
+{
+  "_id": {
+    "$oid": "6393c4264806c4f8218689a3"
+  },
+  "name": "Mora intermedia"
+},
+{
+  "_id": {
+    "$oid": "6359c1544c307a19dfc23d54"
+  },
+  "name": "Sin documentación"
+},
+{
+  "_id": {
+    "$oid": "60e8b7445348bf79648860e2"
+  },
+  "name": "Finalizado sin requisitos"
+},
+{
+  "_id": {
+    "$oid": "63a9fa5c3110b56b5be740eb"
+  },
+  "name": "Requisitos académicos"
+},
+{
+  "_id": {
+    "$oid": "650dfeba1bc4f0480d1fa121"
+  },
+  "name": "Finalizado sin requisitos "
+},
+{
+  "_id": {
+    "$oid": "639b2fe70605300cc60ccf5d"
+  },
+  "name": "Regular en verificación"
+},
+{
+  "_id": {
+    "$oid": "63a9fa5c3110b56b5be740ec"
+  },
+  "name": "Certificado"
+},
+{
+  "_id": {
+    "$oid": "60e8b7445348bf79648860e7"
+  },
+  "name": "Finalización en espera de grado"
+},
+{
+  "_id": {
+    "$oid": "6303ed683138387a1669d8a3"
+  },
+  "name": "Regular"
+},
+{
+  "_id": {
+    "$oid": "6303ed683138387a1669d8a4"
+  },
+  "name": "Regular En alerta acadécmica"
+},
+{
+  "_id": {
+    "$oid": "6303ed683138387a1669d8a5"
+  },
+  "name": "Finalizado académicamente en espera de otros requisitos"
+},
+{
+  "_id": {
+    "$oid": "63375d2c511bb77b64a173ee"
+  },
+  "name": "pre matriculado"
+},
+{
+  "_id": {
+    "$oid": "63f8f5b55f725ac9a869f951"
+  },
+  "name": "Trasladado"
+},
+{
+  "_id": {
+    "$oid": "63a9fa5c3110b56b5be740ed"
+  },
+  "name": "Trasladado"
+},
+{
+  "_id": {
+    "$oid": "60e8b7445348bf79648860ea"
+  },
+  "name": "Retiro oficial"
+},
+{
+  "_id": {
+    "$oid": "6244cb5f122b0b804c7e1088"
+  },
+  "name": "Regular en verificación"
+},
+{
+  "_id": {
+    "$oid": "60e8b7445348bf79648860e0"
+  },
+  "name": "Regular"
+},
+{
+  "_id": {
+    "$oid": "61ef142e6e7db80f930aec31"
+  },
+  "name": "regular"
+},
+{
+  "_id": {
+    "$oid": "6244cb5f122b0b804c7e1086"
+  },
+  "name": "Trasladado"
+},
+{
+  "_id": {
+    "$oid": "6255f6965a5419ce1f6046f8"
+  },
+  "name": "LMS-Desactivado"
+},
+{
+  "_id": {
+    "$oid": "63375d29511bb77b64a173c9"
+  },
+  "name": "pre matriculado"
+},
+{
+  "_id": {
+    "$oid": "640a563e1cbb9f11665ef129"
+  },
+  "name": "Al día"
+},
+{
+  "_id": {
+    "$oid": "642c61da46850e0c9ca80de0"
+  },
+  "name": "Alerta 1"
+},
+{
+  "_id": {
+    "$oid": "643edc51b731ba2ff1222c16"
+  },
+  "name": "Baja por mora"
+},
+{
+  "_id": {
+    "$oid": "6303ed693138387a1669d8ad"
+  },
+  "name": "Al día con deuda Castigada"
+},
+{
+  "_id": {
+    "$oid": "6303ed693138387a1669d8ae"
+  },
+  "name": "Mora con deuda castigada"
+},
+{
+  "_id": {
+    "$oid": "6303ed693138387a1669d8af"
+  },
+  "name": "Paz y Salvo"
+},
+{
+  "_id": {
+    "$oid": "640a61c1a845bd076acd06cc"
+  },
+  "name": "Paz y Salvo"
+},
+{
+  "_id": {
+    "$oid": "643edc51b731ba2ff1222c18"
+  },
+  "name": "Baja por mora"
+},
+{
+  "_id": {
+    "$oid": "6393c4264806c4f8218689a2"
+  },
+  "name": "Mora temprana"
+},
+{
+  "_id": {
+    "$oid": "640a5647dde2b67de97d46b3"
+  },
+  "name": "Mora temprana"
+},
+{
+  "_id": {
+    "$oid": "640a5653bc10ff1867fe2cf7"
+  },
+  "name": "Mora intermedia"
+},
+{
+  "_id": {
+    "$oid": "6393c4264806c4f8218689a4"
+  },
+  "name": "Mora avanzada"
+},
+{
+  "_id": {
+    "$oid": "640a565e44787a7aba0e045c"
+  },
+  "name": "Mora avanzada"
+},
+{
+  "_id": {
+    "$oid": "6303ed683138387a1669d8a2"
+  },
+  "name": "Activo"
+},
+{
+  "_id": {
+    "$oid": "60e8b7445348bf79648860e3"
+  },
+  "name": "Suspendido"
+},
+{
+  "_id": {
+    "$oid": "6303ed683138387a1669d8a6"
+  },
+  "name": "Suspendido"
+},
+{
+  "_id": {
+    "$oid": "6303ed683138387a1669d8a7"
+  },
+  "name": "Finalizado"
+},
+{
+  "_id": {
+    "$oid": "6303ed683138387a1669d8aa"
+  },
+  "name": "Baja"
+},
+{
+  "_id": {
+    "$oid": "638e52cbc288e599d70a2486"
+  },
+  "name": "Proceso de Matrícula"
+},
+{
+  "_id": {
+    "$oid": "638e52cbc288e599d70a2483"
+  },
+  "name": "Proceso de Matrícula"
+},
+{
+  "_id": {
+    "$oid": "63a9fa5c3110b56b5be740ea"
+  },
+  "name": "En riesgo de abandono"
+},
+{
+  "_id": {
+    "$oid": "65808a0ca91405f54f19e87f"
+  },
+  "name": "Baja por mora"
+},
+{
+  "_id": {
+    "$oid": "65808a0da91405f54f19e8dd"
+  },
+  "name": "Baja por mora"
+},
+{
+  "_id": {
+    "$oid": "65d559416acd5ea5119c2086"
+  },
+  "name": "Matriculado provisional"
+},
+{
+  "_id": {
+    "$oid": "650dfeb91bc4f0480d1fa111"
+  },
+  "name": "Solicitud de Retiro"
+},
+{
+  "_id": {
+    "$oid": "6876947dd0bebe6f8e82afcd"
+  },
+  "name": "Exento de cobro"
+},
+{
+  "_id": {
+    "$oid": "6244cb5f122b0b804c7e1084"
+  },
+  "name": "Nuevo"
+},
+{
+  "_id": {
+    "$oid": "60e8b7445348bf79648860eb"
+  },
+  "name": "Abandono"
+},
+{
+  "_id": {
+    "$oid": "60e8b7445348bf79648860e9"
+  },
+  "name": "Baja"
+},
+{
+  "_id": {
+    "$oid": "60e8b7445348bf79648860e5"
+  },
+  "name": "Finalizado"
+},
+{
+  "_id": {
+    "$oid": "638e52cbc288e599d70a2488"
+  },
+  "name": "Prematriculado"
+},
+{
+  "_id": {
+    "$oid": "60e8b7445348bf79648860df"
+  },
+  "name": "Activo"
+},
+{
+  "_id": {
+    "$oid": "68c989dbca60fe3f1793603e"
+  },
+  "name": "Retiro académico"
+},
+{
+  "_id": {
+    "$oid": "68c989ddca60fe3f1793603f"
+  },
+  "name": "Retiro académico"
+},
+{
+  "_id": {
+    "$oid": "650dfeb91bc4f0480d1fa113"
+  },
+  "name": "Materias pendientes"
+},
+{
+  "_id": {
+    "$oid": "68c989ddca60fe3f17936042"
+  },
+  "name": "Materias pendientes"
+},
+{
+  "_id": {
+    "$oid": "638e52cbc288e599d70a2484"
+  },
+  "name": "Prematriculado con abono"
+},
+{
+  "_id": {
+    "$oid": "638e52cbc288e599d70a2485"
+  },
+  "name": "Prematriculado"
+},
+{
+  "_id": {
+    "$oid": "6969276814c965a70f4bfc39"
+  },
+  "name": "Exento de cobro"
+},
+{
+  "_id": {
+    "$oid": "632b97df8f3bba0fc2708b78"
+  },
+  "name": "Nuevo"
+}]
