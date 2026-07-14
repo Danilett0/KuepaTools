@@ -326,9 +326,9 @@ const Informacion = () => {
                   title={!op.available ? 'Próximamente' : ''}
                   style={{
                     padding: '8px 18px',
-                    background: usuariosFiltro === op.id ? 'var(--primary-container)' : 'var(--surface-low)',
+                    background: usuariosFiltro === op.id ? (op.id === 'kuepa' ? '#ef4444' : 'var(--primary-container)') : 'var(--surface-low)',
                     color: usuariosFiltro === op.id ? '#fff' : 'var(--on-surface-variant)',
-                    borderColor: usuariosFiltro === op.id ? 'var(--primary)' : 'var(--glass-border)',
+                    borderColor: usuariosFiltro === op.id ? (op.id === 'kuepa' ? '#ef4444' : 'var(--primary)') : 'var(--glass-border)',
                     borderRadius: '100px',
                     whiteSpace: 'nowrap',
                     opacity: op.available ? 1 : 0.45,

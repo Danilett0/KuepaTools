@@ -1,119 +1,255 @@
 import React, { useState, useEffect } from 'react';
-import { Copy } from 'lucide-react';
+import { Copy, Search, ArrowRight } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { useUsuariosCompletos } from '../hooks/useUsuariosCompletos';
+import AllianceSwitcher from './ui/AllianceSwitcher';
 
 const BuscarIdInc = () => {
   const [incText, setIncText] = useState('');
-  const [alianza, setAlianza] = useState('na'); // 'na' o 'kuepa'
-  const [resultado, setResultado] = useState('');
+  const [alianza, setAlianza] = useState('na');
+  const [resultado, setResultado] = useState([]);
   const { data: usuariosCompletos, loading } = useUsuariosCompletos();
 
   useEffect(() => {
     if (!incText.trim()) {
-      setResultado('');
+      setResultado([]);
       return;
     }
 
     const lines = incText.split('\n').map(line => line.trim()).filter(line => line !== '');
-
     const allianceId = alianza === 'kuepa'
       ? '602169e217b5c8a27f9e9c06'
       : '6303ed663138387a1669d82a';
 
-    const resultados = lines.map(incStr => {
+    const results = lines.map(incStr => {
       const incNum = Number(incStr);
-      if (isNaN(incNum)) return 'usuario no encontrado';
+      if (isNaN(incNum)) return { inc: incStr, id: null, found: false };
 
       const user = usuariosCompletos.find(
         u => u.incremental_user_code === incNum && u.alliance_id?.$oid === allianceId
       );
 
-      if (user && user._id && user._id.$oid) {
-        return user._id.$oid;
+      if (user?._id?.$oid) {
+        return { inc: incStr, id: user._id.$oid, name: user.profile?.full_name, found: true };
       }
-      return 'usuario no se ha encontrado';
+      return { inc: incStr, id: null, found: false };
     });
 
-    setResultado(resultados.join('\n'));
+    setResultado(results);
   }, [incText, alianza, usuariosCompletos]);
 
+  const foundCount = resultado.filter(r => r.found).length;
+  const totalCount = resultado.length;
+
   const copiarAlPortapapeles = () => {
-    if (!resultado) return;
-    navigator.clipboard.writeText(resultado);
-    toast.success('Resultados copiados al portapapeles');
+    if (!resultado.length) return;
+    const text = resultado.map(r => r.found ? r.id : 'no encontrado').join('\n');
+    navigator.clipboard.writeText(text);
+    toast.success(`${foundCount} ID${foundCount !== 1 ? 's' : ''} copiado${foundCount !== 1 ? 's' : ''}`);
+  };
+
+  const handleClear = () => {
+    setIncText('');
+    setResultado([]);
   };
 
   return (
     <div className="inscripciones-container">
-      <div className="inscripciones-content" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-        <div className="inscripciones-form-container animate-slide-up" style={{ marginTop: 0, height: '100%', display: 'flex', flexDirection: 'column', flex: 1 }}>
+      <div className="inscripciones-content" style={{ display: 'flex', flexDirection: 'column' }}>
+        <div className="inscripciones-form-container animate-slide-up" style={{ marginTop: 0 }}>
 
-          <div className="inscripciones-form" style={{ display: 'flex', flexDirection: 'row', gap: '24px', flex: 1, minHeight: '60vh' }}>
+          {/* ── Header ─────────────────────────────────────────── */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <AllianceSwitcher value={alianza} size="md" onChange={(val) => { setAlianza(val); handleClear(); }} />
+              {loading && (
+                <span style={{ fontSize: '11px', color: '#eab308', fontStyle: 'italic', fontFamily: "'Space Grotesk', sans-serif" }}>
+                  Cargando usuarios...
+                </span>
+              )}
+            </div>
+            <button
+              className="btn-clear"
+              onClick={handleClear}
+              title="Limpiar"
+            >
+              Limpiar
+            </button>
+          </div>
 
-            {/* Lado izquierdo */}
-            <div className="input-wrapper" style={{ flex: 1, display: 'flex', flexDirection: 'column', margin: 0 }}>
-              {/* Cabecera Izquierda: Alianza */}
-              <div style={{ display: 'flex', marginBottom: '12px', border: '1px solid var(--glass-border)', borderRadius: '8px', overflow: 'hidden' }}>
-                <button
-                  onClick={() => setAlianza('na')}
-                  style={{ flex: 1, padding: '12px', background: alianza === 'na' ? 'var(--primary-container)' : 'var(--surface-low)', color: alianza === 'na' ? '#fff' : 'var(--on-surface-variant)', border: 'none', fontWeight: '600', cursor: 'pointer', transition: 'all 0.2s', fontSize: '13px' }}
-                >
-                  NUEVA AMÉRICA
-                </button>
-                <button
-                  onClick={() => setAlianza('kuepa')}
-                  style={{ flex: 1, padding: '12px', background: alianza === 'kuepa' ? 'var(--primary-container)' : 'var(--surface-low)', color: alianza === 'kuepa' ? '#fff' : 'var(--on-surface-variant)', border: 'none', borderLeft: '1px solid var(--glass-border)', fontWeight: '600', cursor: 'pointer', transition: 'all 0.2s', fontSize: '13px' }}
-                >
-                  KUEPA
-                </button>
+          {/* ── Divisor ────────────────────────────────────────── */}
+          <div style={{ height: '1px', background: 'var(--glass-border)', marginBottom: '24px' }} />
+
+          {/* ── Cuerpo principal ───────────────────────────────── */}
+          <div style={{ display: 'flex', gap: '16px', alignItems: 'stretch' }}>
+
+            {/* Panel izquierdo: entrada */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Search size={14} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                <label className="input-label" style={{ marginBottom: 0 }}>IDs INCREMENTALES</label>
               </div>
-
               <textarea
                 className="inscripciones-input"
                 value={incText}
                 onChange={(e) => setIncText(e.target.value)}
-                placeholder="Ejemplo:&#10;292828&#10;237575&#10;297832"
-                style={{ flex: 1, resize: 'none', fontFamily: 'monospace' }}
+                placeholder={"Ejemplo:\n292828\n237575\n297832"}
+                style={{
+                  height: '340px',
+                  resize: 'none',
+                  fontFamily: "'Space Grotesk', monospace",
+                  fontSize: '14px',
+                  lineHeight: '1.8',
+                  letterSpacing: '0.02em',
+                  overflowY: 'auto',
+                }}
               />
             </div>
 
-            {/* Lado derecho */}
-            <div className="input-wrapper" style={{ flex: 1, display: 'flex', flexDirection: 'column', margin: 0 }}>
-              {/* Cabecera Derecha: Limpiar y Copiar */}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '12px', gap: '12px' }}>
+            {/* Flecha central */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, paddingTop: '32px' }}>
+              <div style={{
+                width: '36px', height: '36px', borderRadius: '50%',
+                background: totalCount > 0 ? 'var(--primary-container)' : 'var(--glass-border)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                transition: 'all 0.3s ease',
+              }}>
+                <ArrowRight size={16} style={{ color: totalCount > 0 ? '#fff' : 'var(--text-muted)' }} />
+              </div>
+            </div>
+
+            {/* Panel derecho: resultados */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{
+                    width: '8px', height: '8px', borderRadius: '50%',
+                    background: totalCount === 0 ? 'var(--glass-border)' : foundCount === totalCount ? '#22c55e' : '#eab308',
+                    transition: 'background 0.3s ease',
+                  }} />
+                  <label className="input-label" style={{ marginBottom: 0 }}>
+                    IDs LARGOS
+                    {totalCount > 0 && (
+                      <span style={{ marginLeft: '8px', fontWeight: 400, color: 'var(--on-surface-variant)', fontSize: '12px' }}>
+                        {foundCount}/{totalCount} encontrados
+                      </span>
+                    )}
+                  </label>
+                </div>
                 <button
-                  className="btn-clear"
-                  onClick={() => { setIncText(''); setResultado(''); }}
-                  title="Limpiar campos"
-                  style={{ flex: 1, padding: '12px', background: 'var(--surface-low)', color: 'var(--on-surface-variant)', border: '1px solid var(--glass-border)', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.2s' }}
-                >
-                  LIMPIAR
-                </button>
-                <button
-                  className="btn-clear"
                   onClick={copiarAlPortapapeles}
-                  title="Copiar resultados"
-                  style={{ flex: 1, padding: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', color: '#fff', background: 'var(--primary-container)', border: '1px solid var(--primary-container)', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.2s' }}
+                  disabled={!foundCount}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '6px',
+                    background: foundCount ? 'var(--primary-container)' : 'transparent',
+                    color: foundCount ? '#fff' : 'var(--text-muted)',
+                    border: `1px solid ${foundCount ? 'var(--primary)' : 'var(--glass-border)'}`,
+                    borderRadius: '8px', padding: '5px 12px',
+                    fontSize: '12px', fontWeight: '600',
+                    fontFamily: "'Space Grotesk', sans-serif",
+                    cursor: foundCount ? 'pointer' : 'not-allowed',
+                    transition: 'all 0.2s ease',
+                  }}
                 >
-                  <Copy size={14} /> COPIAR
+                  <Copy size={13} /> Copiar IDs
                 </button>
               </div>
-              {loading && (
-                <div style={{ padding: '8px 12px', marginBottom: '12px', background: 'rgba(255,200,0,0.1)', color: '#eab308', borderRadius: '8px', fontSize: '13px', border: '1px solid rgba(255,200,0,0.2)' }}>
-                  Cargando base de datos de usuarios...
-                </div>
-              )}
-              <textarea
-                className="inscripciones-input"
-                value={resultado}
-                readOnly
-                placeholder="Los resultados aparecerán aquí..."
-                style={{ flex: 1, resize: 'none', fontFamily: 'monospace', background: 'var(--surface-void)', color: 'var(--on-surface-variant)' }}
-              />
-            </div>
 
+              {/* Lista de resultados */}
+              <div style={{
+                height: '340px',
+                border: '1px solid var(--glass-border)',
+                borderRadius: '12px',
+                background: 'rgba(0,0,0,0.3)',
+                overflow: 'hidden',
+                display: 'flex', flexDirection: 'column',
+              }}>
+                {resultado.length === 0 ? (
+                  <div style={{
+                    flex: 1, display: 'flex', flexDirection: 'column',
+                    alignItems: 'center', justifyContent: 'center', gap: '12px',
+                    color: 'var(--text-muted)', padding: '24px',
+                  }}>
+                    <Search size={32} style={{ opacity: 0.3 }} />
+                    <span style={{ fontSize: '13px', fontFamily: "'Space Grotesk', sans-serif" }}>
+                      Los resultados aparecerán aquí
+                    </span>
+                  </div>
+                ) : (
+                  <div style={{ overflowY: 'auto', flex: 1 }}>
+                    {resultado.map((r, i) => (
+                      <div
+                        key={i}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: '12px',
+                          padding: '10px 16px',
+                          borderBottom: i < resultado.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
+                          background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)',
+                        }}
+                      >
+                        {/* Número incremental */}
+                        <span style={{
+                          fontSize: '12px', fontFamily: "'Space Grotesk', monospace",
+                          color: 'var(--on-surface-variant)', minWidth: '48px',
+                          background: 'rgba(255,255,255,0.05)', borderRadius: '4px',
+                          padding: '2px 6px', textAlign: 'center', flexShrink: 0,
+                        }}>
+                          #{r.inc}
+                        </span>
+
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          {r.found ? (
+                            <>
+                              <div style={{
+                                fontSize: '12px', fontFamily: "'Space Grotesk', monospace",
+                                color: 'var(--on-surface)', letterSpacing: '0.02em',
+                                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                              }}>
+                                {r.id}
+                              </div>
+                              {r.name && (
+                                <div style={{ fontSize: '11px', color: 'var(--primary)', marginTop: '2px' }}>
+                                  {r.name}
+                                </div>
+                              )}
+                            </>
+                          ) : (
+                            <span style={{ fontSize: '12px', color: '#ef4444', fontStyle: 'italic', fontFamily: "'Space Grotesk', sans-serif" }}>
+                              No encontrado
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Indicador y botón copiar individual */}
+                        {r.found ? (
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(r.id);
+                              toast.success('ID copiado');
+                            }}
+                            title="Copiar este ID"
+                            style={{
+                              background: 'none', border: 'none', cursor: 'pointer',
+                              color: 'var(--on-surface-variant)', padding: '4px',
+                              borderRadius: '4px', flexShrink: 0, transition: 'color 0.2s',
+                              display: 'flex', alignItems: 'center',
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.color = 'var(--primary)'}
+                            onMouseLeave={e => e.currentTarget.style.color = 'var(--on-surface-variant)'}
+                          >
+                            <Copy size={13} />
+                          </button>
+                        ) : (
+                          <div style={{ width: '21px', flexShrink: 0 }} />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
+
         </div>
       </div>
     </div>

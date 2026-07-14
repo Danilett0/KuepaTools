@@ -7,9 +7,10 @@ import AuditarEstadisticas from "./Components/AuditarEstadisticas.jsx";
 import Inscripciones from "./Components/Inscripciones.jsx";
 import Informacion from "./Components/Informacion.jsx";
 import BuscarIdInc from "./Components/BuscarIdInc.jsx";
+import ProgramasPorEstudiante from "./Components/ProgramasPorEstudiante.jsx";
 import Lottie from "lottie-react";
 import groovyWalkAnimation from "./medit.json";
-import { Users, RefreshCw, BarChart2, Shield, ChevronDown, ChevronRight, Info, Search } from "lucide-react";
+import { Users, RefreshCw, BarChart2, Shield, ChevronDown, ChevronRight, Info, Search, BookOpen } from "lucide-react";
 
 function App() {
   const [activeComponent, setActiveComponent] = useState("inscripciones-estudiante");
@@ -33,6 +34,8 @@ function App() {
         return <Informacion key="informacion" />;
       case "buscar-id":
         return <BuscarIdInc key="buscar-id" />;
+      case "programas-estudiante":
+        return <ProgramasPorEstudiante key="programas-estudiante" />;
       default:
         return <Inscripciones key="default" formType="estudiante" />;
     }
@@ -53,6 +56,7 @@ function App() {
     { id: "cambios-estado", label: "Cambios de Estado", icon: RefreshCw },
     { id: "auditar-estadisticas", label: "Auditar Estadísticas", icon: BarChart2 },
     { id: "buscar-id", label: "Buscar ID por INC", icon: Search },
+    { id: "programas-estudiante", label: "Programas por Estudiante", icon: BookOpen },
   ];
 
   return (

@@ -5,6 +5,7 @@ import CommandsDisplay from "./CommandsDisplay";
 import { showError, showSuccess } from "../services/toastService";
 import { useUsuariosCompletos } from "../hooks/useUsuariosCompletos";
 import { toast } from "react-toastify";
+import AllianceSwitcher from "./ui/AllianceSwitcher";
 
 function ComandosBemoInscripciones({ formType = "estudiante" }) {
   const showForm2 = formType === "estudiante";
@@ -442,38 +443,12 @@ function ComandosBemoInscripciones({ formType = "estudiante" }) {
                 <div className="input-wrapper" style={{ flex: 1 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "6px" }}>
                     <label className="input-label" style={{ marginBottom: 0 }}>ID Estudiante</label>
-                    <div style={{ display: "flex", alignItems: "center", gap: "4px", background: "var(--glass-border)", borderRadius: "8px", padding: "3px" }}>
-                      <button
-                        onClick={() => { if (alianza !== "na") { handleClear(true); setAlianza("na"); } }}
-                        style={{
-                          fontSize: "11px",
-                          fontWeight: "600",
-                          padding: "3px 10px",
-                          borderRadius: "6px",
-                          border: "none",
-                          cursor: "pointer",
-                          transition: "all 0.2s ease",
-                          background: alianza === "na" ? "#22c55e" : "transparent",
-                          color: alianza === "na" ? "#0a0a0a" : "var(--text-muted)",
-                          boxShadow: alianza === "na" ? "0 1px 4px rgba(34,197,94,0.4)" : "none",
-                        }}
-                      >Nueva América</button>
-                      <button
-                        onClick={() => { if (alianza !== "kuepa") { handleClear(true); setAlianza("kuepa"); } }}
-                        style={{
-                          fontSize: "11px",
-                          fontWeight: "600",
-                          padding: "3px 10px",
-                          borderRadius: "6px",
-                          border: "none",
-                          cursor: "pointer",
-                          transition: "all 0.2s ease",
-                          background: alianza === "kuepa" ? "#22c55e" : "transparent",
-                          color: alianza === "kuepa" ? "#0a0a0a" : "var(--text-muted)",
-                          boxShadow: alianza === "kuepa" ? "0 1px 4px rgba(34,197,94,0.4)" : "none",
-                        }}
-                      >Kuepa</button>
-                    </div>
+                    <AllianceSwitcher
+                      value={alianza}
+                      onChange={(val) => {
+                        if (alianza !== val) { handleClear(true); setAlianza(val); }
+                      }}
+                    />
                   </div>
                   {loading && (
                     <div style={{ marginBottom: '6px', color: '#eab308', fontSize: '11px', fontStyle: 'italic' }}>
