@@ -1,14 +1,15 @@
 import React, { useState, useMemo } from 'react';
 import { Search, Copy, Phone, BookOpen, Mail, Briefcase } from 'lucide-react';
 import { toast } from 'react-toastify';
-import alianzasData from '../data/alianzas.json';
-import programasData from '../data/programas.json';
-import estadosData from '../data/estados.json';
-import usuariosCompletos from '../data/usuarios_completos.json';
+import { useCatalogos } from '../hooks/useCatalogos';
+import { useUsuariosCompletos } from '../hooks/useUsuariosCompletos';
 
 const Informacion = () => {
   const [consultaActiva, setConsultaActiva] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const { data: usuariosCompletos, loading: loadingUsuarios } = useUsuariosCompletos();
+  const { alianzas: alianzasData, programas: programasData, estados: estadosData, loading: loadingCatalogos } = useCatalogos();
+  const isLoading = loadingUsuarios || loadingCatalogos;
   const [alianzaFiltro, setAlianzaFiltro] = useState('');
   const [usuariosFiltro, setUsuariosFiltro] = useState('nueva-america');
   const [usuariosPagina, setUsuariosPagina] = useState(0);
@@ -23,7 +24,7 @@ const Informacion = () => {
       : '602169e217b5c8a27f9e9c06'; // Kuepa Colombia
       
     return usuariosCompletos.filter(u => u.alliance_id?.$oid === allianceId);
-  }, [usuariosFiltro]);
+  }, [usuariosFiltro, usuariosCompletos]);
 
   const filteredUsers = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
@@ -42,12 +43,12 @@ const Informacion = () => {
   // Mapa rápido de ID de programa → { name, _id.$oid }
   const programasMap = useMemo(() =>
     Object.fromEntries(programasData.map(p => [p._id.$oid, p]))
-  , []);
+  , [programasData]);
 
   // Mapa rápido de ID de estado → name
   const estadosMap = useMemo(() =>
     Object.fromEntries(estadosData.map(e => [e._id.$oid, e.name.trim()]))
-  , []);
+  , [estadosData]);
 
   const getStatusStyle = (statusName) => {
     if (!statusName || statusName === 'Desconocido') return { background: 'rgba(255,255,255,0.1)', color: 'var(--on-surface-variant)' };
@@ -199,7 +200,13 @@ const Informacion = () => {
               flex: 1,
               minHeight: 0
             }}>
-              {renderListItems(filteredAlianzas.slice(alianzasPagina * PAGE_SIZE, (alianzasPagina + 1) * PAGE_SIZE), 'alianza')}
+              {isLoading ? (
+                <div style={{ textAlign: 'center', color: '#eab308', padding: '60px 20px', background: 'rgba(255,200,0,0.05)', borderRadius: '12px', border: '1px solid rgba(255,200,0,0.1)' }}>
+                  Descargando base de datos (puede tardar unos segundos)...
+                </div>
+              ) : (
+                renderListItems(filteredAlianzas.slice(alianzasPagina * PAGE_SIZE, (alianzasPagina + 1) * PAGE_SIZE), 'alianza')
+              )}
             </div>
             {renderPagination(alianzasPagina, Math.ceil(filteredAlianzas.length / PAGE_SIZE), filteredAlianzas.length, filteredAlianzas.slice(alianzasPagina * PAGE_SIZE, (alianzasPagina + 1) * PAGE_SIZE).length, setAlianzasPagina)}
           </div>
@@ -269,7 +276,13 @@ const Informacion = () => {
               flex: 1,
               minHeight: 0
             }}>
-              {renderListItems(filteredProgramas.slice(programasPagina * PAGE_SIZE, (programasPagina + 1) * PAGE_SIZE), 'programa')}
+              {isLoading ? (
+                <div style={{ textAlign: 'center', color: '#eab308', padding: '60px 20px', background: 'rgba(255,200,0,0.05)', borderRadius: '12px', border: '1px solid rgba(255,200,0,0.1)' }}>
+                  Descargando base de datos (puede tardar unos segundos)...
+                </div>
+              ) : (
+                renderListItems(filteredProgramas.slice(programasPagina * PAGE_SIZE, (programasPagina + 1) * PAGE_SIZE), 'programa')
+              )}
             </div>
             {renderPagination(programasPagina, Math.ceil(filteredProgramas.length / PAGE_SIZE), filteredProgramas.length, filteredProgramas.slice(programasPagina * PAGE_SIZE, (programasPagina + 1) * PAGE_SIZE).length, setProgramasPagina)}
           </div>
@@ -335,7 +348,11 @@ const Informacion = () => {
 
             {/* Lista de usuarios */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', overflowY: 'auto', flex: 1, minHeight: 0 }}>
-              {pageUsers.length === 0 ? (
+              {isLoading ? (
+                <div style={{ textAlign: 'center', color: '#eab308', padding: '60px 20px', background: 'rgba(255,200,0,0.05)', borderRadius: '12px', border: '1px solid rgba(255,200,0,0.1)' }}>
+                  Descargando base de datos (puede tardar unos segundos)...
+                </div>
+              ) : pageUsers.length === 0 ? (
                 <div style={{ textAlign: 'center', color: 'var(--on-surface-variant)', padding: '60px 20px' }}>
                   {usuariosFiltro === 'kuepa'
                     ? 'Los datos de Kuepa estarán disponibles próximamente.'

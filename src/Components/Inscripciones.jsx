@@ -3,7 +3,7 @@ import { useLocalStorage } from "../hooks/useLocalStorage";
 import { UserPlus, UserMinus, ChevronDown, ChevronRight } from "lucide-react";
 import CommandsDisplay from "./CommandsDisplay";
 import { showError, showSuccess } from "../services/toastService";
-import usuariosCompletos from "../data/usuarios_completos.json";
+import { useUsuariosCompletos } from "../hooks/useUsuariosCompletos";
 import { toast } from "react-toastify";
 
 function ComandosBemoInscripciones({ formType = "estudiante" }) {
@@ -11,6 +11,8 @@ function ComandosBemoInscripciones({ formType = "estudiante" }) {
   const showForm1 = formType === "grupo";
   const showForm3 = formType === "multi";
   const showForm4 = formType === "especificos";
+  
+  const { data: usuariosCompletos, loading } = useUsuariosCompletos();
   
   const [groupId, setGroupId] = useLocalStorage(`groupId-${formType}`, "");
   const [groupId2, setGroupId2] = useLocalStorage(`groupId2-${formType}`, "");
@@ -156,6 +158,10 @@ function ComandosBemoInscripciones({ formType = "estudiante" }) {
   }, [showForm2, showForm3, showForm4, handleClear]);
 
   const BuscarId = (isForm2 = false) => {
+    if (loading) {
+      toast.info("Cargando base de datos, por favor espera...");
+      return;
+    }
     if (isForm2 && groupId2.trim() !== "") {
       const codigo = Number(groupId2.trim());
       const allianceId = alianza === "kuepa" 
@@ -469,6 +475,11 @@ function ComandosBemoInscripciones({ formType = "estudiante" }) {
                       >Kuepa</button>
                     </div>
                   </div>
+                  {loading && (
+                    <div style={{ marginBottom: '6px', color: '#eab308', fontSize: '11px', fontStyle: 'italic' }}>
+                      Cargando base de datos...
+                    </div>
+                  )}
                   <input
                     type="text"
                     id="groupId2"

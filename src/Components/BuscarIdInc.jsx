@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Copy } from 'lucide-react';
 import { toast } from 'react-toastify';
-import usuariosCompletos from '../data/usuarios_completos.json';
+import { useUsuariosCompletos } from '../hooks/useUsuariosCompletos';
 
 const BuscarIdInc = () => {
   const [incText, setIncText] = useState('');
   const [alianza, setAlianza] = useState('na'); // 'na' o 'kuepa'
   const [resultado, setResultado] = useState('');
+  const { data: usuariosCompletos, loading } = useUsuariosCompletos();
 
   useEffect(() => {
     if (!incText.trim()) {
@@ -35,7 +36,7 @@ const BuscarIdInc = () => {
     });
 
     setResultado(resultados.join('\n'));
-  }, [incText, alianza]);
+  }, [incText, alianza, usuariosCompletos]);
 
   const copiarAlPortapapeles = () => {
     if (!resultado) return;
@@ -98,6 +99,11 @@ const BuscarIdInc = () => {
                   <Copy size={14} /> COPIAR
                 </button>
               </div>
+              {loading && (
+                <div style={{ padding: '8px 12px', marginBottom: '12px', background: 'rgba(255,200,0,0.1)', color: '#eab308', borderRadius: '8px', fontSize: '13px', border: '1px solid rgba(255,200,0,0.2)' }}>
+                  Cargando base de datos de usuarios...
+                </div>
+              )}
               <textarea
                 className="inscripciones-input"
                 value={resultado}
