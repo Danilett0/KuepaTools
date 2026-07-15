@@ -218,7 +218,6 @@ h1, h2, h3, h4, h5, h6 {
   font-size: 15px;
   font-weight: 700;
   cursor: pointer;
-  transition: all 0.3s ease;
   font-family: 'Nunito', sans-serif;
   display: flex;
   align-items: center;
@@ -237,7 +236,6 @@ h1, h2, h3, h4, h5, h6 {
 }
 .btn-primary:hover { 
   background-color: var(--primary-container); 
-  transform: translateY(-2px);
   box-shadow: 0 6px 20px var(--gold-glow);
 }
 
@@ -247,7 +245,6 @@ h1, h2, h3, h4, h5, h6 {
 }
 .btn-danger:hover { 
   background-color: #ff6b81; 
-  transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(255, 71, 87, 0.3);
 }
 
@@ -257,7 +254,6 @@ h1, h2, h3, h4, h5, h6 {
 }
 .btn-success:hover { 
   background-color: #7bed9f; 
-  transform: translateY(-2px);
 }
 
 .btn-black { 
@@ -266,7 +262,6 @@ h1, h2, h3, h4, h5, h6 {
 }
 .btn-black:hover { 
   background-color: #1a1a1a; 
-  transform: translateY(-2px);
   border-color: rgba(255,255,255,0.2);
 }
 
@@ -276,7 +271,6 @@ h1, h2, h3, h4, h5, h6 {
 }
 .btn-warning:hover { 
   background-color: #eccc68; 
-  transform: translateY(-2px);
 }
 
 .btn-icon {
@@ -352,11 +346,11 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Animations */
 @keyframes slideDownFade {
-  0% { opacity: 0; transform: translateY(-10px); }
-  100% { opacity: 1; transform: translateY(0); }
+  0% { opacity: 1; transform: none; }
+  100% { opacity: 1; transform: none; }
 }
 .animate-slide-down {
-  animation: slideDownFade 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: none;
 }
 
 /* ─── Buttons ─── */
