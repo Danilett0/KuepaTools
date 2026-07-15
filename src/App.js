@@ -8,13 +8,12 @@ import Inscripciones from "./Components/Inscripciones.jsx";
 import Informacion from "./Components/Informacion.jsx";
 import BuscarIdInc from "./Components/BuscarIdInc.jsx";
 import ProgramasPorEstudiante from "./Components/ProgramasPorEstudiante.jsx";
-import Lottie from "lottie-react";
-import groovyWalkAnimation from "./medit.json";
-import { Users, RefreshCw, BarChart2, Shield, ChevronDown, ChevronRight, Info, Search, BookOpen } from "lucide-react";
+import { UndoPublicationPage, FinalUserPage } from "./Components/HerramientasAcademicos.jsx";
+import { Users, RefreshCw, BarChart2, Shield, ChevronDown, ChevronRight, Info, Search, BookOpen, GraduationCap } from "lucide-react";
 
 function App() {
   const [activeComponent, setActiveComponent] = useState("inscripciones-estudiante");
-  const [expandedMenu, setExpandedMenu] = useState("inscripciones");
+  const [expandedMenu, setExpandedMenu] = useState(null);
 
   const renderComponent = () => {
     switch (activeComponent) {
@@ -36,15 +35,19 @@ function App() {
         return <BuscarIdInc key="buscar-id" />;
       case "programas-estudiante":
         return <ProgramasPorEstudiante key="programas-estudiante" />;
+      case "herramientas-undo":
+        return <UndoPublicationPage key="herramientas-undo" />;
+      case "herramientas-final":
+        return <FinalUserPage key="herramientas-final" />;
       default:
         return <Inscripciones key="default" formType="estudiante" />;
     }
   };
 
   const navItems = [
-    { 
-      id: "inscripciones", 
-      label: "Inscripciones", 
+    {
+      id: "inscripciones",
+      label: "Inscripciones",
       icon: Users,
       subItems: [
         { id: "inscripciones-estudiante", label: "Inscribir grupos a un estudiante" },
@@ -55,8 +58,17 @@ function App() {
     },
     { id: "cambios-estado", label: "Cambios de Estado", icon: RefreshCw },
     { id: "auditar-estadisticas", label: "Auditar Estadísticas", icon: BarChart2 },
-    { id: "buscar-id", label: "Buscar ID por INC", icon: Search },
-    { id: "programas-estudiante", label: "Programas por Estudiante", icon: BookOpen },
+    { id: "buscar-id", label: "Buqueda Masiva Estudiante", icon: Search },
+    { id: "programas-estudiante", label: "Programas Estudiante", icon: BookOpen },
+    {
+      id: "herramientas-academicos",
+      label: "Grupos académicos",
+      icon: GraduationCap,
+      subItems: [
+        { id: "herramientas-undo", label: "Deshacer Publicación" },
+        { id: "herramientas-final", label: "Re-calcular Nota Estudiante" },
+      ]
+    },
   ];
 
   return (
@@ -130,12 +142,6 @@ function App() {
       </aside>
 
       <main className="main-content">
-        <Lottie
-          className="Lotty"
-          animationData={groovyWalkAnimation}
-          loop={true}
-          speed={0.3}
-        />
         <div className="app-container" style={activeComponent === 'informacion' ? { maxWidth: '100%', height: '100%' } : {}}>
           {renderComponent()}
         </div>

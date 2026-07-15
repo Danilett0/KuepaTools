@@ -172,7 +172,7 @@ const Informacion = () => {
         );
 
         return (
-          <div className="consulta-contenido animate-slide-down" style={{ display: 'flex', flexDirection: 'column', height: '100%', flex: 1, minHeight: 0 }}>
+          <div className="consulta-contenido" style={{ display: 'flex', flexDirection: 'column', height: '100%', flex: 1, minHeight: 0 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
               <h3 style={{ color: 'var(--primary)', fontSize: '20px', margin: 0 }}>Alianzas Kuepa ({filteredAlianzas.length})</h3>
               <div style={{ position: 'relative', width: '300px', maxWidth: '100%' }}>
@@ -223,7 +223,7 @@ const Informacion = () => {
         );
 
         return (
-          <div className="consulta-contenido animate-slide-down" style={{ display: 'flex', flexDirection: 'column', height: '100%', flex: 1, minHeight: 0 }}>
+          <div className="consulta-contenido" style={{ display: 'flex', flexDirection: 'column', height: '100%', flex: 1, minHeight: 0 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '16px' }}>
               <h3 style={{ color: 'var(--primary)', fontSize: '20px', margin: 0 }}>Programas Kuepa ({filteredProgramas.length})</h3>
               <div style={{ position: 'relative', width: '300px', maxWidth: '100%' }}>
@@ -291,7 +291,7 @@ const Informacion = () => {
       case 'usuarios': {
 
         return (
-          <div className="consulta-contenido animate-slide-down" style={{ display: 'flex', flexDirection: 'column', height: '100%', flex: 1, minHeight: 0 }}>
+          <div className="consulta-contenido" style={{ display: 'flex', flexDirection: 'column', height: '100%', flex: 1, minHeight: 0 }}>
             {/* Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '16px' }}>
               <h3 style={{ color: 'var(--primary)', fontSize: '20px', margin: 0 }}>
@@ -498,7 +498,7 @@ const Informacion = () => {
 
       default:
         return (
-          <div className="animate-slide-down" style={{ textAlign: 'center', color: 'var(--on-surface-variant)', padding: '60px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', flex: 1, justifyContent: 'center' }}>
+          <div style={{ textAlign: 'center', color: 'var(--on-surface-variant)', padding: '60px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', flex: 1, justifyContent: 'center' }}>
             <div style={{ padding: '16px', background: 'var(--surface-low)', borderRadius: '50%', display: 'inline-flex' }}>
               <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--primary)' }}>
                 <circle cx="12" cy="12" r="10"></circle>
@@ -526,7 +526,7 @@ const Informacion = () => {
             setSearchTerm('');
             setAlianzasPagina(0);
           }}
-          style={{ padding: '10px 20px' }}
+          style={{ padding: '10px 20px', transition: 'none', transform: 'none' }}
         >
           Alianzas Kuepa
         </button>
@@ -537,7 +537,7 @@ const Informacion = () => {
             setSearchTerm('');
             setProgramasPagina(0);
           }}
-          style={{ padding: '10px 20px' }}
+          style={{ padding: '10px 20px', transition: 'none', transform: 'none' }}
         >
           Programas Kuepa
         </button>
@@ -549,7 +549,7 @@ const Informacion = () => {
             setUsuariosFiltro('nueva-america');
             setUsuariosPagina(0);
           }}
-          style={{ padding: '10px 20px' }}
+          style={{ padding: '10px 20px', transition: 'none', transform: 'none' }}
         >
           Usuarios
         </button>
