@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useLocalStorage } from "../hooks/useLocalStorage";
-import { UserPlus, UserMinus, ChevronDown, ChevronRight } from "lucide-react";
+import { UserPlus, UserMinus } from "lucide-react";
 import CommandsDisplay from "./CommandsDisplay";
 import { showError, showSuccess } from "../services/toastService";
 import { useUsuariosCompletos } from "../hooks/useUsuariosCompletos";
@@ -13,27 +13,27 @@ function ComandosBemoInscripciones({ formType = "estudiante" }) {
   const showForm1 = formType === "grupo";
   const showForm3 = formType === "multi";
   const showForm4 = formType === "especificos";
-  
+
   const { data: usuariosCompletos, loading } = useUsuariosCompletos();
-  
+
   const [groupId, setGroupId] = useLocalStorage(`groupId-${formType}`, "");
   const [groupId2, setGroupId2] = useLocalStorage(`groupId2-${formType}`, "");
   const [txareaIds, setTxareaIds] = useLocalStorage(`txareaIds-${formType}`, "");
   const [studentIds, setStudentIds] = useLocalStorage(`studentIds-${formType}`, Array(8).fill(""));
   const [studentIds2, setStudentIds2] = useLocalStorage(`studentIds2-${formType}`, Array(8).fill(""));
-  
+
   const [txareaMultiStudents, setTxareaMultiStudents] = useLocalStorage(`txareaMultiStudents-${formType}`, "");
   const [txareaMultiGroups, setTxareaMultiGroups] = useLocalStorage(`txareaMultiGroups-${formType}`, "");
 
   const [txareaEspecStudents, setTxareaEspecStudents] = useLocalStorage(`txareaEspecStudents-${formType}`, "");
   const [txareaEspecGroups, setTxareaEspecGroups] = useLocalStorage(`txareaEspecGroups-${formType}`, "");
 
-  const [minInputsForm1] = useState(8);
-  const [minInputsForm2] = useState(8);
+  const minInputsForm1 = 8;
+  const minInputsForm2 = 8;
 
-  const [showManualInputsForm1, setShowManualInputsForm1] = useState(false);
-  const [showManualInputsForm2, setShowManualInputsForm2] = useState(false);
-  const [alianza, setAlianza] = useState("na"); // "na" = Nueva América, "kuepa" = Kuepa
+  const [inputModeForm1, setInputModeForm1] = useState("paste"); // "manual" o "paste"
+  const [inputModeForm2, setInputModeForm2] = useState("paste"); // "manual" o "paste"
+  const [alianza, setAlianza] = useLocalStorage(`alianza-${formType}`, "na"); // "na" = Nueva América, "kuepa" = Kuepa
 
   const [generatedCommands, setGeneratedCommands] = useState([]);
 
@@ -166,10 +166,10 @@ function ComandosBemoInscripciones({ formType = "estudiante" }) {
     }
     if (isForm2 && groupId2.trim() !== "") {
       const codigo = Number(groupId2.trim());
-      const allianceId = alianza === "kuepa" 
-        ? "602169e217b5c8a27f9e9c06" 
+      const allianceId = alianza === "kuepa"
+        ? "602169e217b5c8a27f9e9c06"
         : "6303ed663138387a1669d82a";
-        
+
       const encontrado = usuariosCompletos.find(
         (user) => user.incremental_user_code === codigo && user.alliance_id?.$oid === allianceId
       );
@@ -222,7 +222,7 @@ function ComandosBemoInscripciones({ formType = "estudiante" }) {
       if (!text || text.trim() === "") return { valid: false, ids: [], error: "vacío" };
       const ids = text.split(/\s+/).map(e => e.trim()).filter(e => e !== "");
       if (ids.length === 0) return { valid: false, ids: [], error: "vacío" };
-      
+
       for (const id of ids) {
         const isCorrectLength = id.length >= 24 && id.length <= 26;
         const isAlphanumeric = /^[a-zA-Z0-9]+$/.test(id);
@@ -284,7 +284,7 @@ function ComandosBemoInscripciones({ formType = "estudiante" }) {
       if (!text || text.trim() === "") return { valid: false, ids: [], error: "vacío" };
       const rawIds = text.split(/\s+/).map(e => e.trim()).filter(e => e !== "");
       if (rawIds.length === 0) return { valid: false, ids: [], error: "vacío" };
-      
+
       const ids = Array.from(new Set(rawIds));
       for (const id of ids) {
         const isCorrectLength = id.length >= 24 && id.length <= 26;
@@ -331,63 +331,59 @@ function ComandosBemoInscripciones({ formType = "estudiante" }) {
       <div className="inscripciones-content">
         {showForm1 && (
           <div className="inscripciones-form-container" style={{ marginTop: 0 }}>
-            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "16px" }}>
-              <ClearButton onClick={() => handleClear(false)} />
-            </div>
             <div className="inscripciones-form">
-              <div className="input-wrapper">
-                <label className="input-label">ID Grupo Académico</label>
-                <input
-                  type="text"
-                  id="groupId"
-                  value={groupId}
-                  onChange={(e) => setGroupId(e.target.value)}
-                  className="inscripciones-input"
-                  style={{ borderColor: groupId.trim().length > 0 && groupId.trim().length < 24 ? "#ff4757" : undefined }}
-                />
-              </div>
-              <hr className="inscripciones-divider" />
-              
-              <div 
-                style={{ 
-                  display: "flex", 
-                  alignItems: "center", 
-                  gap: "8px", 
-                  cursor: "pointer", 
-                  color: "var(--primary)", 
-                  fontSize: "14px", 
-                  fontWeight: "700",
-                  marginTop: "8px",
-                  marginBottom: showManualInputsForm1 ? "16px" : "8px",
-                  userSelect: "none"
-                }}
-                onClick={() => setShowManualInputsForm1(!showManualInputsForm1)}
-              >
-                {showManualInputsForm1 ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
-                {showManualInputsForm1 ? "Ocultar ingreso manual" : "Ingresar IDs manualmente"}
-                {studentIds.filter(id => id.trim() !== "").length > 0 && !showManualInputsForm1 && (
-                  <span style={{ 
-                    background: "var(--primary)", 
-                    color: "#090909", 
-                    padding: "2px 8px", 
-                    borderRadius: "100px", 
-                    fontSize: "11px", 
-                    marginLeft: "auto"
-                  }}>
-                    {studentIds.filter(id => id.trim() !== "").length} detectados
-                  </span>
-                )}
+              <div className="buscarIds">
+                <div className="input-wrapper" style={{ flex: 1 }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "6px" }}>
+                    <label className="input-label" style={{ marginBottom: 0 }}>ID del grupo académico</label>
+                    <ClearButton onClick={() => handleClear(false)} title="Limpiar todo el formulario" />
+                  </div>
+                  <input
+                    type="text"
+                    id="groupId"
+                    value={groupId}
+                    onChange={(e) => setGroupId(e.target.value)}
+                    className="inscripciones-input"
+                    placeholder="Ej. 63e14e3af870ee0c8777b6a7"
+                    style={{ borderColor: groupId.trim().length > 0 && groupId.trim().length < 24 ? "#ff4757" : undefined }}
+                  />
+                </div>
               </div>
 
-              {showManualInputsForm1 && (
+              <div className="segmented-control">
+                <button
+                  className={`segmented-btn ${inputModeForm1 === 'paste' ? 'active' : ''}`}
+                  onClick={() => setInputModeForm1('paste')}
+                >
+                  Pegar lista de IDs
+                </button>
+                <button
+                  className={`segmented-btn ${inputModeForm1 === 'manual' ? 'active' : ''}`}
+                  onClick={() => setInputModeForm1('manual')}
+                >
+                  Ingreso manual
+                  {studentIds.filter(id => id.trim() !== "").length > 0 && (
+                    <span style={{
+                      background: inputModeForm1 === 'manual' ? "var(--primary)" : "var(--glass-border)",
+                      color: inputModeForm1 === 'manual' ? "#090909" : "var(--on-surface-variant)",
+                      padding: "2px 6px",
+                      borderRadius: "100px",
+                      fontSize: "10px",
+                      marginLeft: "6px"
+                    }}>
+                      {studentIds.filter(id => id.trim() !== "").length}
+                    </span>
+                  )}
+                </button>
+              </div>
+
+              {inputModeForm1 === 'manual' && (
                 <div
                   className="inscripciones-grid"
                   style={{
-                    maxHeight: studentIds.length > 20 ? "400px" : "auto",
-                    overflowY: studentIds.length > 20 ? "auto" : "visible",
-                    border: studentIds.length > 20 ? "1px solid var(--glass-border)" : "none",
-                    borderRadius: studentIds.length > 20 ? "12px" : "0",
-                    padding: studentIds.length > 20 ? "10px" : "0",
+                    maxHeight: "250px",
+                    overflowY: "auto",
+                    paddingRight: "8px",
                   }}
                 >
                   {studentIds.map((studentId, index) => (
@@ -406,23 +402,26 @@ function ComandosBemoInscripciones({ formType = "estudiante" }) {
                 </div>
               )}
 
-              <div className="input-wrapper" style={{ marginTop: "16px" }}>
-                <label className="input-label">Pegar lista de IDs</label>
-                <textarea
-                  className="txareaids"
-                  value={txareaIds}
-                  onChange={(e) => setTxareaIds(e.target.value)}
-                  onBlur={() => handleGenerate(false)}
-                  style={{ minHeight: "150px" }}
-                />
-              </div>
+              {inputModeForm1 === 'paste' && (
+                <div className="input-wrapper" style={{ marginTop: "8px" }}>
+                  <textarea
+                    className="txareaids"
+                    value={txareaIds}
+                    onChange={(e) => setTxareaIds(e.target.value)}
+                    onBlur={() => handleGenerate(false)}
+                    style={{ minHeight: "150px" }}
+                    placeholder="Pega aquí los IDs separados por espacios, comas o saltos de línea..."
+                  />
+                </div>
+              )}
             </div>
-            <div className="inscripciones-buttons">
-              <button className="btn btn-primary" onClick={() => handleEnroll(false)}>
-                <UserPlus size={20} /> Inscribir estudiantes
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '24px' }}>
+              <button className="btn btn-outline-danger" onClick={() => handleRemove(false)}>
+                <UserMinus size={18} /> Retirar
               </button>
-              <button className="btn btn-danger" onClick={() => handleRemove(false)}>
-                <UserMinus size={20} /> Eliminar estudiantes
+              <button className="btn btn-primary" onClick={() => handleEnroll(false)}>
+                <UserPlus size={18} /> Inscribir al grupo
               </button>
             </div>
 
@@ -432,20 +431,20 @@ function ComandosBemoInscripciones({ formType = "estudiante" }) {
 
         {showForm2 && (
           <div className="inscripciones-form-container" style={{ marginTop: 0 }}>
-            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "16px" }}>
-              <ClearButton onClick={() => handleClear(true)} />
-            </div>
             <div className="inscripciones-form">
               <div className="buscarIds">
                 <div className="input-wrapper" style={{ flex: 1 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "6px" }}>
-                    <label className="input-label" style={{ marginBottom: 0 }}>ID Estudiante</label>
-                    <AllianceSwitcher
-                      value={alianza}
-                      onChange={(val) => {
-                        if (alianza !== val) { handleClear(true); setAlianza(val); }
-                      }}
-                    />
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "6px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                      <label className="input-label" style={{ marginBottom: 0 }}>ID del estudiante</label>
+                      <AllianceSwitcher
+                        value={alianza}
+                        onChange={(val) => {
+                          if (alianza !== val) { handleClear(true); setAlianza(val); }
+                        }}
+                      />
+                    </div>
+                    <ClearButton onClick={() => handleClear(true)} title="Limpiar todo el formulario" />
                   </div>
                   {loading && (
                     <div style={{ marginBottom: '6px', color: '#eab308', fontSize: '11px', fontStyle: 'italic' }}>
@@ -469,51 +468,45 @@ function ComandosBemoInscripciones({ formType = "estudiante" }) {
                       }
                     }}
                     className="inscripciones-input"
+                    placeholder="Ej. 63e14e3af870ee0c8777b6a7"
                   />
                 </div>
               </div>
-              <hr className="inscripciones-divider" />
-              
-              <div 
-                style={{ 
-                  display: "flex", 
-                  alignItems: "center", 
-                  gap: "8px", 
-                  cursor: "pointer", 
-                  color: "var(--primary)", 
-                  fontSize: "14px", 
-                  fontWeight: "700",
-                  marginTop: "8px",
-                  marginBottom: showManualInputsForm2 ? "16px" : "8px",
-                  userSelect: "none"
-                }}
-                onClick={() => setShowManualInputsForm2(!showManualInputsForm2)}
-              >
-                {showManualInputsForm2 ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
-                {showManualInputsForm2 ? "Ocultar ingreso manual" : "Ingresar IDs manualmente"}
-                {studentIds2.filter(id => id.trim() !== "").length > 0 && !showManualInputsForm2 && (
-                  <span style={{ 
-                    background: "var(--primary)", 
-                    color: "#090909", 
-                    padding: "2px 8px", 
-                    borderRadius: "100px", 
-                    fontSize: "11px", 
-                    marginLeft: "auto"
-                  }}>
-                    {studentIds2.filter(id => id.trim() !== "").length} detectados
-                  </span>
-                )}
+
+              <div className="segmented-control">
+                <button
+                  className={`segmented-btn ${inputModeForm2 === 'paste' ? 'active' : ''}`}
+                  onClick={() => setInputModeForm2('paste')}
+                >
+                  Pegar lista de IDs
+                </button>
+                <button
+                  className={`segmented-btn ${inputModeForm2 === 'manual' ? 'active' : ''}`}
+                  onClick={() => setInputModeForm2('manual')}
+                >
+                  Ingreso manual
+                  {studentIds2.filter(id => id.trim() !== "").length > 0 && (
+                    <span style={{
+                      background: inputModeForm2 === 'manual' ? "var(--primary)" : "var(--glass-border)",
+                      color: inputModeForm2 === 'manual' ? "#090909" : "var(--on-surface-variant)",
+                      padding: "2px 6px",
+                      borderRadius: "100px",
+                      fontSize: "10px",
+                      marginLeft: "6px"
+                    }}>
+                      {studentIds2.filter(id => id.trim() !== "").length}
+                    </span>
+                  )}
+                </button>
               </div>
 
-              {showManualInputsForm2 && (
+              {inputModeForm2 === 'manual' && (
                 <div
                   className="inscripciones-grid"
                   style={{
-                    maxHeight: studentIds2.length > 20 ? "400px" : "auto",
-                    overflowY: studentIds2.length > 20 ? "auto" : "visible",
-                    border: studentIds2.length > 20 ? "1px solid var(--glass-border)" : "none",
-                    borderRadius: studentIds2.length > 20 ? "12px" : "0",
-                    padding: studentIds2.length > 20 ? "10px" : "0",
+                    maxHeight: "250px",
+                    overflowY: "auto",
+                    paddingRight: "8px",
                   }}
                 >
                   {studentIds2.map((studentId, index) => (
@@ -532,23 +525,26 @@ function ComandosBemoInscripciones({ formType = "estudiante" }) {
                 </div>
               )}
 
-              <div className="input-wrapper" style={{ marginTop: "16px" }}>
-                <label className="input-label">Pegar lista de IDs</label>
-                <textarea
-                  className="txareaids"
-                  value={txareaIds}
-                  onChange={(e) => setTxareaIds(e.target.value)}
-                  onBlur={() => handleGenerate(true)}
-                  style={{ minHeight: "150px" }}
-                />
-              </div>
+              {inputModeForm2 === 'paste' && (
+                <div className="input-wrapper" style={{ marginTop: "8px" }}>
+                  <textarea
+                    className="txareaids"
+                    value={txareaIds}
+                    onChange={(e) => setTxareaIds(e.target.value)}
+                    onBlur={() => handleGenerate(true)}
+                    style={{ minHeight: "150px" }}
+                    placeholder="Pega aquí los IDs separados por espacios, comas o saltos de línea..."
+                  />
+                </div>
+              )}
             </div>
-            <div className="inscripciones-buttons">
-              <button className="btn btn-primary" onClick={() => handleEnroll(true)}>
-                <UserPlus size={20} /> Inscribir a grupos
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '24px' }}>
+              <button className="btn btn-outline-danger" onClick={() => handleRemove(true)}>
+                <UserMinus size={18} /> Retirar
               </button>
-              <button className="btn btn-danger" onClick={() => handleRemove(true)}>
-                <UserMinus size={20} /> Retirar de grupos
+              <button className="btn btn-primary" onClick={() => handleEnroll(true)}>
+                <UserPlus size={18} /> Inscribir a grupos
               </button>
             </div>
 
@@ -558,13 +554,15 @@ function ComandosBemoInscripciones({ formType = "estudiante" }) {
 
         {showForm3 && (
           <div className="inscripciones-form-container" style={{ marginTop: 0 }}>
-            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "16px" }}>
-              <ClearButton onClick={() => handleClear(false)} />
-            </div>
             <div className="inscripciones-form">
-              <div style={{ display: "flex", gap: "16px", marginTop: "16px" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
+                <label className="input-label" style={{ marginBottom: 0 }}>Carga masiva por pares</label>
+                <ClearButton onClick={() => handleClear(false)} title="Limpiar todo el formulario" />
+              </div>
+              <hr className="inscripciones-divider" style={{ marginTop: 0, marginBottom: "16px" }} />
+              <div style={{ display: "flex", gap: "16px" }}>
                 <div className="input-wrapper" style={{ flex: 1 }}>
-                  <label className="input-label" style={{ marginBottom: "8px" }}>ID DE ESTUDIANTES</label>
+                  <label className="input-label" style={{ marginBottom: "8px" }}>Lista de Estudiantes</label>
                   <textarea
                     className="txareaids"
                     value={txareaMultiStudents}
@@ -574,7 +572,7 @@ function ComandosBemoInscripciones({ formType = "estudiante" }) {
                   />
                 </div>
                 <div className="input-wrapper" style={{ flex: 1 }}>
-                  <label className="input-label" style={{ marginBottom: "8px" }}>ID DE LOS GRUPOS</label>
+                  <label className="input-label" style={{ marginBottom: "8px" }}>Lista de Grupos</label>
                   <textarea
                     className="txareaids"
                     value={txareaMultiGroups}
@@ -585,18 +583,19 @@ function ComandosBemoInscripciones({ formType = "estudiante" }) {
                 </div>
               </div>
             </div>
-            <div className="inscripciones-buttons" style={{ marginTop: "24px" }}>
-              <button 
-                className="btn btn-primary" 
-                onClick={() => handleMultiGenerate(false)}
-              >
-                <UserPlus size={20} /> Inscribir estudiantes
-              </button>
-              <button 
-                className="btn btn-danger" 
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '24px' }}>
+              <button
+                className="btn btn-outline-danger"
                 onClick={() => handleMultiGenerate(true)}
               >
-                <UserMinus size={20} /> Retirar estudiantes
+                <UserMinus size={18} /> Retirar estudiantes
+              </button>
+              <button
+                className="btn btn-primary"
+                onClick={() => handleMultiGenerate(false)}
+              >
+                <UserPlus size={18} /> Inscribir estudiantes
               </button>
             </div>
 
@@ -606,13 +605,15 @@ function ComandosBemoInscripciones({ formType = "estudiante" }) {
 
         {showForm4 && (
           <div className="inscripciones-form-container" style={{ marginTop: 0 }}>
-            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "16px" }}>
-              <ClearButton onClick={() => handleClear(false)} />
-            </div>
             <div className="inscripciones-form">
-              <div style={{ display: "flex", gap: "16px", marginTop: "16px" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
+                <label className="input-label" style={{ marginBottom: 0 }}>Carga combinada</label>
+                <ClearButton onClick={() => handleClear(false)} title="Limpiar todo el formulario" />
+              </div>
+              <hr className="inscripciones-divider" style={{ marginTop: 0, marginBottom: "16px" }} />
+              <div style={{ display: "flex", gap: "16px" }}>
                 <div className="input-wrapper" style={{ flex: 1 }}>
-                  <label className="input-label" style={{ marginBottom: "8px" }}>ID DE ESTUDIANTES</label>
+                  <label className="input-label" style={{ marginBottom: "8px" }}>Lista de Estudiantes</label>
                   <textarea
                     className="txareaids"
                     value={txareaEspecStudents}
@@ -622,7 +623,7 @@ function ComandosBemoInscripciones({ formType = "estudiante" }) {
                   />
                 </div>
                 <div className="input-wrapper" style={{ flex: 1 }}>
-                  <label className="input-label" style={{ marginBottom: "8px" }}>ID DE LOS GRUPOS</label>
+                  <label className="input-label" style={{ marginBottom: "8px" }}>Lista de Grupos</label>
                   <textarea
                     className="txareaids"
                     value={txareaEspecGroups}
@@ -633,18 +634,19 @@ function ComandosBemoInscripciones({ formType = "estudiante" }) {
                 </div>
               </div>
             </div>
-            <div className="inscripciones-buttons" style={{ marginTop: "24px" }}>
-              <button 
-                className="btn btn-primary" 
-                onClick={() => handleEspecGenerate(false)}
-              >
-                <UserPlus size={20} /> Inscribir estudiantes
-              </button>
-              <button 
-                className="btn btn-danger" 
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '24px' }}>
+              <button
+                className="btn btn-outline-danger"
                 onClick={() => handleEspecGenerate(true)}
               >
-                <UserMinus size={20} /> Retirar estudiantes
+                <UserMinus size={18} /> Retirar estudiantes
+              </button>
+              <button
+                className="btn btn-primary"
+                onClick={() => handleEspecGenerate(false)}
+              >
+                <UserPlus size={18} /> Inscribir estudiantes
               </button>
             </div>
 

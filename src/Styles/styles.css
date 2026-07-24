@@ -288,6 +288,43 @@ h1, h2, h3, h4, h5, h6 {
   box-shadow: 0 6px 20px rgba(255, 71, 87, 0.3);
 }
 
+.btn-outline-danger {
+  background-color: transparent;
+  border: 1px solid #ff4757;
+  color: #ff4757;
+}
+.btn-outline-danger:hover {
+  background-color: rgba(255, 71, 87, 0.1);
+}
+
+.segmented-control {
+  display: flex;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 4px;
+  border-radius: 12px;
+  border: 1px solid var(--glass-border);
+  margin: 16px 0 24px 0;
+}
+.segmented-btn {
+  flex: 1;
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--on-surface-variant);
+  font-family: 'Nunito', sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.segmented-btn.active {
+  background: var(--surface-low);
+  color: var(--primary);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  border: 1px solid var(--glass-border);
+}
+
 .btn-success { 
   background-color: #2ed573; 
   color: #090909;
@@ -410,7 +447,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .btn-clear:hover {
-  background: var(--primary-container);
-  color: var(--on-surface);
-  border-color: var(--primary);
+  background: #ff4757;
+  color: #fff;
+  border-color: #ff4757;
 }

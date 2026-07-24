@@ -219,10 +219,10 @@ function FinalUserCard() {
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <div style={{
             width: "32px", height: "32px", borderRadius: "10px",
-            background: "#7c3aed",
+            background: "var(--primary)",
             display: "flex", alignItems: "center", justifyContent: "center",
           }}>
-            <User size={16} style={{ color: "#fff" }} />
+            <User size={16} style={{ color: "#090909" }} />
           </div>
           <span style={{ fontSize: "14px", fontWeight: 700, color: "var(--on-surface)", fontFamily: "'Nunito', sans-serif" }}>
             Re-calcular Nota Estudiante en Grupo
