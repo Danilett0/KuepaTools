@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Copy, Search, ArrowRight } from 'lucide-react';
 import { toast } from 'react-toastify';
+import { useLocalStorage } from '../hooks/useLocalStorage';
 import { useUsuariosCompletos } from '../hooks/useUsuariosCompletos';
 import AllianceSwitcher from './ui/AllianceSwitcher';
 import ClearButton from './ui/ClearButton';
 
 const BuscarIdInc = () => {
-  const [incText, setIncText] = useState('');
-  const [alianza, setAlianza] = useState('na');
+  const [incText, setIncText] = useLocalStorage('buscarid-incText', '');
+  const [alianza, setAlianza] = useLocalStorage('buscarid-alianza', 'na');
   const [resultado, setResultado] = useState([]);
   const { data: usuariosCompletos, loading } = useUsuariosCompletos();
 
@@ -61,15 +62,27 @@ const BuscarIdInc = () => {
 
           {/* ── Header ─────────────────────────────────────────── */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <AllianceSwitcher value={alianza} size="md" onChange={(val) => { setAlianza(val); handleClear(); }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{
+                width: "32px", height: "32px", borderRadius: "10px",
+                background: "var(--primary)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}>
+                <Search size={16} style={{ color: "#090909" }} />
+              </div>
+              <span style={{ fontSize: "14px", fontWeight: 700, color: "var(--on-surface)", fontFamily: "'Nunito', sans-serif" }}>
+                Búscar ID por Incremental
+              </span>
               {loading && (
-                <span style={{ fontSize: '11px', color: '#eab308', fontStyle: 'italic', fontFamily: "'Space Grotesk', sans-serif" }}>
+                <span style={{ fontSize: '11px', color: '#eab308', fontStyle: 'italic', fontFamily: "'Space Grotesk', sans-serif", marginLeft: "8px" }}>
                   Cargando usuarios...
                 </span>
               )}
             </div>
-            <ClearButton onClick={handleClear} />
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <AllianceSwitcher value={alianza} size="md" onChange={(val) => { setAlianza(val); handleClear(); }} />
+              <ClearButton onClick={handleClear} />
+            </div>
           </div>
 
           {/* ── Divisor ────────────────────────────────────────── */}
@@ -82,7 +95,14 @@ const BuscarIdInc = () => {
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '10px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Search size={14} style={{ color: 'var(--primary)', flexShrink: 0 }} />
-                <label className="input-label" style={{ marginBottom: 0 }}>IDs INCREMENTALES</label>
+                <label className="input-label" style={{ marginBottom: 0 }}>
+                  IDs INCREMENTALES
+                  {totalCount > 0 && (
+                    <span style={{ marginLeft: '8px', fontWeight: 400, color: 'var(--on-surface-variant)', fontSize: '12px' }}>
+                      {totalCount} ingresados
+                    </span>
+                  )}
+                </label>
               </div>
               <textarea
                 className="inscripciones-input"

@@ -119,15 +119,27 @@ const ProgramasPorEstudiante = () => {
 
           {/* ── Header ─────────────────────────────────────────── */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <AllianceSwitcher value={alianza} size="md" onChange={(val) => { setAlianza(val); handleClear(); }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{
+                width: "32px", height: "32px", borderRadius: "10px",
+                background: "var(--primary)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}>
+                <BookOpen size={16} style={{ color: "#090909" }} />
+              </div>
+              <span style={{ fontSize: "14px", fontWeight: 700, color: "var(--on-surface)", fontFamily: "'Nunito', sans-serif" }}>
+                Programas Estudiante
+              </span>
               {loading && (
-                <span style={{ fontSize: '11px', color: '#eab308', fontStyle: 'italic', fontFamily: "'Space Grotesk', sans-serif" }}>
+                <span style={{ fontSize: '11px', color: '#eab308', fontStyle: 'italic', fontFamily: "'Space Grotesk', sans-serif", marginLeft: "8px" }}>
                   Cargando usuarios...
                 </span>
               )}
             </div>
-            <ClearButton onClick={handleClear} />
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <AllianceSwitcher value={alianza} size="md" onChange={(val) => { setAlianza(val); handleClear(); }} />
+              <ClearButton onClick={handleClear} />
+            </div>
           </div>
 
           <div style={{ height: '1px', background: 'var(--glass-border)', marginBottom: '24px' }} />

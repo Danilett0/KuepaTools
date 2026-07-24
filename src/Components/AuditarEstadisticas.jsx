@@ -3,6 +3,7 @@ import { useLocalStorage } from "../hooks/useLocalStorage";
 import { useUsuariosCompletos } from "../hooks/useUsuariosCompletos";
 import { useCatalogos } from "../hooks/useCatalogos";
 import "../Styles/styles.css";
+import { Activity } from "lucide-react";
 import CommandsDisplay from "./CommandsDisplay";
 import AllianceSwitcher from "./ui/AllianceSwitcher";
 import ClearButton from "./ui/ClearButton";
@@ -90,8 +91,23 @@ function SegundaPagina() {
     <div className="inscripciones-container">
       <div className="inscripciones-content">
         <div className="inscripciones-form-container" style={{ marginTop: 0 }}>
-          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "16px" }}>
-            <ClearButton onClick={handleClear} />
+          {/* ── Header ─────────────────────────────────────────── */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{
+                width: "32px", height: "32px", borderRadius: "10px",
+                background: "var(--primary)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}>
+                <Activity size={16} style={{ color: "#090909" }} />
+              </div>
+              <span style={{ fontSize: "14px", fontWeight: 700, color: "var(--on-surface)", fontFamily: "'Nunito', sans-serif" }}>
+                Auditar Estadísticas
+              </span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <ClearButton onClick={handleClear} />
+            </div>
           </div>
 
           <div style={{ height: "1px", background: "var(--glass-border)", marginBottom: "24px", width: "100%" }} />

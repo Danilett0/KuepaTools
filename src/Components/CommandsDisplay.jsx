@@ -1,10 +1,11 @@
 import React, { useState } from "react";
 import { toast } from "react-toastify";
-import { Copy, Check, X } from "lucide-react";
+import { Copy, Check, X, ChevronDown, ChevronRight } from "lucide-react";
 
 function CommandsDisplay({ commands, onClear }) {
   const [copiedIndex, setCopiedIndex] = useState(null);
   const [copiedAll, setCopiedAll] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   if (!commands || commands.length === 0) return null;
 
@@ -23,6 +24,16 @@ function CommandsDisplay({ commands, onClear }) {
       setTimeout(() => setCopiedAll(false), 1500);
     });
   };
+
+  let actionSuffixNode = null;
+  if (commands.length > 0) {
+    const firstCmd = commands[0] || "";
+    if (firstCmd.includes("pull:user")) {
+      actionSuffixNode = <span style={{ color: "#ff4757" }}> para retirar estudiantes</span>;
+    } else if (firstCmd.includes("enroll:user")) {
+      actionSuffixNode = <span style={{ color: "var(--primary)" }}> para inscribir estudiantes</span>;
+    }
+  }
 
   return (
     <div
@@ -44,16 +55,28 @@ function CommandsDisplay({ commands, onClear }) {
           padding: "12px 20px",
           backgroundColor: "var(--surface-low)",
           color: "var(--on-surface)",
-          borderBottom: "1px solid var(--glass-border)",
+          borderBottom: isExpanded ? "1px solid var(--glass-border)" : "none",
         }}
       >
-        <span style={{ fontWeight: 700, fontSize: "14px" }}>
-          📋 {commands.length} comando{commands.length !== 1 ? "s" : ""}{" "}
-          generado{commands.length !== 1 ? "s" : ""}
-        </span>
+        <div 
+          onClick={() => setIsExpanded(!isExpanded)}
+          style={{ 
+            display: "flex", 
+            alignItems: "center", 
+            gap: "10px", 
+            cursor: "pointer",
+            userSelect: "none"
+          }}
+        >
+          {isExpanded ? <ChevronDown size={20} color="var(--primary)" /> : <ChevronRight size={20} color="var(--primary)" />}
+          <span style={{ fontWeight: 700, fontSize: "14px" }}>
+            📋 {commands.length} comando{commands.length !== 1 ? "s" : ""}{" "}
+            generado{commands.length !== 1 ? "s" : ""}{actionSuffixNode}
+          </span>
+        </div>
         <div style={{ display: "flex", gap: "12px" }}>
           <button
-            onClick={copyAll}
+            onClick={(e) => { e.stopPropagation(); copyAll(); }}
             style={{
               display: "flex",
               alignItems: "center",
@@ -72,7 +95,7 @@ function CommandsDisplay({ commands, onClear }) {
             {copiedAll ? <><Check size={16} /> Copiado</> : <><Copy size={16} /> Copiar todo</>}
           </button>
           <button
-            onClick={onClear}
+            onClick={(e) => { e.stopPropagation(); onClear(); }}
             style={{
               display: "flex",
               alignItems: "center",
@@ -104,102 +127,104 @@ function CommandsDisplay({ commands, onClear }) {
       </div>
 
       {/* Commands list */}
-      <div
-        style={{
-          backgroundColor: "rgba(0, 0, 0, 0.3)",
-          padding: "16px",
-          maxHeight: "420px",
-          overflowY: "auto",
-        }}
-      >
-        {commands
-          .map((c) => c.trim())
-          .filter((c) => c.length > 0)
-          .map((cmd, index) => (
-            <div
-              key={index}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: "16px",
-                padding: "12px 16px",
-                marginBottom: "8px",
-                backgroundColor: "var(--surface-low)",
-                borderRadius: "12px",
-                border: "1px solid var(--glass-border)",
-                transition: "all 0.2s ease",
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.borderColor = "var(--primary)"}
-              onMouseLeave={(e) => e.currentTarget.style.borderColor = "var(--glass-border)"}
-            >
+      {isExpanded && (
+        <div
+          style={{
+            backgroundColor: "rgba(0, 0, 0, 0.3)",
+            padding: "16px",
+            maxHeight: "250px",
+            overflowY: "auto",
+          }}
+        >
+          {commands
+            .map((c) => c.trim())
+            .filter((c) => c.length > 0)
+            .map((cmd, index) => (
               <div
+                key={index}
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: "12px",
-                  flex: 1,
-                  minWidth: 0,
-                }}
-              >
-                <span
-                  style={{
-                    color: "var(--on-surface-variant)",
-                    fontSize: "12px",
-                    fontFamily: "monospace",
-                    minWidth: "24px",
-                    textAlign: "right",
-                    flexShrink: 0,
-                    opacity: 0.6,
-                  }}
-                >
-                  {index + 1}
-                </span>
-                <code
-                  style={{
-                    color: "var(--primary)",
-                    fontSize: "14px",
-                    fontFamily: "'Space Grotesk', monospace",
-                    wordBreak: "break-all",
-                    flex: 1,
-                    lineHeight: "1.5",
-                  }}
-                >
-                  {cmd}
-                </code>
-              </div>
-              <button
-                onClick={() => copyOne(cmd, index)}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  padding: "8px",
-                  borderRadius: "8px",
-                  border: "none",
-                  backgroundColor: copiedIndex === index ? "var(--primary)" : "rgba(255, 255, 255, 0.05)",
-                  color: copiedIndex === index ? "#fff" : "var(--on-surface)",
-                  cursor: "pointer",
+                  justifyContent: "space-between",
+                  gap: "16px",
+                  padding: "12px 16px",
+                  marginBottom: "8px",
+                  backgroundColor: "var(--surface-low)",
+                  borderRadius: "12px",
+                  border: "1px solid var(--glass-border)",
                   transition: "all 0.2s ease",
-                  flexShrink: 0,
                 }}
-                title="Copiar comando"
-                onMouseEnter={(e) => {
-                  if (copiedIndex !== index) {
-                    e.currentTarget.style.backgroundColor = "rgba(255, 255, 255, 0.1)";
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (copiedIndex !== index) {
-                    e.currentTarget.style.backgroundColor = "rgba(255, 255, 255, 0.05)";
-                  }
-                }}
+                onMouseEnter={(e) => e.currentTarget.style.borderColor = "var(--primary)"}
+                onMouseLeave={(e) => e.currentTarget.style.borderColor = "var(--glass-border)"}
               >
-                {copiedIndex === index ? <Check size={18} /> : <Copy size={18} />}
-              </button>
-            </div>
-          ))}
-      </div>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "12px",
+                    flex: 1,
+                    minWidth: 0,
+                  }}
+                >
+                  <span
+                    style={{
+                      color: "var(--on-surface-variant)",
+                      fontSize: "12px",
+                      fontFamily: "monospace",
+                      minWidth: "24px",
+                      textAlign: "right",
+                      flexShrink: 0,
+                      opacity: 0.6,
+                    }}
+                  >
+                    {index + 1}
+                  </span>
+                  <code
+                    style={{
+                      color: "var(--primary)",
+                      fontSize: "14px",
+                      fontFamily: "'Space Grotesk', monospace",
+                      wordBreak: "break-all",
+                      flex: 1,
+                      lineHeight: "1.5",
+                    }}
+                  >
+                    {cmd}
+                  </code>
+                </div>
+                <button
+                  onClick={() => copyOne(cmd, index)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: "8px",
+                    borderRadius: "8px",
+                    border: "none",
+                    backgroundColor: copiedIndex === index ? "var(--primary)" : "rgba(255, 255, 255, 0.05)",
+                    color: copiedIndex === index ? "#fff" : "var(--on-surface)",
+                    cursor: "pointer",
+                    transition: "all 0.2s ease",
+                    flexShrink: 0,
+                  }}
+                  title="Copiar comando"
+                  onMouseEnter={(e) => {
+                    if (copiedIndex !== index) {
+                      e.currentTarget.style.backgroundColor = "rgba(255, 255, 255, 0.1)";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (copiedIndex !== index) {
+                      e.currentTarget.style.backgroundColor = "rgba(255, 255, 255, 0.05)";
+                    }
+                  }}
+                >
+                  {copiedIndex === index ? <Check size={18} /> : <Copy size={18} />}
+                </button>
+              </div>
+            ))}
+        </div>
+      )}
     </div>
   );
 }

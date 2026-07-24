@@ -2,8 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { useLocalStorage } from "../hooks/useLocalStorage";
 import "../Styles/styles.css";
 import CommandsDisplay from "./CommandsDisplay";
-import { ChevronDown, Zap } from "lucide-react";
-import { toast } from "react-toastify";
+import { ChevronDown, RefreshCw } from "lucide-react";
 import AllianceSwitcher from "./ui/AllianceSwitcher";
 import { useUsuariosCompletos } from "../hooks/useUsuariosCompletos";
 import { useCatalogos } from "../hooks/useCatalogos";
@@ -195,6 +194,42 @@ function CambiosEstadoBemo() {
     }
   }, [singleStudentId, singleSelectedUser, setSingleStudentId]);
 
+  const handleMultiStudentBlur = useCallback(() => {
+    if (!studentIdsText.trim() || !selectedAlianza || !usuariosCompletos?.length) return;
+
+    const allianceKey = selectedAlianza === "nueva_america" ? "na" : "kuepa";
+    const allianceId = ALLIANCE_MONGO_MAP[allianceKey];
+
+    const lines = studentIdsText.split("\n");
+    let replacedCount = 0;
+
+    const newLines = lines.map(line => {
+      const trimmed = line.trim();
+      if (!trimmed) return line;
+
+      const parts = trimmed.split(/\s+/);
+      const newParts = parts.map(part => {
+        if (/^\d+$/.test(part) && part.length < 24) {
+          const num = Number(part);
+          const found = usuariosCompletos.find(u => {
+            const uAlliance = u.alliance_id?.$oid || u.alliance_id;
+            return uAlliance === allianceId && Number(u.incremental_user_code) === num;
+          });
+          if (found) {
+            replacedCount++;
+            return found._id?.$oid || found._id;
+          }
+        }
+        return part;
+      });
+      return newParts.join(" ");
+    });
+
+    if (replacedCount > 0) {
+      setStudentIdsText(newLines.join("\n"));
+    }
+  }, [studentIdsText, selectedAlianza, usuariosCompletos, setStudentIdsText]);
+
   // ── Mapeo de alianza para estados ─────────────────────────────────────────
   const singleAlianzaKey = singleAlliance === "na" ? "nueva_america" : "kuepa";
   const singleStateOptions = stateOptionsByAlianza[singleAlianzaKey] || [];
@@ -223,20 +258,23 @@ function CambiosEstadoBemo() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleClear]);
 
-  // ── Generar comandos ──────────────────────────────────────────────────────
-  const handleGenerate = () => {
+  // ── Generar comandos automáticamente ────────────────────────────────────────
+  useEffect(() => {
     if (mode === "varios") {
-      if (!selectedAlianza) { toast.error("Por favor seleccione una alianza."); return; }
-      if (!selectedState) { toast.error("Por favor seleccione un estado nuevo."); return; }
+      const studentsText = studentIdsText.trim();
+      const programsText = programIdsText.trim();
+
+      if (!selectedAlianza || !selectedState || !studentsText || !programsText) {
+        setGeneratedCommands([]);
+        return;
+      }
 
       const getIds = (text) => text ? text.split(/\s+/).map((e) => e.trim()).filter(Boolean) : [];
-      const students = getIds(studentIdsText);
-      const programs = getIds(programIdsText);
+      const students = getIds(studentsText);
+      const programs = getIds(programsText);
 
-      if (students.length === 0) { toast.error("Por favor ingrese al menos un ID de estudiante."); return; }
-      if (programs.length === 0) { toast.error("Por favor ingrese al menos un ID de programa."); return; }
-      if (students.length !== programs.length) {
-        toast.error(`La cantidad de estudiantes (${students.length}) no coincide con la cantidad de programas (${programs.length}).`);
+      if (students.length === 0 || programs.length === 0 || students.length !== programs.length) {
+        setGeneratedCommands([]);
         return;
       }
 
@@ -253,29 +291,35 @@ function CambiosEstadoBemo() {
       });
 
       setGeneratedCommands(commands);
-      toast.success(`${commands.length} comando${commands.length !== 1 ? "s" : ""} generado${commands.length !== 1 ? "s" : ""}`);
-
     } else {
       // modo "uno"
       const studentId = singleSelectedUser
         ? (singleSelectedUser._id?.$oid || singleSelectedUser._id)
         : singleStudentId.trim();
+      const progId = singleProgramId.trim();
 
-      if (!studentId) { toast.error("Por favor ingrese el ID del estudiante."); return; }
-      if (!singleProgramId.trim()) { toast.error("Por favor seleccione o ingrese un ID de programa."); return; }
-      if (!singleState) { toast.error("Por favor seleccione un nuevo estado."); return; }
+      if (!studentId || !progId || !singleState) {
+        setGeneratedCommands([]);
+        return;
+      }
 
-      const cmd = `magik run:prod status:change["${singleProgramId.trim()}","${singleState}","${studentId}"]`;
+      const cmd = `magik run:prod status:change["${progId}","${singleState}","${studentId}"]`;
       setGeneratedCommands([cmd]);
-      toast.success("Comando generado");
     }
-  };
+  }, [
+    mode,
+    studentIdsText,
+    programIdsText,
+    selectedAlianza,
+    selectedState,
+    singleSelectedUser,
+    singleStudentId,
+    singleProgramId,
+    singleState
+  ]);
 
   // ── Estados actuales del modo varios ─────────────────────────────────────
   const currentStateOptions = stateOptionsByAlianza[selectedAlianza] || [];
-  const isDropdownEnabled = studentIdsText.trim() !== "" && programIdsText.trim() !== "";
-  const isStateDropdownEnabled = isDropdownEnabled && selectedAlianza !== "";
-
   // ── Programas del usuario seleccionado (modo uno) ─────────────────────────
   const userPrograms = singleSelectedUser?.programs || [];
   const hasUserPrograms = userPrograms.length > 0 && !singleManualProgram;
@@ -287,9 +331,23 @@ function CambiosEstadoBemo() {
         <div className="inscripciones-form-container" style={{ marginTop: 0 }}>
 
           {/* ── Barra superior ─────────────────────────────────────── */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-            {/* Izquierda: toggle de modo */}
-            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", flexWrap: "wrap", gap: "16px" }}>
+            {/* Izquierda: Icono + Título */}
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <div style={{
+                width: "32px", height: "32px", borderRadius: "10px",
+                background: "var(--primary)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}>
+                <RefreshCw size={16} style={{ color: "#090909" }} />
+              </div>
+              <span style={{ fontSize: "14px", fontWeight: 700, color: "var(--on-surface)", fontFamily: "'Nunito', sans-serif" }}>
+                Cambios de Estado
+              </span>
+            </div>
+
+            {/* Derecha: Toggle y Limpiar */}
+            <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
               <div style={{ display: "flex", gap: "4px", background: "var(--glass-border)", borderRadius: "8px", padding: "3px" }}>
                 {["uno", "varios"].map((m) => (
                   <button
@@ -313,10 +371,8 @@ function CambiosEstadoBemo() {
                   </button>
                 ))}
               </div>
+              <ClearButton onClick={handleClear} />
             </div>
-
-            {/* Derecha: Limpiar */}
-            <ClearButton onClick={handleClear} />
           </div>
 
           {/* ── Divisor ────────────────────────────────────────────── */}
@@ -325,48 +381,54 @@ function CambiosEstadoBemo() {
           {/* ── MODO VARIOS ───────────────────────────────────────── */}
           {mode === "varios" && (
             <>
-              <div style={{ display: "flex", gap: "16px" }}>
-                <div className="input-wrapper" style={{ flex: 1 }}>
-                  <label className="input-label" style={{ marginBottom: "8px" }}>ID DE ESTUDIANTES</label>
-                  <textarea
-                    className="txareaids"
-                    value={studentIdsText}
-                    onChange={(e) => setStudentIdsText(e.target.value)}
-                    style={{ minHeight: "280px", resize: "vertical" }}
-                    placeholder="Ingrese un ID por línea..."
-                  />
-                </div>
-                <div className="input-wrapper" style={{ flex: 1 }}>
-                  <label className="input-label" style={{ marginBottom: "8px" }}>ID DE LOS PROGRAMAS</label>
-                  <textarea
-                    className="txareaids"
-                    value={programIdsText}
-                    onChange={(e) => setProgramIdsText(e.target.value)}
-                    style={{ minHeight: "280px", resize: "vertical" }}
-                    placeholder="Ingrese un ID por línea..."
-                  />
-                </div>
-              </div>
-
-              <div style={{ display: "flex", gap: "16px", marginTop: "20px" }}>
+              <div style={{ display: "flex", gap: "16px", marginBottom: "20px" }}>
                 <div className="input-wrapper" style={{ flex: 1 }}>
                   <label className="input-label" style={{ marginBottom: "8px" }}>Alianza</label>
                   <CustomDropdown
                     value={selectedAlianza}
                     options={alianzaOptions}
-                    onChange={(val) => { setSelectedAlianza(val); setSelectedState(""); }}
-                    disabled={!isDropdownEnabled}
+                    onChange={(val) => { 
+                      setSelectedAlianza(val); 
+                      setSelectedState(""); 
+                      setStudentIdsText("");
+                      setProgramIdsText("");
+                    }}
+                    disabled={false} // Siempre activo para iniciar el flujo
                     placeholder="Seleccione una alianza"
                   />
                 </div>
                 <div className="input-wrapper" style={{ flex: 1 }}>
-                  <label className="input-label" style={{ marginBottom: "8px" }}>Nuevo estado del estudiante</label>
+                  <label className="input-label" style={{ marginBottom: "8px" }}>Nuevo Estado</label>
                   <CustomDropdown
                     value={selectedState}
                     options={currentStateOptions}
                     onChange={setSelectedState}
-                    disabled={!isStateDropdownEnabled}
+                    disabled={selectedAlianza === ""}
                     placeholder="Seleccione un estado"
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: "flex", gap: "16px" }}>
+                <div className="input-wrapper" style={{ flex: 1 }}>
+                  <label className="input-label" style={{ marginBottom: "8px" }}>Lista de Estudiantes</label>
+                  <textarea
+                    className="txareaids"
+                    value={studentIdsText}
+                    onChange={(e) => setStudentIdsText(e.target.value)}
+                    onBlur={handleMultiStudentBlur}
+                    style={{ minHeight: "200px", resize: "vertical" }}
+                    placeholder="Ingrese un ID por línea..."
+                  />
+                </div>
+                <div className="input-wrapper" style={{ flex: 1 }}>
+                  <label className="input-label" style={{ marginBottom: "8px" }}>Lista de Programas</label>
+                  <textarea
+                    className="txareaids"
+                    value={programIdsText}
+                    onChange={(e) => setProgramIdsText(e.target.value)}
+                    style={{ minHeight: "200px", resize: "vertical" }}
+                    placeholder="Ingrese un ID por línea..."
                   />
                 </div>
               </div>
@@ -404,14 +466,6 @@ function CambiosEstadoBemo() {
                 {singleStudentId && !singleSelectedUser && (
                   <div style={{ fontSize: "12px", color: "#ef4444", marginTop: "6px" }}>
                     Estudiante no encontrado
-                  </div>
-                )}
-                {singleSelectedUser && (
-                  <div style={{ fontSize: "12px", color: "var(--primary)", marginTop: "6px", display: "flex", alignItems: "center", gap: "4px" }}>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {singleSelectedUser.profile?.full_name}
-                    </span>
                   </div>
                 )}
               </div>
@@ -487,12 +541,7 @@ function CambiosEstadoBemo() {
             </div>
           )}
 
-          {/* ── Botón generar ─────────────────────────────────────── */}
-          <div style={{ marginTop: "28px" }}>
-            <button className="btn btn-primary" onClick={handleGenerate}>
-              <Zap size={20} /> Generar comandos
-            </button>
-          </div>
+
 
           <CommandsDisplay commands={generatedCommands} onClear={() => setGeneratedCommands([])} />
         </div>

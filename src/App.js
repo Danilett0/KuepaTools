@@ -1,156 +1,83 @@
 import "./Styles/styles.css";
 import { useState } from "react";
+import { toast } from "react-toastify";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import CambiosEstadoBemo from "./Components/CambioEstados.jsx";
-import AuditarEstadisticas from "./Components/AuditarEstadisticas.jsx";
-import Inscripciones from "./Components/Inscripciones.jsx";
-import Informacion from "./Components/Informacion.jsx";
-import BuscarIdInc from "./Components/BuscarIdInc.jsx";
-import ProgramasPorEstudiante from "./Components/ProgramasPorEstudiante.jsx";
-import { UndoPublicationPage, FinalUserPage, ExtractGroupsPage } from "./Components/HerramientasAcademicos.jsx";
-import { Users, RefreshCw, BarChart2, Shield, ChevronDown, ChevronRight, Info, Search, BookOpen, GraduationCap } from "lucide-react";
+import { Users, RefreshCw, BarChart2, Search, BookOpen, GraduationCap } from "lucide-react";
+import Sidebar from "./Components/Sidebar.jsx";
+import AppRouter from "./Components/AppRouter.jsx";
+
+const NAV_ITEMS = [
+  {
+    id: "inscripciones",
+    label: "Inscripciones",
+    icon: Users,
+    subItems: [
+      { id: "inscripciones-estudiante", label: "Inscribir grupos a un estudiante" },
+      { id: "inscripciones-grupo", label: "Inscribir varios estudiantes a un grupo" },
+      { id: "inscripciones-multi", label: "Inscribir varios estudiantes a varios grupos" },
+      { id: "inscripciones-especificos", label: "Varios estudiantes a grupos específicos" },
+    ],
+  },
+  { id: "cambios-estado", label: "Cambios de Estado", icon: RefreshCw },
+  { id: "auditar-estadisticas", label: "Auditar Estadísticas", icon: BarChart2 },
+  { id: "buscar-id", label: "Búscar ID Estudiantes", icon: Search },
+  { id: "programas-estudiante", label: "Programas Estudiante", icon: BookOpen },
+  {
+    id: "herramientas-academicos",
+    label: "Grupos",
+    icon: GraduationCap,
+    subItems: [
+      { id: "herramientas-undo", label: "Deshacer Publicación" },
+      { id: "herramientas-final", label: "Re-calcular Nota Estudiante" },
+      { id: "herramientas-extraer", label: "Extraer Grupos académicos" },
+    ],
+  },
+];
 
 function App() {
   const [activeComponent, setActiveComponent] = useState("inscripciones-estudiante");
   const [expandedMenu, setExpandedMenu] = useState(null);
+  const [showClearModal, setShowClearModal] = useState(false);
 
-  const renderComponent = () => {
-    switch (activeComponent) {
-      case "inscripciones-estudiante":
-        return <Inscripciones key="inscripciones-estudiante" formType="estudiante" />;
-      case "inscripciones-grupo":
-        return <Inscripciones key="inscripciones-grupo" formType="grupo" />;
-      case "inscripciones-multi":
-        return <Inscripciones key="inscripciones-multi" formType="multi" />;
-      case "inscripciones-especificos":
-        return <Inscripciones key="inscripciones-especificos" formType="especificos" />;
-      case "cambios-estado":
-        return <CambiosEstadoBemo key="cambios-estado" />;
-      case "auditar-estadisticas":
-        return <AuditarEstadisticas key="auditar-estadisticas" />;
-      case "informacion":
-        return <Informacion key="informacion" />;
-      case "buscar-id":
-        return <BuscarIdInc key="buscar-id" />;
-      case "programas-estudiante":
-        return <ProgramasPorEstudiante key="programas-estudiante" />;
-      case "herramientas-undo":
-        return <UndoPublicationPage key="herramientas-undo" />;
-      case "herramientas-final":
-        return <FinalUserPage key="herramientas-final" />;
-      case "herramientas-extraer":
-        return <ExtractGroupsPage key="herramientas-extraer" />;
-      default:
-        return <Inscripciones key="default" formType="estudiante" />;
-    }
+  const handleConfirmClear = () => {
+    localStorage.clear();
+    setShowClearModal(false);
+    toast.success("Storage limpiado. Recargando...", { autoClose: 3000 });
+    setTimeout(() => window.location.reload(), 1500);
   };
-
-  const navItems = [
-    {
-      id: "inscripciones",
-      label: "Inscripciones",
-      icon: Users,
-      subItems: [
-        { id: "inscripciones-estudiante", label: "Inscribir grupos a un estudiante" },
-        { id: "inscripciones-grupo", label: "Inscribir varios estudiantes a un grupo" },
-        { id: "inscripciones-multi", label: "Inscribir varios estudiantes a varios grupos" },
-        { id: "inscripciones-especificos", label: "Varios estudiantes a grupos específicos" }
-      ]
-    },
-    { id: "cambios-estado", label: "Cambios de Estado", icon: RefreshCw },
-    { id: "auditar-estadisticas", label: "Auditar Estadísticas", icon: BarChart2 },
-    { id: "buscar-id", label: "Buqueda Masiva Estudiante", icon: Search },
-    { id: "programas-estudiante", label: "Programas Estudiante", icon: BookOpen },
-    {
-      id: "herramientas-academicos",
-      label: "Grupos académicos",
-      icon: GraduationCap,
-      subItems: [
-        { id: "herramientas-undo", label: "Deshacer Publicación" },
-        { id: "herramientas-final", label: "Re-calcular Nota Estudiante" },
-        { id: "herramientas-extraer", label: "Extraer Grupos academicos" },
-      ]
-    },
-  ];
 
   return (
     <div className="app-wrapper">
-      <aside className="sidebar">
-        <div className="sidebar-title">
-          <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#090909' }}>
-            <Shield size={24} />
-          </div>
-          KuepaTools
-        </div>
-        <div className="sidebar-menu">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isExpanded = expandedMenu === item.id;
-            const isActive = activeComponent.startsWith(item.id) || activeComponent === item.id;
-
-            return (
-              <div key={item.id} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <div
-                  className={`sidebar-item ${isActive && !item.subItems ? 'active' : ''}`}
-                  style={item.subItems && isActive ? { color: 'var(--primary)' } : {}}
-                  onClick={() => {
-                    if (item.subItems) {
-                      setExpandedMenu(isExpanded ? null : item.id);
-                      if (!isExpanded && !activeComponent.startsWith(item.id)) {
-                        setActiveComponent(item.subItems[0].id);
-                      }
-                    } else {
-                      setActiveComponent(item.id);
-                      setExpandedMenu(null);
-                    }
-                  }}
-                >
-                  <Icon size={20} />
-                  <span style={{ flex: 1 }}>{item.label}</span>
-                  {item.subItems && (
-                    isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />
-                  )}
-                </div>
-                {item.subItems && isExpanded && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', paddingLeft: '28px', marginTop: '4px' }}>
-                    {item.subItems.map((sub) => (
-                      <div
-                        key={sub.id}
-                        className={`sidebar-item ${activeComponent === sub.id ? 'active' : ''}`}
-                        style={{ padding: '10px 16px', fontSize: '13px' }}
-                        onClick={() => setActiveComponent(sub.id)}
-                      >
-                        {sub.label}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-        <div className="sidebar-bottom" style={{ marginTop: 'auto', paddingTop: '20px', borderTop: '1px solid var(--glass-border)' }}>
-          <div
-            className={`sidebar-item ${activeComponent === 'informacion' ? 'active' : ''}`}
-            onClick={() => {
-              setActiveComponent('informacion');
-              setExpandedMenu(null);
-            }}
-          >
-            <Info size={20} />
-            <span style={{ flex: 1 }}>Información</span>
-          </div>
-        </div>
-      </aside>
+      <Sidebar
+        activeComponent={activeComponent}
+        expandedMenu={expandedMenu}
+        showClearModal={showClearModal}
+        setActiveComponent={setActiveComponent}
+        setExpandedMenu={setExpandedMenu}
+        setShowClearModal={setShowClearModal}
+        onConfirmClear={handleConfirmClear}
+        navItems={NAV_ITEMS}
+      />
 
       <main className="main-content">
-        <div className="app-container" style={activeComponent === 'informacion' ? { maxWidth: '100%', height: '100%' } : {}}>
-          {renderComponent()}
+        <div
+          className="app-container"
+          style={activeComponent === "informacion" ? { maxWidth: "100%", height: "100%" } : {}}
+        >
+          <AppRouter activeComponent={activeComponent} />
         </div>
       </main>
 
-      <ToastContainer theme="dark" toastStyle={{ background: 'var(--surface-low)', color: 'var(--on-surface)', borderRadius: '12px', border: '1px solid var(--glass-border)' }} />
+      <ToastContainer
+        theme="dark"
+        toastStyle={{
+          background: "var(--surface-low)",
+          color: "var(--on-surface)",
+          borderRadius: "12px",
+          border: "1px solid var(--glass-border)",
+        }}
+      />
     </div>
   );
 }
