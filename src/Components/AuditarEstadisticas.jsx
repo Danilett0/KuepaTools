@@ -5,6 +5,7 @@ import { useCatalogos } from "../hooks/useCatalogos";
 import "../Styles/styles.css";
 import CommandsDisplay from "./CommandsDisplay";
 import AllianceSwitcher from "./ui/AllianceSwitcher";
+import ClearButton from "./ui/ClearButton";
 
 function SegundaPagina() {
   const [alliance, setAlliance] = useLocalStorage("auditar-alliance", "6303ed663138387a1669d82a");
@@ -90,13 +91,7 @@ function SegundaPagina() {
       <div className="inscripciones-content">
         <div className="inscripciones-form-container" style={{ marginTop: 0 }}>
           <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "16px" }}>
-            <button
-              onClick={handleClear}
-              className="btn-clear"
-              title="Limpiar campos"
-            >
-              Limpiar
-            </button>
+            <ClearButton onClick={handleClear} />
           </div>
 
           <div style={{ height: "1px", background: "var(--glass-border)", marginBottom: "24px", width: "100%" }} />

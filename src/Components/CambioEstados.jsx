@@ -7,6 +7,7 @@ import { toast } from "react-toastify";
 import AllianceSwitcher from "./ui/AllianceSwitcher";
 import { useUsuariosCompletos } from "../hooks/useUsuariosCompletos";
 import { useCatalogos } from "../hooks/useCatalogos";
+import ClearButton from "./ui/ClearButton";
 
 // ─── Datos de alianzas y estados ────────────────────────────────────────────
 
@@ -315,9 +316,7 @@ function CambiosEstadoBemo() {
             </div>
 
             {/* Derecha: Limpiar */}
-            <button onClick={handleClear} className="btn-clear" title="Limpiar campos">
-              Limpiar
-            </button>
+            <ClearButton onClick={handleClear} />
           </div>
 
           {/* ── Divisor ────────────────────────────────────────────── */}

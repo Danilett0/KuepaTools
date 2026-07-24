@@ -6,6 +6,7 @@ import { showError, showSuccess } from "../services/toastService";
 import { useUsuariosCompletos } from "../hooks/useUsuariosCompletos";
 import { toast } from "react-toastify";
 import AllianceSwitcher from "./ui/AllianceSwitcher";
+import ClearButton from "./ui/ClearButton";
 
 function ComandosBemoInscripciones({ formType = "estudiante" }) {
   const showForm2 = formType === "estudiante";
@@ -331,9 +332,7 @@ function ComandosBemoInscripciones({ formType = "estudiante" }) {
         {showForm1 && (
           <div className="inscripciones-form-container" style={{ marginTop: 0 }}>
             <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "16px" }}>
-              <button className="btn-clear" onClick={() => handleClear(false)} title="Limpiar campos">
-                Limpiar
-              </button>
+              <ClearButton onClick={() => handleClear(false)} />
             </div>
             <div className="inscripciones-form">
               <div className="input-wrapper">
@@ -434,9 +433,7 @@ function ComandosBemoInscripciones({ formType = "estudiante" }) {
         {showForm2 && (
           <div className="inscripciones-form-container" style={{ marginTop: 0 }}>
             <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "16px" }}>
-              <button className="btn-clear" onClick={() => handleClear(true)} title="Limpiar campos">
-                Limpiar
-              </button>
+              <ClearButton onClick={() => handleClear(true)} />
             </div>
             <div className="inscripciones-form">
               <div className="buscarIds">
@@ -562,9 +559,7 @@ function ComandosBemoInscripciones({ formType = "estudiante" }) {
         {showForm3 && (
           <div className="inscripciones-form-container" style={{ marginTop: 0 }}>
             <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "16px" }}>
-              <button className="btn-clear" onClick={() => handleClear(false)} title="Limpiar campos">
-                Limpiar
-              </button>
+              <ClearButton onClick={() => handleClear(false)} />
             </div>
             <div className="inscripciones-form">
               <div style={{ display: "flex", gap: "16px", marginTop: "16px" }}>
@@ -612,9 +607,7 @@ function ComandosBemoInscripciones({ formType = "estudiante" }) {
         {showForm4 && (
           <div className="inscripciones-form-container" style={{ marginTop: 0 }}>
             <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "16px" }}>
-              <button className="btn-clear" onClick={() => handleClear(false)} title="Limpiar campos">
-                Limpiar
-              </button>
+              <ClearButton onClick={() => handleClear(false)} />
             </div>
             <div className="inscripciones-form">
               <div style={{ display: "flex", gap: "16px", marginTop: "16px" }}>
