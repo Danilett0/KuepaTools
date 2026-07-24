@@ -8,7 +8,7 @@ import Inscripciones from "./Components/Inscripciones.jsx";
 import Informacion from "./Components/Informacion.jsx";
 import BuscarIdInc from "./Components/BuscarIdInc.jsx";
 import ProgramasPorEstudiante from "./Components/ProgramasPorEstudiante.jsx";
-import { UndoPublicationPage, FinalUserPage } from "./Components/HerramientasAcademicos.jsx";
+import { UndoPublicationPage, FinalUserPage, ExtractGroupsPage } from "./Components/HerramientasAcademicos.jsx";
 import { Users, RefreshCw, BarChart2, Shield, ChevronDown, ChevronRight, Info, Search, BookOpen, GraduationCap } from "lucide-react";
 
 function App() {
@@ -39,6 +39,8 @@ function App() {
         return <UndoPublicationPage key="herramientas-undo" />;
       case "herramientas-final":
         return <FinalUserPage key="herramientas-final" />;
+      case "herramientas-extraer":
+        return <ExtractGroupsPage key="herramientas-extraer" />;
       default:
         return <Inscripciones key="default" formType="estudiante" />;
     }
@@ -67,6 +69,7 @@ function App() {
       subItems: [
         { id: "herramientas-undo", label: "Deshacer Publicación" },
         { id: "herramientas-final", label: "Re-calcular Nota Estudiante" },
+        { id: "herramientas-extraer", label: "Extraer Grupos academicos" },
       ]
     },
   ];

@@ -5,6 +5,7 @@ import { useLocalStorage } from '../hooks/useLocalStorage';
 import { useUsuariosCompletos } from '../hooks/useUsuariosCompletos';
 import { useCatalogos } from '../hooks/useCatalogos';
 import AllianceSwitcher from './ui/AllianceSwitcher';
+import ClearButton from './ui/ClearButton';
 
 const ProgramasPorEstudiante = () => {
   const [idsText, setIdsText] = useLocalStorage('programas-est-ids', '');
@@ -126,9 +127,7 @@ const ProgramasPorEstudiante = () => {
                 </span>
               )}
             </div>
-            <button className="btn-clear" onClick={handleClear} title="Limpiar">
-              Limpiar
-            </button>
+            <ClearButton onClick={handleClear} />
           </div>
 
           <div style={{ height: '1px', background: 'var(--glass-border)', marginBottom: '24px' }} />

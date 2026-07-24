@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from "react";
 import { useLocalStorage } from "../hooks/useLocalStorage";
-import { Copy, Trash2, Terminal, User, Search } from "lucide-react";
+import { Copy, Terminal, User, Search, List } from "lucide-react";
 import { toast } from "react-toastify";
 import { useUsuariosCompletos } from "../hooks/useUsuariosCompletos";
 import AllianceSwitcher from "./ui/AllianceSwitcher";
+import ClearButton from "./ui/ClearButton";
 
 // ── Utilidad: extrae el ID del grupo académico ──────────────────────────────
 function extractGroupId(input) {
@@ -50,11 +51,7 @@ function UndoPublicationCard() {
             Deshacer Publicación
           </span>
         </div>
-        <button className="btn-clear" onClick={handleClear}>
-          <span style={{ display: "flex", alignItems: "center", gap: "5px" }}>
-            <Trash2 size={12} /> Limpiar
-          </span>
-        </button>
+        <ClearButton onClick={handleClear} />
       </div>
 
       {/* ── Divisor ─────────────────────────────────────────────────── */}
@@ -233,11 +230,7 @@ function FinalUserCard() {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <AllianceSwitcher value={alianza} size="md" onChange={(val) => { setAlianza(val); handleClear(); }} />
-          <button className="btn-clear" onClick={handleClear}>
-            <span style={{ display: "flex", alignItems: "center", gap: "5px" }}>
-              <Trash2 size={12} /> Limpiar
-            </span>
-          </button>
+          <ClearButton onClick={handleClear} />
         </div>
       </div>
 
@@ -381,6 +374,125 @@ function FinalUserCard() {
   );
 }
 
+// ── Card 3: Extraer Grupos Académicos ──────────────────────────────────────
+function ExtractGroupsCard() {
+  const [inputText, setInputText] = useLocalStorage("herr_extract_input", "");
+  const [extractedIds, setExtractedIds] = useState([]);
+
+  useEffect(() => {
+    if (!inputText.trim()) {
+      setExtractedIds([]);
+      return;
+    }
+    // Busca secuencias alfanuméricas de 24 a 26 caracteres (típicamente ObjectIDs)
+    const regex = /\b[a-zA-Z0-9]{24,26}\b/g;
+    const matches = inputText.match(regex) || [];
+    const uniqueIds = Array.from(new Set(matches));
+    setExtractedIds(uniqueIds);
+  }, [inputText]);
+
+  const handleClear = () => {
+    setInputText("");
+    setExtractedIds([]);
+  };
+
+  const handleCopyAll = () => {
+    if (extractedIds.length === 0) return;
+    const textToCopy = extractedIds.join("\n");
+    navigator.clipboard.writeText(textToCopy);
+    toast.success("IDs copiados al portapapeles");
+  };
+
+  return (
+    <div className="inscripciones-content animate-slide-down" style={{ marginBottom: 0 }}>
+      {/* ── Header ──────────────────────────────────────────────────── */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <div style={{
+            width: "32px", height: "32px", borderRadius: "10px",
+            background: "var(--primary-container)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            <List size={16} style={{ color: "#fff" }} />
+          </div>
+          <span style={{ fontSize: "14px", fontWeight: 700, color: "var(--on-surface)", fontFamily: "'Nunito', sans-serif" }}>
+            Extraer Grupos Académicos
+          </span>
+        </div>
+        <ClearButton onClick={handleClear} />
+      </div>
+
+      {/* ── Divisor ─────────────────────────────────────────────────── */}
+      <div style={{ height: "1px", background: "var(--glass-border)", marginBottom: "20px" }} />
+
+      {/* ── Input ───────────────────────────────────────────────────── */}
+      <div className="input-wrapper" style={{ marginBottom: "20px" }}>
+        <label className="input-label">Texto libre (pega aquí un párrafo o lista con los IDs)</label>
+        <textarea
+          className="inscripciones-input"
+          value={inputText}
+          onChange={(e) => setInputText(e.target.value)}
+          placeholder="Ej: El grupo 1 es 6765d926107fc303893724e9 y el otro es 6765d926107fc303893724ea..."
+          style={{ minHeight: "120px", resize: "vertical", fontSize: "13px", fontFamily: "'Space Grotesk', monospace" }}
+        />
+      </div>
+
+      {/* ── Resultados ──────────────────────────────────────────────── */}
+      {extractedIds.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "10px" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <label className="input-label">
+              IDs Extraídos <span style={{ color: "var(--primary)" }}>({extractedIds.length})</span>
+            </label>
+            <button
+              onClick={handleCopyAll}
+              style={{
+                display: "flex", alignItems: "center", gap: "6px",
+                background: "var(--primary-container)", color: "#fff",
+                border: "1px solid var(--primary)", borderRadius: "8px",
+                padding: "5px 12px", fontSize: "12px", fontWeight: 600,
+                fontFamily: "'Space Grotesk', sans-serif", cursor: "pointer",
+                transition: "all 0.2s ease",
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.opacity = "0.85"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.opacity = "1"; }}
+            >
+              <Copy size={13} /> Copiar Todos
+            </button>
+          </div>
+          
+          <div className="commands" style={{
+            marginTop: 0, minHeight: "80px", maxHeight: "250px", overflowY: "auto",
+            display: "flex", flexDirection: "column", gap: "8px",
+            borderColor: "rgba(18,163,131,0.4)",
+          }}>
+            {extractedIds.map((id, index) => (
+              <div key={index} style={{
+                background: "rgba(0,0,0,0.2)", padding: "8px 12px",
+                borderRadius: "6px", fontFamily: "'Space Grotesk', monospace",
+                fontSize: "13px", color: "var(--on-surface)",
+                display: "flex", alignItems: "center", justifyContent: "space-between"
+              }}>
+                <span>{id}</span>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(id);
+                    toast.success("ID copiado");
+                  }}
+                  title="Copiar este ID"
+                  style={{ background: "transparent", border: "none", color: "var(--on-surface-variant)", cursor: "pointer" }}
+                >
+                  <Copy size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Wrappers de página para cada sub-ruta ──────────────────────────────────
 export function UndoPublicationPage() {
   return (
@@ -398,6 +510,14 @@ export function FinalUserPage() {
   );
 }
 
+export function ExtractGroupsPage() {
+  return (
+    <div className="inscripciones-container">
+      <ExtractGroupsCard />
+    </div>
+  );
+}
+
 // ── Componente principal (vista completa) ───────────────────────────────────
 function HerramientasAcademicos() {
   return (
@@ -405,6 +525,7 @@ function HerramientasAcademicos() {
       <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
         <UndoPublicationCard />
         <FinalUserCard />
+        <ExtractGroupsCard />
       </div>
     </div>
   );

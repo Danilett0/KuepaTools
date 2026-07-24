@@ -3,6 +3,7 @@ import { Copy, Search, ArrowRight } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { useUsuariosCompletos } from '../hooks/useUsuariosCompletos';
 import AllianceSwitcher from './ui/AllianceSwitcher';
+import ClearButton from './ui/ClearButton';
 
 const BuscarIdInc = () => {
   const [incText, setIncText] = useState('');
@@ -68,13 +69,7 @@ const BuscarIdInc = () => {
                 </span>
               )}
             </div>
-            <button
-              className="btn-clear"
-              onClick={handleClear}
-              title="Limpiar"
-            >
-              Limpiar
-            </button>
+            <ClearButton onClick={handleClear} />
           </div>
 
           {/* ── Divisor ────────────────────────────────────────── */}
