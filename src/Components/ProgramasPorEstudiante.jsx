@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { Search, BookOpen, X, Copy, ArrowRight, User } from 'lucide-react';
+import { useMemo } from 'react';
+import { Search, BookOpen, X, Copy, ArrowRight } from 'lucide-react';
 
 import { toast } from 'react-toastify';
 import { useLocalStorage } from '../hooks/useLocalStorage';

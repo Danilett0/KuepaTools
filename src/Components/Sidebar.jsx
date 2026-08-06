@@ -138,8 +138,7 @@ export default function Sidebar({
           })}
         </div>
 
-        {/* ── Bottom: Información ───────────────────────────────────── */}
-        <div className="sidebar-bottom" style={{ marginTop: 'auto', paddingTop: '20px', borderTop: '1px solid var(--glass-border)' }}>
+        <div style={{ marginTop: 'auto', paddingTop: '20px', borderTop: '1px solid var(--glass-border)' }}>
           <div
             className={`sidebar-item ${activeComponent === 'informacion' ? 'active' : ''}`}
             onClick={() => { setActiveComponent('informacion'); setExpandedMenu(null); }}

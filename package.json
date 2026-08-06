@@ -8,14 +8,11 @@
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^13.5.0",
     "ajv": "^8.20.0",
-    "lottie-react": "^2.4.1",
     "lucide-react": "^0.541.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-scripts": "^5.0.1",
-    "react-toastify": "^11.0.5",
-    "web-vitals": "^2.1.4",
-    "xlsx": "https://cdn.sheetjs.com/xlsx-latest/xlsx-latest.tgz"
+    "react-toastify": "^11.0.5"
   },
   "scripts": {
     "start": "react-scripts start",

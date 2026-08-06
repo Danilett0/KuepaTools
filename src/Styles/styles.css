@@ -144,18 +144,6 @@ h1, h2, h3, h4, h5, h6 {
   margin: auto 0;
 }
 
-.Lotty {
-  width: 40%;
-  height: 500px;
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 0;
-  opacity: 0.1;
-  pointer-events: none;
-}
-
 /* ─── Page / Section containers ─────────────────────────────────────────── */
 .inscripciones-container {
   width: 100%;
@@ -172,13 +160,6 @@ h1, h2, h3, h4, h5, h6 {
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
   width: 100%;
   box-sizing: border-box;
-}
-
-.inscripciones-content .inscripciones-buttons-main {
-  display: flex;
-  justify-content: space-evenly;
-  gap: 16px;
-  margin-bottom: 32px;
 }
 
 .inscripciones-form-container {
@@ -265,11 +246,6 @@ h1, h2, h3, h4, h5, h6 {
   gap: 8px;
 }
 
-.btn-lg {
-  padding: 16px 32px;
-  font-size: 16px;
-}
-
 .btn-primary { 
   background-color: var(--primary); 
   box-shadow: 0 4px 15px var(--gold-glow);
@@ -277,15 +253,6 @@ h1, h2, h3, h4, h5, h6 {
 .btn-primary:hover { 
   background-color: var(--primary-container); 
   box-shadow: 0 6px 20px var(--gold-glow);
-}
-
-.btn-danger { 
-  background-color: #ff4757; 
-  box-shadow: 0 4px 15px rgba(255, 71, 87, 0.2);
-}
-.btn-danger:hover { 
-  background-color: #ff6b81; 
-  box-shadow: 0 6px 20px rgba(255, 71, 87, 0.3);
 }
 
 .btn-outline-danger {
@@ -325,14 +292,6 @@ h1, h2, h3, h4, h5, h6 {
   border: 1px solid var(--glass-border);
 }
 
-.btn-success { 
-  background-color: #2ed573; 
-  color: #090909;
-}
-.btn-success:hover { 
-  background-color: #7bed9f; 
-}
-
 .btn-black { 
   background-color: var(--surface-void); 
   border: 1px solid var(--glass-border);
@@ -358,8 +317,7 @@ h1, h2, h3, h4, h5, h6 {
   flex-shrink: 0;
 }
 
-.inscripciones-buttons .btn-primary,
-.inscripciones-buttons .btn-danger {
+.inscripciones-buttons .btn-primary {
   flex: 1;
 }
 
@@ -374,8 +332,7 @@ h1, h2, h3, h4, h5, h6 {
   flex: 1;
 }
 
-.commands,
-.command-output {
+.commands {
   margin-top: 32px;
   padding: 20px;
   border-radius: 16px;
