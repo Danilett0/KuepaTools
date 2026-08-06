@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
-import { Copy, Search, ArrowRight, BookOpen, X, User } from 'lucide-react';
+import { Search, BookOpen, X, Copy, ArrowRight, User } from 'lucide-react';
+
 import { toast } from 'react-toastify';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { useUsuariosCompletos } from '../hooks/useUsuariosCompletos';
@@ -81,16 +82,20 @@ const ProgramasPorEstudiante = () => {
     });
   }, [idsText, allianceId, usuariosCompletos, programasMap]);
 
+  // Normalize text: remove accents/diacritics and lowercase for accent-insensitive search
+  const normalize = (str) =>
+    str.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
+
   // Apply search filter to programs within each result
   const filteredResults = useMemo(() => {
-    const term = searchFilter.trim().toLowerCase();
+    const term = normalize(searchFilter.trim());
     if (!term) return results;
 
     return results.map(r => {
       if (!r.found) return r;
       return {
         ...r,
-        programs: r.programs.filter(p => p.name.toLowerCase().includes(term)),
+        programs: r.programs.filter(p => normalize(p.name).includes(term)),
       };
     });
   }, [results, searchFilter]);
@@ -289,125 +294,67 @@ const ProgramasPorEstudiante = () => {
                 ) : (
                   <div>
                     {filteredResults.map((result, rIdx) => (
-                      <div key={rIdx}>
-                        {/* Student header row */}
-                        <div style={{
+                      <div
+                        key={rIdx}
+                        style={{
                           display: 'flex', alignItems: 'center', gap: '10px',
-                          padding: '10px 16px',
-                          background: result.found ? 'rgba(18,163,131,0.08)' : 'rgba(239,68,68,0.06)',
-                          borderBottom: '1px solid rgba(255,255,255,0.04)',
-                          ...(rIdx > 0 ? { borderTop: '1px solid rgba(255,255,255,0.08)' } : {}),
-                          position: 'sticky', top: 0, zIndex: 1,
+                          padding: '9px 14px',
+                          borderBottom: rIdx < filteredResults.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none',
+                          background: result.found
+                            ? (rIdx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)')
+                            : 'rgba(239,68,68,0.04)',
+                          transition: 'background 0.15s ease',
+                          minWidth: 0,
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.background = result.found ? 'rgba(18,163,131,0.06)' : 'rgba(239,68,68,0.08)'}
+                        onMouseLeave={e => e.currentTarget.style.background = result.found ? (rIdx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)') : 'rgba(239,68,68,0.04)'}
+                      >
+                        {/* ID badge */}
+                        <span style={{
+                          fontSize: '11px', fontFamily: "'Space Grotesk', monospace", fontWeight: 700,
+                          color: result.found ? 'var(--primary)' : '#ef4444',
+                          flexShrink: 0, whiteSpace: 'nowrap',
                         }}>
-                          <User size={14} style={{ color: result.found ? 'var(--primary)' : '#ef4444', flexShrink: 0 }} />
-                          {result.found ? (
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                                <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--on-surface)' }}>
-                                  {result.name}
-                                </span>
-                                <span style={{
-                                  fontSize: '10px', fontFamily: "'Space Grotesk', monospace",
-                                  color: 'var(--on-surface-variant)',
-                                  background: 'rgba(255,255,255,0.06)', borderRadius: '4px',
-                                  padding: '1px 6px',
-                                }}>
-                                  #{result.inc}
-                                </span>
-                                <span style={{
-                                  fontSize: '10px', fontFamily: "'Space Grotesk', sans-serif",
-                                  color: 'var(--primary)', fontWeight: 600,
-                                }}>
-                                  {result.programs.length} programa{result.programs.length !== 1 ? 's' : ''}
-                                </span>
-                              </div>
-                            </div>
-                          ) : (
-                            <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <span style={{
-                                fontSize: '12px', fontFamily: "'Space Grotesk', monospace",
-                                color: 'var(--on-surface-variant)',
-                                background: 'rgba(255,255,255,0.05)', borderRadius: '4px',
-                                padding: '1px 6px',
-                              }}>
-                                {result.input}
-                              </span>
-                              <span style={{ fontSize: '12px', color: '#ef4444', fontStyle: 'italic', fontFamily: "'Space Grotesk', sans-serif" }}>
-                                No encontrado
-                              </span>
-                            </div>
-                          )}
-                        </div>
+                          ID {result.found ? result.inc : result.input}
+                        </span>
 
-                        {/* Programs for this student */}
-                        {result.found && result.programs.length > 0 && result.programs.map((prog, pIdx) => (
-                          <div
-                            key={prog.id}
-                            style={{
-                              display: 'flex', alignItems: 'center', gap: '12px',
-                              padding: '10px 16px 10px 42px',
-                              borderBottom: pIdx < result.programs.length - 1 ? '1px solid rgba(255,255,255,0.03)' : 'none',
-                              background: pIdx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)',
-                              transition: 'background 0.15s ease',
-                            }}
-                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(18,163,131,0.05)'}
-                            onMouseLeave={e => e.currentTarget.style.background = pIdx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)'}
-                          >
-                            <span style={{
-                              fontSize: '10px', fontFamily: "'Space Grotesk', monospace",
-                              color: 'var(--primary)', minWidth: '20px',
-                              background: 'rgba(18,163,131,0.1)', borderRadius: '4px',
-                              padding: '1px 5px', textAlign: 'center', flexShrink: 0,
-                              fontWeight: 600,
+                        {result.found ? (
+                          <>
+
+
+                            {/* Program names proportionally divided */}
+                            <div style={{
+                              display: 'flex', flex: 1, minWidth: 0, gap: '8px',
+                              alignItems: 'center'
                             }}>
-                              {pIdx + 1}
-                            </span>
-
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{
-                                fontSize: '12px', color: 'var(--on-surface)', fontWeight: 500,
-                                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                              }}>
-                                {prog.name}
-                              </div>
-                              <div style={{
-                                fontSize: '10px', fontFamily: "'Space Grotesk', monospace",
-                                color: 'var(--on-surface-variant)', letterSpacing: '0.02em',
-                                marginTop: '2px',
-                              }}>
-                                {prog.id}
-                              </div>
+                              {result.programs.length > 0 ? (
+                                result.programs.map((p, pIdx) => (
+                                  <React.Fragment key={pIdx}>
+                                    {pIdx > 0 && <span style={{ color: 'rgba(255,255,255,0.2)' }}>|</span>}
+                                    <span
+                                      style={{
+                                        fontSize: '11px', color: 'var(--on-surface)', fontWeight: 400,
+                                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                        flex: 1,
+                                        fontFamily: "'Space Grotesk', sans-serif",
+                                      }}
+                                      title={p.name}
+                                    >
+                                      {p.name}
+                                    </span>
+                                  </React.Fragment>
+                                ))
+                              ) : (
+                                <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontStyle: 'italic', fontFamily: "'Space Grotesk', sans-serif" }}>
+                                  Sin programas que coincidan
+                                </span>
+                              )}
                             </div>
-
-                            <button
-                              onClick={() => {
-                                navigator.clipboard.writeText(prog.id);
-                                toast.success('ID de programa copiado');
-                              }}
-                              title="Copiar ID"
-                              style={{
-                                background: 'none', border: 'none', cursor: 'pointer',
-                                color: 'var(--on-surface-variant)', padding: '4px',
-                                borderRadius: '4px', flexShrink: 0, transition: 'color 0.2s',
-                                display: 'flex', alignItems: 'center',
-                              }}
-                              onMouseEnter={e => e.currentTarget.style.color = 'var(--primary)'}
-                              onMouseLeave={e => e.currentTarget.style.color = 'var(--on-surface-variant)'}
-                            >
-                              <Copy size={13} />
-                            </button>
-                          </div>
-                        ))}
-
-                        {/* Student found but no programs match filter */}
-                        {result.found && result.programs.length === 0 && searchFilter.trim() && (
-                          <div style={{
-                            padding: '8px 16px 8px 42px',
-                            fontSize: '11px', color: 'var(--text-muted)', fontStyle: 'italic',
-                            fontFamily: "'Space Grotesk', sans-serif",
-                          }}>
-                            Sin programas que coincidan
-                          </div>
+                          </>
+                        ) : (
+                          <span style={{ fontSize: '11px', color: '#ef4444', fontStyle: 'italic', fontFamily: "'Space Grotesk', sans-serif" }}>
+                            No encontrado
+                          </span>
                         )}
                       </div>
                     ))}
@@ -416,7 +363,6 @@ const ProgramasPorEstudiante = () => {
               </div>
             </div>
           </div>
-
         </div>
       </div>
     </div>

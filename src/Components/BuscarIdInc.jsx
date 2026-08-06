@@ -107,7 +107,36 @@ const BuscarIdInc = () => {
               <textarea
                 className="inscripciones-input"
                 value={incText}
-                onChange={(e) => setIncText(e.target.value)}
+                onChange={(e) => {
+                  const cleaned = e.target.value
+                    .split('\n')
+                    .map(l => l.trim())
+                    .filter(l => l !== '')
+                    .join('\n');
+                  setIncText(cleaned);
+                }}
+                onPaste={(e) => {
+                  e.preventDefault();
+                  const pasted = e.clipboardData.getData('text');
+                  const cleaned = pasted
+                    .split(/\r?\n/)
+                    .map(l => l.trim())
+                    .filter(l => l !== '')
+                    .join('\n');
+                  // Insertar en la posición del cursor respetando el texto existente
+                  const ta = e.target;
+                  const start = ta.selectionStart;
+                  const end = ta.selectionEnd;
+                  const before = incText.slice(0, start);
+                  const after = incText.slice(end);
+                  const merged = [before, cleaned, after]
+                    .join('')
+                    .split('\n')
+                    .map(l => l.trim())
+                    .filter(l => l !== '')
+                    .join('\n');
+                  setIncText(merged);
+                }}
                 placeholder={"Ejemplo:\n292828\n237575\n297832"}
                 style={{
                   height: '340px',
@@ -196,38 +225,22 @@ const BuscarIdInc = () => {
                       <div
                         key={i}
                         style={{
-                          display: 'flex', alignItems: 'center', gap: '12px',
-                          padding: '10px 16px',
+                          display: 'flex', alignItems: 'center', gap: '8px',
+                          padding: '0 12px',
+                          height: '25.2px',   /* 14px * 1.8 — igual al line-height del textarea */
                           borderBottom: i < resultado.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
-                          background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)',
+                          background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)',
                         }}
                       >
-                        {/* Número incremental */}
-                        <span style={{
-                          fontSize: '12px', fontFamily: "'Space Grotesk', monospace",
-                          color: 'var(--on-surface-variant)', minWidth: '48px',
-                          background: 'rgba(255,255,255,0.05)', borderRadius: '4px',
-                          padding: '2px 6px', textAlign: 'center', flexShrink: 0,
-                        }}>
-                          #{r.inc}
-                        </span>
-
                         <div style={{ flex: 1, minWidth: 0 }}>
                           {r.found ? (
-                            <>
-                              <div style={{
-                                fontSize: '12px', fontFamily: "'Space Grotesk', monospace",
-                                color: 'var(--on-surface)', letterSpacing: '0.02em',
-                                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                              }}>
-                                {r.id}
-                              </div>
-                              {r.name && (
-                                <div style={{ fontSize: '11px', color: 'var(--primary)', marginTop: '2px' }}>
-                                  {r.name}
-                                </div>
-                              )}
-                            </>
+                            <div style={{
+                              fontSize: '12px', fontFamily: "'Space Grotesk', monospace",
+                              color: 'var(--on-surface)', letterSpacing: '0.02em',
+                              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                            }}>
+                              {r.id}
+                            </div>
                           ) : (
                             <span style={{ fontSize: '12px', color: '#ef4444', fontStyle: 'italic', fontFamily: "'Space Grotesk', sans-serif" }}>
                               No encontrado
