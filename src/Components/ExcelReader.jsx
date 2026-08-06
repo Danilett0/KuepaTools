@@ -29,8 +29,6 @@ function ExcelReader({ onDataRead, isVisible, onClose }) {
           .map((cell) => String(cell).trim()) // Convertir a string y eliminar espacios
           .filter((cell) => cell !== "" && cell.length >= 23); // Filtra vacíos Y "_id"
 
-        console.log("Datos leídos del Excel:", firstColumnData);
-
         // Devolver los datos al componente padre
         onDataRead(firstColumnData);
 
