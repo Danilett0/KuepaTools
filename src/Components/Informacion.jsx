@@ -3,6 +3,7 @@ import { Search, Copy, Phone, BookOpen, Mail, Briefcase, Loader2 } from 'lucide-
 import { toast } from 'react-toastify';
 import { useCatalogos } from '../hooks/useCatalogos';
 import { listUsuariosPaginados } from '../services/usuariosService';
+import AgregacionesPanel from './AgregacionesPanel';
 
 const Informacion = () => {
   const [consultaActiva, setConsultaActiva] = useState(null);
@@ -177,6 +178,9 @@ const Informacion = () => {
 
   const renderContenido = () => {
     switch (consultaActiva) {
+      case 'agregaciones':
+        return <AgregacionesPanel />;
+        
       case 'alianzas':
         const filteredAlianzas = alianzasData.filter(a => 
           a.name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -563,6 +567,15 @@ const Informacion = () => {
           style={{ padding: '10px 20px', transition: 'none', transform: 'none' }}
         >
           Usuarios
+        </button>
+        <button 
+          className={`btn ${consultaActiva === 'agregaciones' ? 'btn-primary' : 'btn-black'}`}
+          onClick={() => {
+            setConsultaActiva('agregaciones');
+          }}
+          style={{ padding: '10px 20px', transition: 'none', transform: 'none' }}
+        >
+          Agregaciones
         </button>
       </div>
 
