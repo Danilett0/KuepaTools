@@ -1,45 +1,63 @@
-import React, { useState, useEffect } from 'react';
-import { Copy, Search, ArrowRight } from 'lucide-react';
+import React, { useState, useCallback } from 'react';
+import { Copy, Search, ArrowRight, Loader2 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { useLocalStorage } from '../hooks/useLocalStorage';
-import { useUsuariosCompletos } from '../hooks/useUsuariosCompletos';
+import { findUsersByIncList } from '../services/usuariosService';
 import AllianceSwitcher from './ui/AllianceSwitcher';
 import ClearButton from './ui/ClearButton';
+
+const ALLIANCE_ID = {
+  na:    '6303ed663138387a1669d82a',
+  kuepa: '602169e217b5c8a27f9e9c06',
+};
 
 const BuscarIdInc = () => {
   const [incText, setIncText] = useLocalStorage('buscarid-incText', '');
   const [alianza, setAlianza] = useLocalStorage('buscarid-alianza', 'na');
   const [resultado, setResultado] = useState([]);
-  const { data: usuariosCompletos, loading } = useUsuariosCompletos();
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    if (!incText.trim()) {
-      setResultado([]);
-      return;
+  // Parse the textarea into a list of { raw, incNum } entries
+  const parseLines = useCallback(() => {
+    return incText
+      .split('\n')
+      .map(l => l.trim())
+      .filter(l => l !== '')
+      .map(raw => ({ raw, incNum: Number(raw) }));
+  }, [incText]);
+
+  // On-demand search — fires only when the user triggers it
+  const handleBuscar = useCallback(async () => {
+    const lines = parseLines();
+    if (!lines.length) return;
+
+    const allianceId = ALLIANCE_ID[alianza];
+    const validIncs = lines.filter(l => !isNaN(l.incNum)).map(l => l.incNum);
+
+    setLoading(true);
+    try {
+      const found = await findUsersByIncList(validIncs, allianceId);
+      // Build a fast lookup map incNum → user
+      const byInc = Object.fromEntries(found.map(u => [u.incremental_user_code, u]));
+
+      const results = lines.map(({ raw, incNum }) => {
+        if (isNaN(incNum)) return { inc: raw, id: null, name: null, found: false };
+        const user = byInc[incNum];
+        if (user?._id?.$oid) {
+          return { inc: raw, id: user._id.$oid, name: user.profile?.full_name, found: true };
+        }
+        return { inc: raw, id: null, name: null, found: false };
+      });
+
+      setResultado(results);
+    } catch (err) {
+      toast.error('Error al buscar usuarios: ' + err.message);
+    } finally {
+      setLoading(false);
     }
+  }, [parseLines, alianza]);
 
-    const lines = incText.split('\n').map(line => line.trim()).filter(line => line !== '');
-    const allianceId = alianza === 'kuepa'
-      ? '602169e217b5c8a27f9e9c06'
-      : '6303ed663138387a1669d82a';
-
-    const results = lines.map(incStr => {
-      const incNum = Number(incStr);
-      if (isNaN(incNum)) return { inc: incStr, id: null, found: false };
-
-      const user = usuariosCompletos.find(
-        u => u.incremental_user_code === incNum && u.alliance_id?.$oid === allianceId
-      );
-
-      if (user?._id?.$oid) {
-        return { inc: incStr, id: user._id.$oid, name: user.profile?.full_name, found: true };
-      }
-      return { inc: incStr, id: null, found: false };
-    });
-
-    setResultado(results);
-  }, [incText, alianza, usuariosCompletos]);
-
+  const inputLineCount = incText.split('\n').filter(l => l.trim()).length;
   const foundCount = resultado.filter(r => r.found).length;
   const totalCount = resultado.length;
 
@@ -74,8 +92,9 @@ const BuscarIdInc = () => {
                 Búscar ID por Incremental
               </span>
               {loading && (
-                <span style={{ fontSize: '11px', color: '#eab308', fontStyle: 'italic', fontFamily: "'Space Grotesk', sans-serif", marginLeft: "8px" }}>
-                  Cargando usuarios...
+                <span style={{ fontSize: '11px', color: '#eab308', fontStyle: 'italic', fontFamily: "'Space Grotesk', sans-serif", marginLeft: "8px", display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <Loader2 size={11} style={{ animation: 'spin 1s linear infinite' }} />
+                  Buscando...
                 </span>
               )}
             </div>
@@ -93,16 +112,36 @@ const BuscarIdInc = () => {
 
             {/* Panel izquierdo: entrada */}
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Search size={14} style={{ color: 'var(--primary)', flexShrink: 0 }} />
-                <label className="input-label" style={{ marginBottom: 0 }}>
-                  IDs INCREMENTALES
-                  {totalCount > 0 && (
-                    <span style={{ marginLeft: '8px', fontWeight: 400, color: 'var(--on-surface-variant)', fontSize: '12px' }}>
-                      {totalCount} ingresados
-                    </span>
-                  )}
-                </label>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Search size={14} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                  <label className="input-label" style={{ marginBottom: 0 }}>
+                    IDs INCREMENTALES
+                    {inputLineCount > 0 && (
+                      <span style={{ marginLeft: '8px', fontWeight: 400, color: 'var(--on-surface-variant)', fontSize: '12px' }}>
+                        {inputLineCount} ingresados
+                      </span>
+                    )}
+                  </label>
+                </div>
+                <button
+                  onClick={handleBuscar}
+                  disabled={loading || !inputLineCount}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '6px',
+                    background: inputLineCount && !loading ? 'var(--primary)' : 'transparent',
+                    color: inputLineCount && !loading ? '#090909' : 'var(--text-muted)',
+                    border: `1px solid ${inputLineCount ? 'var(--primary)' : 'var(--glass-border)'}`,
+                    borderRadius: '8px', padding: '5px 12px',
+                    fontSize: '12px', fontWeight: '700',
+                    fontFamily: "'Space Grotesk', sans-serif",
+                    cursor: inputLineCount && !loading ? 'pointer' : 'not-allowed',
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  {loading ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <Search size={13} />}
+                  Buscar
+                </button>
               </div>
               <textarea
                 className="inscripciones-input"

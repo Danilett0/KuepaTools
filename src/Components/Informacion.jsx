@@ -1,15 +1,13 @@
-import React, { useState, useMemo } from 'react';
-import { Search, Copy, Phone, BookOpen, Mail, Briefcase } from 'lucide-react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { Search, Copy, Phone, BookOpen, Mail, Briefcase, Loader2 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { useCatalogos } from '../hooks/useCatalogos';
-import { useUsuariosCompletos } from '../hooks/useUsuariosCompletos';
+import { listUsuariosPaginados } from '../services/usuariosService';
 
 const Informacion = () => {
   const [consultaActiva, setConsultaActiva] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const { data: usuariosCompletos, loading: loadingUsuarios } = useUsuariosCompletos();
   const { alianzas: alianzasData, programas: programasData, estados: estadosData, loading: loadingCatalogos } = useCatalogos();
-  const isLoading = loadingUsuarios || loadingCatalogos;
   const [alianzaFiltro, setAlianzaFiltro] = useState('');
   const [usuariosFiltro, setUsuariosFiltro] = useState('nueva-america');
   const [usuariosPagina, setUsuariosPagina] = useState(0);
@@ -17,28 +15,41 @@ const Informacion = () => {
   const [programasPagina, setProgramasPagina] = useState(0);
   const PAGE_SIZE = 10;
 
-  // Filtrado de usuarios — debe estar a nivel de componente (reglas de hooks)
-  const usersSource = useMemo(() => {
-    const allianceId = usuariosFiltro === 'nueva-america' 
-      ? '6303ed663138387a1669d82a' // Nueva América
-      : '602169e217b5c8a27f9e9c06'; // Kuepa Colombia
-      
-    return usuariosCompletos.filter(u => u.alliance_id?.$oid === allianceId);
-  }, [usuariosFiltro, usuariosCompletos]);
+  // Server-side state
+  const [serverUsers, setServerUsers] = useState([]);
+  const [totalServerUsers, setTotalServerUsers] = useState(0);
+  const [loadingUsuarios, setLoadingUsuarios] = useState(false);
+  const debounceRef = useRef(null);
 
-  const filteredUsers = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase();
-    if (!term) return usersSource;
-    return usersSource.filter(u => {
-      const email = u.profile?.email || '';
-      const name = u.profile?.full_name || '';
-      const code = String(u.incremental_user_code || '');
-      return email.toLowerCase().includes(term) || name.toLowerCase().includes(term) || code.includes(term);
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchTerm, usersSource]);
-  const totalPages = Math.ceil(filteredUsers.length / PAGE_SIZE);
-  const pageUsers = filteredUsers.slice(usuariosPagina * PAGE_SIZE, (usuariosPagina + 1) * PAGE_SIZE);
+  const allianceId = usuariosFiltro === 'nueva-america'
+    ? '6303ed663138387a1669d82a'
+    : '602169e217b5c8a27f9e9c06';
+
+  const fetchUsers = useCallback(async (term, page) => {
+    setLoadingUsuarios(true);
+    try {
+      const { users, total } = await listUsuariosPaginados(allianceId, term, page, PAGE_SIZE);
+      setServerUsers(users);
+      setTotalServerUsers(total);
+    } catch (err) {
+      toast.error('Error cargando usuarios: ' + err.message);
+    } finally {
+      setLoadingUsuarios(false);
+    }
+  }, [allianceId]);
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      fetchUsers(searchTerm, usuariosPagina);
+    }, 800);
+    return () => clearTimeout(debounceRef.current);
+  }, [searchTerm, usuariosPagina, fetchUsers]);
+
+  const isLoading = loadingUsuarios || loadingCatalogos;
+
+  const totalPages = Math.ceil(totalServerUsers / PAGE_SIZE);
+  const pageUsers = serverUsers;
 
   // Mapa rápido de ID de programa → { name, _id.$oid }
   const programasMap = useMemo(() =>
@@ -296,9 +307,9 @@ const Informacion = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '16px' }}>
               <h3 style={{ color: 'var(--primary)', fontSize: '20px', margin: 0 }}>
                 Usuarios — {usuariosFiltro === 'nueva-america' ? 'Nueva América' : 'Kuepa'}
-                <span style={{ fontSize: '14px', color: 'var(--on-surface-variant)', marginLeft: '8px', fontWeight: 400 }}>
-                  ({filteredUsers.length} total)
-                </span>
+                <span style={{ fontSize: '13px', color: 'var(--on-surface-variant)', fontFamily: "'Space Grotesk', sans-serif" }}>
+                Total: <span style={{ color: 'var(--on-surface)', fontWeight: 600 }}>{totalServerUsers}</span> usuarios
+              </span>
               </h3>
               <div style={{ position: 'relative', width: '300px', maxWidth: '100%' }}>
                 <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--on-surface-variant)' }} />

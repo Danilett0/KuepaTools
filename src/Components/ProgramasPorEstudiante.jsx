@@ -1,9 +1,9 @@
-import { useMemo } from 'react';
-import { Search, BookOpen, X, Copy, ArrowRight } from 'lucide-react';
+import { useState, useMemo, useCallback, Fragment, useEffect, useRef } from 'react';
+import { Search, BookOpen, X, Copy, ArrowRight, Loader2 } from 'lucide-react';
 
 import { toast } from 'react-toastify';
 import { useLocalStorage } from '../hooks/useLocalStorage';
-import { useUsuariosCompletos } from '../hooks/useUsuariosCompletos';
+import { findUsersByIncList, findUser } from '../services/usuariosService';
 import { useCatalogos } from '../hooks/useCatalogos';
 import AllianceSwitcher from './ui/AllianceSwitcher';
 import ClearButton from './ui/ClearButton';
@@ -12,7 +12,8 @@ const ProgramasPorEstudiante = () => {
   const [idsText, setIdsText] = useLocalStorage('programas-est-ids', '');
   const [alianza, setAlianza] = useLocalStorage('programas-est-alianza', 'na');
   const [searchFilter, setSearchFilter] = useLocalStorage('programas-est-filter', '');
-  const { data: usuariosCompletos, loading } = useUsuariosCompletos();
+  const [loading, setLoading] = useState(false);
+  const [results, setResults] = useState([]);
   const { programas: programasData } = useCatalogos();
 
   const programasMap = useMemo(() =>
@@ -23,64 +24,79 @@ const ProgramasPorEstudiante = () => {
     ? '602169e217b5c8a27f9e9c06'
     : '6303ed663138387a1669d82a';
 
-  // Auto-complete: replace incremental IDs with long IDs on blur
-  const handleBlur = () => {
-    const lines = idsText.split('\n');
-    let changed = false;
+  // Parse input lines
+  const parseLines = useCallback(() => {
+    return idsText.split('\n').map(l => l.trim()).filter(l => l !== '');
+  }, [idsText]);
 
-    const updated = lines.map(raw => {
-      const val = raw.trim();
-      if (!val) return raw;
+  // On-demand search — resolves each student in the list
+  const handleBuscar = useCallback(async () => {
+    const lines = parseLines();
+    if (!lines.length) {
+      setResults([]);
+      return;
+    }
 
-      const user = usuariosCompletos.find(u => {
-        const uAlliance = u.alliance_id?.$oid || u.alliance_id;
-        if (uAlliance !== allianceId) return false;
-        return String(u.incremental_user_code) === val;
-      });
-
-      if (user) {
-        changed = true;
-        return user._id?.$oid || user._id;
+    setLoading(true);
+    try {
+      // Collect valid INCs for bulk lookup
+      const incs = lines.filter(l => /^\d+$/.test(l) && l.length < 24).map(Number);
+      let byInc = {};
+      if (incs.length > 0) {
+        const found = await findUsersByIncList(incs, allianceId);
+        byInc = Object.fromEntries(found.map(u => [u.incremental_user_code, u]));
       }
-      return raw;
-    });
 
-    if (changed) setIdsText(updated.join('\n'));
-  };
+      // We might have mongo IDs in the lines, which we would need to resolve individually,
+      // but findUser handles both. To be efficient, we resolve INCs in bulk above,
+      // and for the rest (or missing ones) we do findUser.
+      const resolvedResults = await Promise.all(lines.map(async line => {
+        let user = null;
+        if (/^\d+$/.test(line) && line.length < 24) {
+          user = byInc[Number(line)];
+        }
+        if (!user) {
+           user = await findUser(line, allianceId);
+        }
 
-  // Parse input lines and resolve each student
-  const results = useMemo(() => {
-    const lines = idsText.split('\n').map(l => l.trim()).filter(l => l !== '');
-    if (!lines.length) return [];
+        if (!user) return { input: line, found: false, user: null, programs: [] };
 
-    return lines.map(line => {
-      const user = usuariosCompletos.find(u => {
-        const uAlliance = u.alliance_id?.$oid || u.alliance_id;
-        if (uAlliance !== allianceId) return false;
-        return String(u.incremental_user_code) === line || (u._id?.$oid || u._id) === line;
-      });
+        const longId = user._id?.$oid || user._id;
+        const programs = (user.programs || []).map((prog, idx) => {
+          const pid = prog.structure?.$oid || prog.structure;
+          if (!pid) return null;
+          const catalogEntry = programasMap[pid];
+          return { id: pid, name: catalogEntry?.name || pid, idx };
+        }).filter(Boolean);
 
-      if (!user) return { input: line, found: false, user: null, programs: [] };
+        return {
+          input: line,
+          found: true,
+          user,
+          longId,
+          name: user.profile?.full_name || longId,
+          inc: user.incremental_user_code,
+          programs,
+        };
+      }));
 
-      const longId = user._id?.$oid || user._id;
-      const programs = (user.programs || []).map((prog, idx) => {
-        const pid = prog.structure?.$oid || prog.structure;
-        if (!pid) return null;
-        const catalogEntry = programasMap[pid];
-        return { id: pid, name: catalogEntry?.name || pid, idx };
-      }).filter(Boolean);
+      setResults(resolvedResults);
+    } catch (error) {
+      toast.error('Error al buscar usuarios: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [parseLines, allianceId, programasMap]);
 
-      return {
-        input: line,
-        found: true,
-        user,
-        longId,
-        name: user.profile?.full_name || longId,
-        inc: user.incremental_user_code,
-        programs,
-      };
-    });
-  }, [idsText, allianceId, usuariosCompletos, programasMap]);
+  const debounceRef = useRef(null);
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      handleBuscar();
+    }, 800);
+    return () => clearTimeout(debounceRef.current);
+  }, [idsText, allianceId, handleBuscar]);
 
   // Normalize text: remove accents/diacritics and lowercase for accent-insensitive search
   const normalize = (str) =>
@@ -91,16 +107,19 @@ const ProgramasPorEstudiante = () => {
     const term = normalize(searchFilter.trim());
     if (!term) return results;
 
-    return results.map(r => {
-      if (!r.found) return r;
-      return {
-        ...r,
-        programs: r.programs.filter(p => normalize(p.name).includes(term)),
-      };
-    });
+    return results.reduce((acc, r) => {
+      if (!r.found) return acc;
+      
+      const matchedPrograms = r.programs.filter(p => normalize(p.name).includes(term));
+      if (matchedPrograms.length > 0) {
+        acc.push({ ...r, programs: matchedPrograms });
+      }
+      return acc;
+    }, []);
   }, [results, searchFilter]);
 
   // Count totals for the header
+  const totalEntered = parseLines().length;
   const totalStudents = results.filter(r => r.found).length;
   const totalPrograms = results.reduce((acc, r) => acc + r.programs.length, 0);
   const visiblePrograms = filteredResults.reduce((acc, r) => acc + r.programs.length, 0);
@@ -115,6 +134,7 @@ const ProgramasPorEstudiante = () => {
   const handleClear = () => {
     setIdsText('');
     setSearchFilter('');
+    setResults([]);
   };
 
   return (
@@ -136,8 +156,9 @@ const ProgramasPorEstudiante = () => {
                 Programas Estudiante
               </span>
               {loading && (
-                <span style={{ fontSize: '11px', color: '#eab308', fontStyle: 'italic', fontFamily: "'Space Grotesk', sans-serif", marginLeft: "8px" }}>
-                  Cargando usuarios...
+                <span style={{ fontSize: '11px', color: '#eab308', fontStyle: 'italic', fontFamily: "'Space Grotesk', sans-serif", marginLeft: "8px", display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <Loader2 size={11} style={{ animation: 'spin 1s linear infinite' }} />
+                  Cargando...
                 </span>
               )}
             </div>
@@ -154,22 +175,23 @@ const ProgramasPorEstudiante = () => {
 
             {/* ── Panel izquierdo: textarea de IDs ────────────── */}
             <div style={{ flex: '0 0 300px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Search size={14} style={{ color: 'var(--primary)', flexShrink: 0 }} />
-                <label className="input-label" style={{ marginBottom: 0 }}>
-                  IDs ESTUDIANTES
-                  {results.length > 0 && (
-                    <span style={{ marginLeft: '8px', fontWeight: 400, color: 'var(--on-surface-variant)', fontSize: '12px' }}>
-                      {results.length} ingresados
-                    </span>
-                  )}
-                </label>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Search size={14} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                  <label className="input-label" style={{ marginBottom: 0 }}>
+                    ESTUDIANTES
+                    {totalEntered > 0 && (
+                      <span style={{ marginLeft: '8px', fontWeight: 400, color: 'var(--on-surface-variant)', fontSize: '12px' }}>
+                        {totalStudents}/{totalEntered} {totalStudents === 1 ? 'encontrado' : 'encontrados'}
+                      </span>
+                    )}
+                  </label>
+                </div>
               </div>
               <textarea
                 className="inscripciones-input"
                 value={idsText}
                 onChange={(e) => setIdsText(e.target.value)}
-                onBlur={handleBlur}
                 placeholder={"Ejemplo:\n292828\n237575\n297832"}
                 style={{
                   height: '340px',
@@ -203,14 +225,14 @@ const ProgramasPorEstudiante = () => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <div style={{
                     width: '8px', height: '8px', borderRadius: '50%',
-                    background: !totalPrograms ? 'var(--glass-border)' : visiblePrograms === totalPrograms ? '#22c55e' : '#eab308',
+                    background: !totalStudents ? 'var(--glass-border)' : filteredResults.length === totalStudents ? '#22c55e' : '#eab308',
                     transition: 'background 0.3s ease',
                   }} />
                   <label className="input-label" style={{ marginBottom: 0 }}>
                     PROGRAMAS
-                    {totalPrograms > 0 && (
+                    {totalStudents > 0 && (
                       <span style={{ marginLeft: '8px', fontWeight: 400, color: 'var(--on-surface-variant)', fontSize: '12px' }}>
-                        {visiblePrograms}/{totalPrograms} {searchFilter.trim() ? 'filtrados' : 'total'}
+                        {filteredResults.length}/{totalStudents} {searchFilter.trim() ? 'filtrados' : 'total'}
                       </span>
                     )}
                   </label>
@@ -329,7 +351,7 @@ const ProgramasPorEstudiante = () => {
                             }}>
                               {result.programs.length > 0 ? (
                                 result.programs.map((p, pIdx) => (
-                                  <React.Fragment key={pIdx}>
+                                  <Fragment key={pIdx}>
                                     {pIdx > 0 && <span style={{ color: 'rgba(255,255,255,0.2)' }}>|</span>}
                                     <span
                                       style={{
@@ -342,7 +364,7 @@ const ProgramasPorEstudiante = () => {
                                     >
                                       {p.name}
                                     </span>
-                                  </React.Fragment>
+                                  </Fragment>
                                 ))
                               ) : (
                                 <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontStyle: 'italic', fontFamily: "'Space Grotesk', sans-serif" }}>

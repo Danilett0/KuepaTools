@@ -1,10 +1,10 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useLocalStorage } from "../hooks/useLocalStorage";
-import { Copy, Terminal, User, Search, List } from "lucide-react";
+import { Copy, Terminal, User, List } from "lucide-react";
 import { toast } from "react-toastify";
-import { useUsuariosCompletos } from "../hooks/useUsuariosCompletos";
 import AllianceSwitcher from "./ui/AllianceSwitcher";
 import ClearButton from "./ui/ClearButton";
+import IncAutocomplete from "./ui/IncAutocomplete";
 
 // ── Utilidad: extrae el ID del grupo académico ──────────────────────────────
 function extractGroupId(input) {
@@ -122,12 +122,6 @@ function FinalUserCard() {
   const [incText, setIncText] = useLocalStorage("herr_final_incText", "");
   const [studentId, setStudentId] = useState("");
   const [studentName, setStudentName] = useState("");
-  const [suggestions, setSuggestions] = useState([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [incNotFound, setIncNotFound] = useState(false);
-  const suggestionRef = useRef(null);
-
-  const { data: usuarios, loading } = useUsuariosCompletos();
 
   const resolvedGroupId = extractGroupId(groupId);
 
@@ -135,60 +129,14 @@ function FinalUserCard() {
     ? "602169e217b5c8a27f9e9c06"
     : "6303ed663138387a1669d82a";
 
-  // ── Busca por INC y auto-rellena el ID ───────────────────────────────────
-  useEffect(() => {
-    const val = incText.trim();
-    setIncNotFound(false);
-    setStudentId("");
-    setStudentName("");
-    setSuggestions([]);
-
-    if (!val || !usuarios.length) return;
-
-    const incNum = Number(val);
-    if (!isNaN(incNum) && val.length >= 3) {
-      // Si es número exacto, busca directamente
-      const exactUser = usuarios.find(
-        (u) => u.incremental_user_code === incNum && u.alliance_id?.$oid === allianceId
-      );
-      if (exactUser) {
-        setStudentId(exactUser._id.$oid);
-        setStudentName(exactUser.profile?.full_name || "");
-        setIncNotFound(false);
-        setSuggestions([]);
-        return;
-      }
-
-      // Sugerencias parciales (primeros 6)
-      const partial = usuarios
-        .filter(
-          (u) =>
-            String(u.incremental_user_code).startsWith(val) &&
-            u.alliance_id?.$oid === allianceId
-        )
-        .slice(0, 6);
-      setSuggestions(partial);
-      if (!partial.length && val.length >= 5) setIncNotFound(true);
+  const handleSelectUser = (user) => {
+    if (user) {
+      setStudentId(user._id.$oid);
+      setStudentName(user.profile?.full_name || "");
+    } else {
+      setStudentId("");
+      setStudentName("");
     }
-  }, [incText, alianza, usuarios, allianceId]);
-
-  // ── Cierra sugerencias al hacer click fuera ──────────────────────────────
-  useEffect(() => {
-    const handler = (e) => {
-      if (suggestionRef.current && !suggestionRef.current.contains(e.target)) {
-        setShowSuggestions(false);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
-  const selectSuggestion = (user) => {
-    setIncText(String(user.incremental_user_code));
-    setStudentId(user._id.$oid);
-    setStudentName(user.profile?.full_name || "");
-    setSuggestions([]);
-    setShowSuggestions(false);
   };
 
   const handleClear = () => {
@@ -196,8 +144,6 @@ function FinalUserCard() {
     setIncText("");
     setStudentId("");
     setStudentName("");
-    setSuggestions([]);
-    setIncNotFound(false);
   };
 
   const command =
@@ -262,72 +208,18 @@ function FinalUserCard() {
         </div>
 
         {/* Input INC estudiante con autocomplete */}
-        <div className="input-wrapper" style={{ position: "relative" }} ref={suggestionRef}>
-          <label className="input-label" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-            INC del Estudiante
-            {loading && (
-              <span style={{ fontSize: "10px", color: "#eab308", fontStyle: "italic", fontWeight: 400 }}>
-                cargando usuarios…
-              </span>
-            )}
-          </label>
-          <div style={{ position: "relative" }}>
-            <input
-              className="inscripciones-input"
-              type="text"
-              value={incText}
-              onChange={(e) => { setIncText(e.target.value); setShowSuggestions(true); }}
-              onFocus={() => setShowSuggestions(true)}
-              placeholder="Ej: 292828"
-              style={{ fontSize: "13px", fontFamily: "'Space Grotesk', monospace", paddingRight: "40px" }}
-            />
-            <Search size={14} style={{
-              position: "absolute", right: "14px", top: "50%",
-              transform: "translateY(-50%)", color: "var(--on-surface-variant)", pointerEvents: "none",
-            }} />
-          </div>
-
-          {/* Sugerencias */}
-          {showSuggestions && suggestions.length > 0 && (
-            <div style={{
-              position: "absolute", top: "100%", left: 0, right: 0, zIndex: 50,
-              background: "var(--surface-low)", border: "1px solid var(--glass-border)",
-              borderRadius: "10px", overflow: "hidden", marginTop: "4px",
-              boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
-            }}>
-              {suggestions.map((u) => (
-                <div
-                  key={u._id.$oid}
-                  onMouseDown={() => selectSuggestion(u)}
-                  style={{
-                    padding: "10px 14px", cursor: "pointer",
-                    borderBottom: "1px solid rgba(255,255,255,0.04)",
-                    transition: "background 0.15s",
-                    display: "flex", flexDirection: "column", gap: "2px",
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.05)"}
-                  onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
-                >
-                  <span style={{ fontSize: "13px", color: "var(--on-surface)", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600 }}>
-                    #{u.incremental_user_code}
-                  </span>
-                  <span style={{ fontSize: "11px", color: "var(--primary)" }}>
-                    {u.profile?.full_name}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Estado bajo el input */}
+        <div className="input-wrapper">
+          <label className="input-label">INC del Estudiante</label>
+          <IncAutocomplete
+            alianzaId={allianceId}
+            value={incText}
+            onChange={setIncText}
+            onSelect={handleSelectUser}
+            placeholder="Ej: 292828"
+          />
           {studentName && (
             <span style={{ fontSize: "11px", color: "var(--primary)", marginLeft: "4px", display: "flex", alignItems: "center", gap: "4px" }}>
               ✓ {studentName}
-            </span>
-          )}
-          {incNotFound && (
-            <span style={{ fontSize: "11px", color: "#ef4444", marginLeft: "4px" }}>
-              Usuario no encontrado
             </span>
           )}
         </div>

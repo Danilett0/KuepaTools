@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useLocalStorage } from "../hooks/useLocalStorage";
-import { useUsuariosCompletos } from "../hooks/useUsuariosCompletos";
+import { findUser } from "../services/usuariosService";
 import { useCatalogos } from "../hooks/useCatalogos";
 import "../Styles/styles.css";
 import { Activity } from "lucide-react";
@@ -15,7 +15,6 @@ function SegundaPagina() {
   const [groupId, setGroupId] = useLocalStorage("auditar-groupId", "");
   const [manualProgram, setManualProgram] = useState(false);
 
-  const { data: usuariosCompletos } = useUsuariosCompletos();
   const { programas: programasData } = useCatalogos();
 
   const [commands, setCommands] = useState([]);
@@ -24,26 +23,21 @@ function SegundaPagina() {
     programasData ? Object.fromEntries(programasData.map(p => [p._id.$oid, p])) : {}
     , [programasData]);
 
-  const selectedUser = useMemo(() => {
+  // Resolved user — fetched on blur, not preloaded
+  const [selectedUser, setSelectedUser] = useState(null);
+
+  const handleStudentIdBlur = useCallback(async () => {
     const studentValue = secondStudentId.trim();
-    if (!studentValue) return null;
+    if (!studentValue) { setSelectedUser(null); return; }
 
-    return usuariosCompletos.find(u => {
-      const uAlliance = u.alliance_id?.$oid || u.alliance_id;
-      if (uAlliance !== alliance) return false;
+    const user = await findUser(studentValue, alliance);
+    setSelectedUser(user);
 
-      return String(u.incremental_user_code) === studentValue || (u._id?.$oid || u._id) === studentValue;
-    }) || null;
-  }, [secondStudentId, alliance, usuariosCompletos]);
-
-  const handleStudentIdBlur = () => {
-    const studentValue = secondStudentId.trim();
-    if (!studentValue || !selectedUser) return;
-
-    if (String(selectedUser.incremental_user_code) === studentValue) {
-      setSecondStudentId(selectedUser._id?.$oid || selectedUser._id);
+    // Auto-replace INC with long ID
+    if (user && String(user.incremental_user_code) === studentValue) {
+      setSecondStudentId(user._id?.$oid || user._id);
     }
-  };
+  }, [secondStudentId, alliance, setSecondStudentId]);
 
   useEffect(() => {
     const resolvedStudentId = selectedUser ? (selectedUser._id?.$oid || selectedUser._id) : secondStudentId.trim();
@@ -116,7 +110,7 @@ function SegundaPagina() {
             <div className="inscripciones-grid" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
               <div className="input-wrapper" style={{ position: "relative" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px", height: "32px", flexWrap: "wrap" }}>
-                  <label className="input-label" style={{ marginBottom: 0 }}>ID Estudiante</label>
+                  <label className="input-label" style={{ marginBottom: 0 }}>Usuario</label>
                   <AllianceSwitcher
                     value={alliance}
                     mode="long"
@@ -136,7 +130,7 @@ function SegundaPagina() {
 
               <div className="input-wrapper">
                 <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px", height: "32px" }}>
-                  <label className="input-label" style={{ marginBottom: 0 }}>ID Programa</label>
+                  <label className="input-label" style={{ marginBottom: 0 }}>Programa</label>
                   {selectedUser && selectedUser.programs?.length > 0 && (
                     <button
                       type="button"
@@ -187,7 +181,7 @@ function SegundaPagina() {
 
               <div className="input-wrapper">
                 <div style={{ display: "flex", alignItems: "center", marginBottom: "8px", height: "32px" }}>
-                  <label className="input-label" style={{ marginBottom: 0 }}>ID Grupo (Opcional)</label>
+                  <label className="input-label" style={{ marginBottom: 0 }}>Grupo (Opcional)</label>
                 </div>
                 <input
                   type="text"

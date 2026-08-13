@@ -4,9 +4,10 @@ import "../Styles/styles.css";
 import CommandsDisplay from "./CommandsDisplay";
 import { ChevronDown, RefreshCw } from "lucide-react";
 import AllianceSwitcher from "./ui/AllianceSwitcher";
-import { useUsuariosCompletos } from "../hooks/useUsuariosCompletos";
+import { findUser, findUsersByIncList } from "../services/usuariosService";
 import { useCatalogos } from "../hooks/useCatalogos";
 import ClearButton from "./ui/ClearButton";
+import IncAutocomplete from "./ui/IncAutocomplete";
 
 // ─── Datos de alianzas y estados ────────────────────────────────────────────
 
@@ -163,72 +164,72 @@ function CambiosEstadoBemo() {
   const [generatedCommands, setGeneratedCommands] = useState([]);
 
   // ── Datos externos ───────────────────────────────────────────────────────
-  const { data: usuariosCompletos } = useUsuariosCompletos();
   const { programas: programasData } = useCatalogos();
 
   const programasMap = useMemo(() =>
     programasData ? Object.fromEntries(programasData.map((p) => [p._id.$oid, p])) : {}
     , [programasData]);
 
-  // ── Usuario encontrado en modo "uno" ─────────────────────────────────────
-  const singleSelectedUser = useMemo(() => {
+  // ── Usuario encontrado en modo "uno" — resuelto al hacer blur ────────────
+  const [singleSelectedUser, setSingleSelectedUser] = useState(null);
+
+  const handleSingleStudentBlur = useCallback(async () => {
     const input = singleStudentId.trim();
-    if (!input || !usuariosCompletos?.length) return null;
+    if (!input) { setSingleSelectedUser(null); return; }
 
     const allianceId = ALLIANCE_MONGO_MAP[singleAlliance];
-    return usuariosCompletos.find((u) => {
-      const uAlliance = u.alliance_id?.$oid || u.alliance_id;
-      if (uAlliance !== allianceId) return false;
-      return (
-        String(u.incremental_user_code) === input ||
-        (u._id?.$oid || u._id) === input
-      );
-    }) || null;
-  }, [singleStudentId, singleAlliance, usuariosCompletos]);
+    const user = await findUser(input, allianceId);
+    setSingleSelectedUser(user);
 
-  const handleSingleStudentBlur = useCallback(() => {
-    const input = singleStudentId.trim();
-    if (!input || !singleSelectedUser) return;
-    if (String(singleSelectedUser.incremental_user_code) === input) {
-      setSingleStudentId(singleSelectedUser._id?.$oid || singleSelectedUser._id);
+    // Auto-replace INC with long ID
+    if (user && String(user.incremental_user_code) === input) {
+      setSingleStudentId(user._id?.$oid || user._id);
     }
-  }, [singleStudentId, singleSelectedUser, setSingleStudentId]);
+  }, [singleStudentId, singleAlliance, setSingleStudentId]);
 
-  const handleMultiStudentBlur = useCallback(() => {
-    if (!studentIdsText.trim() || !selectedAlianza || !usuariosCompletos?.length) return;
+  const handleMultiStudentBlur = useCallback(async () => {
+    if (!studentIdsText.trim() || !selectedAlianza) return;
 
     const allianceKey = selectedAlianza === "nueva_america" ? "na" : "kuepa";
     const allianceId = ALLIANCE_MONGO_MAP[allianceKey];
 
+    // Collect all INC tokens that need resolving
     const lines = studentIdsText.split("\n");
-    let replacedCount = 0;
-
-    const newLines = lines.map(line => {
-      const trimmed = line.trim();
-      if (!trimmed) return line;
-
-      const parts = trimmed.split(/\s+/);
-      const newParts = parts.map(part => {
+    const incTokens = [];
+    lines.forEach(line => {
+      line.trim().split(/\s+/).forEach(part => {
         if (/^\d+$/.test(part) && part.length < 24) {
-          const num = Number(part);
-          const found = usuariosCompletos.find(u => {
-            const uAlliance = u.alliance_id?.$oid || u.alliance_id;
-            return uAlliance === allianceId && Number(u.incremental_user_code) === num;
-          });
-          if (found) {
-            replacedCount++;
-            return found._id?.$oid || found._id;
-          }
+          incTokens.push(Number(part));
         }
-        return part;
       });
-      return newParts.join(" ");
     });
 
-    if (replacedCount > 0) {
-      setStudentIdsText(newLines.join("\n"));
+    if (!incTokens.length) return;
+
+    try {
+      const found = await findUsersByIncList(incTokens, allianceId);
+      const byInc = Object.fromEntries(found.map(u => [u.incremental_user_code, u]));
+
+      let replacedCount = 0;
+      const newLines = lines.map(line => {
+        const trimmed = line.trim();
+        if (!trimmed) return line;
+        const parts = trimmed.split(/\s+/);
+        const newParts = parts.map(part => {
+          if (/^\d+$/.test(part) && part.length < 24) {
+            const user = byInc[Number(part)];
+            if (user) { replacedCount++; return user._id?.$oid || user._id; }
+          }
+          return part;
+        });
+        return newParts.join(" ");
+      });
+
+      if (replacedCount > 0) setStudentIdsText(newLines.join("\n"));
+    } catch (err) {
+      console.error("Error resolving INC in multi mode:", err);
     }
-  }, [studentIdsText, selectedAlianza, usuariosCompletos, setStudentIdsText]);
+  }, [studentIdsText, selectedAlianza, setStudentIdsText]);
 
   // ── Mapeo de alianza para estados ─────────────────────────────────────────
   const singleAlianzaKey = singleAlliance === "na" ? "nueva_america" : "kuepa";
@@ -387,9 +388,9 @@ function CambiosEstadoBemo() {
                   <CustomDropdown
                     value={selectedAlianza}
                     options={alianzaOptions}
-                    onChange={(val) => { 
-                      setSelectedAlianza(val); 
-                      setSelectedState(""); 
+                    onChange={(val) => {
+                      setSelectedAlianza(val);
+                      setSelectedState("");
                       setStudentIdsText("");
                       setProgramIdsText("");
                     }}
@@ -438,10 +439,9 @@ function CambiosEstadoBemo() {
           {/* ── MODO UNO ──────────────────────────────────────────── */}
           {mode === "uno" && (
             <div className="inscripciones-grid" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
-              {/* Columna 1: Estudiante + alianza */}
               <div className="input-wrapper">
                 <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px", height: "32px", flexWrap: "wrap" }}>
-                  <label className="input-label" style={{ marginBottom: 0 }}>ID Estudiante</label>
+                  <label className="input-label" style={{ marginBottom: 0 }}>Usuario</label>
                   <AllianceSwitcher
                     value={singleAlliance}
                     onChange={(val) => {
@@ -454,18 +454,26 @@ function CambiosEstadoBemo() {
                     }}
                   />
                 </div>
-                <input
-                  type="text"
+                <IncAutocomplete
+                  alianzaId={ALLIANCE_MONGO_MAP[singleAlliance]}
                   value={singleStudentId}
-                  onChange={(e) => setSingleStudentId(e.target.value)}
-                  onBlur={handleSingleStudentBlur}
-                  className="inscripciones-input"
-                  placeholder="Ingrese id"
-                  style={{ height: "48px", padding: "0 16px" }}
+                  onChange={setSingleStudentId}
+                  onSelect={(user) => {
+                    if (user) setSingleStudentId(user._id?.$oid || user._id);
+                    else setSingleStudentId("");
+                    setSingleProgramId("");
+                  }}
+                  placeholder="INC o ID del estudiante"
+                  inputStyle={{ height: "48px", padding: "0 40px 0 16px" }}
                 />
                 {singleStudentId && !singleSelectedUser && (
                   <div style={{ fontSize: "12px", color: "#ef4444", marginTop: "6px" }}>
                     Estudiante no encontrado
+                  </div>
+                )}
+                {singleSelectedUser && (
+                  <div style={{ fontSize: "11px", color: "var(--primary)", marginTop: "4px", fontFamily: "'Space Grotesk', sans-serif" }}>
+                    ✓ {singleSelectedUser.profile?.full_name}
                   </div>
                 )}
               </div>
@@ -473,7 +481,7 @@ function CambiosEstadoBemo() {
               {/* Columna 2: Programa */}
               <div className="input-wrapper">
                 <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px", height: "32px" }}>
-                  <label className="input-label" style={{ marginBottom: 0 }}>ID Programa</label>
+                  <label className="input-label" style={{ marginBottom: 0 }}>Programa</label>
                   {userPrograms.length > 0 && (
                     <button
                       type="button"

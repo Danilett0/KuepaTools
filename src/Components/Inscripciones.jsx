@@ -3,10 +3,10 @@ import { useLocalStorage } from "../hooks/useLocalStorage";
 import { UserPlus, UserMinus } from "lucide-react";
 import CommandsDisplay from "./CommandsDisplay";
 import { showError, showSuccess } from "../services/toastService";
-import { useUsuariosCompletos } from "../hooks/useUsuariosCompletos";
 import { toast } from "react-toastify";
 import AllianceSwitcher from "./ui/AllianceSwitcher";
 import ClearButton from "./ui/ClearButton";
+import IncAutocomplete from "./ui/IncAutocomplete";
 
 function ComandosBemoInscripciones({ formType = "estudiante" }) {
   const showForm2 = formType === "estudiante";
@@ -14,7 +14,7 @@ function ComandosBemoInscripciones({ formType = "estudiante" }) {
   const showForm3 = formType === "multi";
   const showForm4 = formType === "especificos";
 
-  const { data: usuariosCompletos, loading } = useUsuariosCompletos();
+  const loading = false;
 
   const [groupId, setGroupId] = useLocalStorage(`groupId-${formType}`, "");
   const [groupId2, setGroupId2] = useLocalStorage(`groupId2-${formType}`, "");
@@ -436,7 +436,7 @@ function ComandosBemoInscripciones({ formType = "estudiante" }) {
                 <div className="input-wrapper" style={{ flex: 1 }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "6px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                      <label className="input-label" style={{ marginBottom: 0 }}>ID del estudiante</label>
+                      <label className="input-label" style={{ marginBottom: 0 }}>INC / ID del estudiante</label>
                       <AllianceSwitcher
                         value={alianza}
                         onChange={(val) => {
@@ -451,24 +451,14 @@ function ComandosBemoInscripciones({ formType = "estudiante" }) {
                       Cargando base de datos...
                     </div>
                   )}
-                  <input
-                    type="text"
-                    id="groupId2"
+                  <IncAutocomplete
+                    alianzaId={alianza === "kuepa" ? "602169e217b5c8a27f9e9c06" : "6303ed663138387a1669d82a"}
                     value={groupId2}
-                    onChange={(e) => setGroupId2(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        BuscarId(true);
-                      }
+                    onChange={setGroupId2}
+                    onSelect={(user) => {
+                      if (user) setGroupId2(user._id.$oid);
                     }}
-                    onBlur={() => {
-                      if (groupId2.trim().length > 0 && groupId2.trim().length < 7) {
-                        BuscarId(true);
-                      }
-                    }}
-                    className="inscripciones-input"
-                    placeholder="Ej. 63e14e3af870ee0c8777b6a7"
+                    placeholder="Ej. INC o ID largo del estudiante"
                   />
                 </div>
               </div>
