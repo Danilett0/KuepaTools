@@ -1,18 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../services/supabaseClient';
 
-// ── Caché de módulo: solo 1 fetch por sesión ────────────────────────────────
-let cachedAlianzas = null;
-let cachedProgramas = null;
-let cachedEstados = null;
-let fetchPromise = null;
-
-/**
- * Normaliza una fila de Supabase al shape MongoDB-like que usa el resto del proyecto.
- * Alianzas:  { _id: { $oid }, name }
- * Programas: { _id: { $oid }, name, alliance_id: { $oid } }
- * Estados:   { _id: { $oid }, name }
- */
 function normalizeAlianza(row) {
   return {
     _id: { $oid: row.mongo_id },
@@ -54,40 +42,17 @@ async function fetchCatalogos() {
 }
 
 export const useCatalogos = () => {
-  const [alianzas, setAlianzas] = useState(cachedAlianzas || []);
-  const [programas, setProgramas] = useState(cachedProgramas || []);
-  const [estados, setEstados] = useState(cachedEstados || []);
-  const [loading, setLoading] = useState(!cachedAlianzas || !cachedProgramas || !cachedEstados);
-  const [error, setError] = useState(null);
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['catalogos'],
+    queryFn: fetchCatalogos,
+    staleTime: Infinity, // Los catálogos raramente cambian, los mantenemos en caché de por vida en la sesión.
+  });
 
-  useEffect(() => {
-    if (cachedAlianzas && cachedProgramas && cachedEstados) {
-      setLoading(false);
-      return;
-    }
-
-    if (!fetchPromise) {
-      fetchPromise = fetchCatalogos().then(({ alianzas: a, programas: p, estados: e }) => {
-        cachedAlianzas = a;
-        cachedProgramas = p;
-        cachedEstados = e;
-        return { a, p, e };
-      });
-    }
-
-    fetchPromise
-      .then(({ a, p, e }) => {
-        setAlianzas(a);
-        setProgramas(p);
-        setEstados(e);
-        setLoading(false);
-      })
-      .catch(err => {
-        setError(err.message);
-        setLoading(false);
-        fetchPromise = null;
-      });
-  }, []);
-
-  return { alianzas, programas, estados, loading, error };
+  return {
+    alianzas: data?.alianzas || [],
+    programas: data?.programas || [],
+    estados: data?.estados || [],
+    loading: isLoading,
+    error: error?.message || null,
+  };
 };

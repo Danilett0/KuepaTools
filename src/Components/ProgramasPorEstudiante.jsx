@@ -3,12 +3,13 @@ import { Search, BookOpen, X, Copy, ArrowRight, Loader2 } from 'lucide-react';
 
 import { toast } from 'react-toastify';
 import { useLocalStorage } from '../hooks/useLocalStorage';
-import { findUsersByIncList, findUser } from '../services/usuariosService';
+import { useUsuariosCompletos } from '../hooks/useUsuariosCompletos';
 import { useCatalogos } from '../hooks/useCatalogos';
 import AllianceSwitcher from './ui/AllianceSwitcher';
 import ClearButton from './ui/ClearButton';
 
-const ProgramasPorEstudiante = () => {
+export default function ProgramasPorEstudiante() {
+  const { findUsersByIncList, findUser } = useUsuariosCompletos();
   const [idsText, setIdsText] = useLocalStorage('programas-est-ids', '');
   const [alianza, setAlianza] = useLocalStorage('programas-est-alianza', 'na');
   const [searchFilter, setSearchFilter] = useLocalStorage('programas-est-filter', '');
@@ -389,6 +390,4 @@ const ProgramasPorEstudiante = () => {
       </div>
     </div>
   );
-};
-
-export default ProgramasPorEstudiante;
+}

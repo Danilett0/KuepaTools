@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Search } from "lucide-react";
-import { searchByIncPrefix, findUser } from "../../services/usuariosService";
+import { useUsuariosCompletos } from "../../hooks/useUsuariosCompletos";
 
 const DEBOUNCE_MS = 800;
 const MIN_CHARS = 1;
@@ -23,10 +23,12 @@ export default function IncAutocomplete({
   value,
   onChange,
   onSelect,
+  onBlur,
   placeholder = "Ej: 292828",
   style,
   inputStyle,
 }) {
+  const { findUser, searchByIncPrefix } = useUsuariosCompletos();
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [notFound, setNotFound] = useState(false);
@@ -142,6 +144,7 @@ export default function IncAutocomplete({
             onSelect?.(null);
           }}
           onFocus={() => setShowSuggestions(true)}
+          onBlur={onBlur}
           placeholder={placeholder}
           style={{
             fontSize: "13px",

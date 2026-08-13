@@ -459,9 +459,14 @@ function CambiosEstadoBemo() {
                   alianzaId={ALLIANCE_MONGO_MAP[singleAlliance]}
                   value={singleStudentId}
                   onChange={setSingleStudentId}
+                  onBlur={handleSingleStudentBlur}
                   onSelect={(user) => {
-                    if (user) setSingleStudentId(user._id?.$oid || user._id);
-                    else setSingleStudentId("");
+                    if (user) {
+                      setSingleStudentId(user._id?.$oid || user._id);
+                      setSingleSelectedUser(user);
+                    } else {
+                      setSingleSelectedUser(null);
+                    }
                     setSingleProgramId("");
                   }}
                   placeholder="INC o ID del estudiante"

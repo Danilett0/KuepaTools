@@ -1,56 +1,44 @@
-/**
- * useUsuariosCompletos
- *
- * ⚠️  MIGRADO: ya NO descarga todos los usuarios.
- *
- * Expone helpers de búsqueda bajo demanda que delegan en usuariosService.js.
- * Cada componente pide solo lo que necesita, cuando lo necesita.
- *
- * API:
- *   const { findUser, findUsersByIncList, searchByIncPrefix, loading, error } = useUsuariosCompletos();
- */
-
-import { useState, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
-  findUser        as svcFindUser,
+  findUser as svcFindUser,
   findUsersByIncList as svcFindUsersByIncList,
-  searchByIncPrefix  as svcSearchByIncPrefix,
+  searchByIncPrefix as svcSearchByIncPrefix,
 } from '../services/usuariosService';
 
+/**
+ * Hook para buscar usuarios usando la caché de React Query.
+ * Exporta funciones imperativas para ser llamadas en eventos (clicks, debounced typing, etc).
+ */
 export const useUsuariosCompletos = () => {
-  const [loading, setLoading] = useState(false);
-  const [error,   setError]   = useState(null);
+  const queryClient = useQueryClient();
 
-  const wrap = useCallback(async (fn) => {
-    setLoading(true);
-    setError(null);
-    try {
-      return await fn();
-    } catch (err) {
-      setError(err.message);
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const findUser = async (value, alianzaId) => {
+    if (!value) return null;
+    return queryClient.fetchQuery({
+      queryKey: ['user', alianzaId, value],
+      queryFn: () => svcFindUser(value, alianzaId),
+      staleTime: 5 * 60 * 1000, // 5 minutos en caché
+    });
+  };
 
-  /** Exact user lookup by INC or mongo_id within an alliance. */
-  const findUser = useCallback(
-    (value, alianzaId) => wrap(() => svcFindUser(value, alianzaId)),
-    [wrap]
-  );
+  const findUsersByIncList = async (incList, alianzaId) => {
+    if (!incList || incList.length === 0) return [];
+    const sortedListKey = [...incList].sort().join(',');
+    return queryClient.fetchQuery({
+      queryKey: ['usersList', alianzaId, sortedListKey],
+      queryFn: () => svcFindUsersByIncList(incList, alianzaId),
+      staleTime: 5 * 60 * 1000,
+    });
+  };
 
-  /** Bulk lookup of multiple INC numbers in one query. */
-  const findUsersByIncList = useCallback(
-    (incList, alianzaId) => wrap(() => svcFindUsersByIncList(incList, alianzaId)),
-    [wrap]
-  );
+  const searchByIncPrefix = async (prefix, alianzaId, limit = 6) => {
+    if (!prefix) return [];
+    return queryClient.fetchQuery({
+      queryKey: ['usersPrefix', alianzaId, prefix, limit],
+      queryFn: () => svcSearchByIncPrefix(prefix, alianzaId, limit),
+      staleTime: 5 * 60 * 1000,
+    });
+  };
 
-  /** Autocomplete: users whose INC starts with prefix (no debounce here — caller handles it). */
-  const searchByIncPrefix = useCallback(
-    (prefix, alianzaId, limit) => wrap(() => svcSearchByIncPrefix(prefix, alianzaId, limit)),
-    [wrap]
-  );
-
-  return { findUser, findUsersByIncList, searchByIncPrefix, loading, error };
+  return { findUser, findUsersByIncList, searchByIncPrefix };
 };

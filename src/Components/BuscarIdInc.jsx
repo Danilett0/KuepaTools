@@ -2,7 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { Copy, Search, ArrowRight, Loader2 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { useLocalStorage } from '../hooks/useLocalStorage';
-import { findUsersByIncList } from '../services/usuariosService';
+import { useUsuariosCompletos } from '../hooks/useUsuariosCompletos';
 import AllianceSwitcher from './ui/AllianceSwitcher';
 import ClearButton from './ui/ClearButton';
 import { ALLIANCE_IDS } from '../utils/constants';
@@ -12,7 +12,8 @@ const ALLIANCE_ID = {
   kuepa: ALLIANCE_IDS.kuepa,
 };
 
-const BuscarIdInc = () => {
+export default function BuscarIdInc() {
+  const { findUsersByIncList } = useUsuariosCompletos();
   const [incText, setIncText] = useLocalStorage('buscarid-incText', '');
   const [alianza, setAlianza] = useLocalStorage('buscarid-alianza', 'na');
   const [resultado, setResultado] = useState([]);
@@ -147,14 +148,7 @@ const BuscarIdInc = () => {
               <textarea
                 className="inscripciones-input"
                 value={incText}
-                onChange={(e) => {
-                  const cleaned = e.target.value
-                    .split('\n')
-                    .map(l => l.trim())
-                    .filter(l => l !== '')
-                    .join('\n');
-                  setIncText(cleaned);
-                }}
+                onChange={(e) => setIncText(e.target.value)}
                 onPaste={(e) => {
                   e.preventDefault();
                   const pasted = e.clipboardData.getData('text');
@@ -169,13 +163,7 @@ const BuscarIdInc = () => {
                   const end = ta.selectionEnd;
                   const before = incText.slice(0, start);
                   const after = incText.slice(end);
-                  const merged = [before, cleaned, after]
-                    .join('')
-                    .split('\n')
-                    .map(l => l.trim())
-                    .filter(l => l !== '')
-                    .join('\n');
-                  setIncText(merged);
+                  setIncText(before + cleaned + after);
                 }}
                 placeholder={"Ejemplo:\n292828\n237575\n297832"}
                 style={{
@@ -322,6 +310,4 @@ const BuscarIdInc = () => {
       </div>
     </div>
   );
-};
-
-export default BuscarIdInc;
+}

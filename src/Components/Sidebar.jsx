@@ -1,45 +1,28 @@
-import { useRef } from "react";
+
 import { ChevronDown, ChevronRight, Info } from "lucide-react";
 import ClearStorageModal from "./ui/ClearStorageModal.jsx";
+import { useAppStore } from "../store/useAppStore.js";
 
 /**
  * Sidebar
- * Contains the logo (with triple-click to clear storage),
+ * Contains the logo (with click to clear storage),
  * the navigation menu and the bottom Info link.
  *
- * @param {string}   activeComponent - Current active route ID
- * @param {string|null} expandedMenu - ID of the currently expanded submenu
- * @param {boolean}  showClearModal  - Whether the clear-storage modal is visible
- * @param {Function} setActiveComponent
- * @param {Function} setExpandedMenu
- * @param {Function} setShowClearModal
  * @param {Function} onConfirmClear  - Called when the user confirms clearing storage
  * @param {Array}    navItems        - Navigation item definitions
  */
 export default function Sidebar({
-  activeComponent,
-  expandedMenu,
-  showClearModal,
-  setActiveComponent,
-  setExpandedMenu,
-  setShowClearModal,
   onConfirmClear,
   navItems,
 }) {
-  const clickCountRef = useRef(0);
-  const clickTimerRef = useRef(null);
-
+  const activeComponent = useAppStore(state => state.activeComponent);
+  const expandedMenu = useAppStore(state => state.expandedMenu);
+  const showClearModal = useAppStore(state => state.showClearModal);
+  const setActiveComponent = useAppStore(state => state.setActiveComponent);
+  const setExpandedMenu = useAppStore(state => state.setExpandedMenu);
+  const setShowClearModal = useAppStore(state => state.setShowClearModal);
   const handleLogoClick = () => {
-    clickCountRef.current += 1;
-    clearTimeout(clickTimerRef.current);
-    clickTimerRef.current = setTimeout(() => {
-      clickCountRef.current = 0;
-    }, 500);
-    if (clickCountRef.current === 3) {
-      clickCountRef.current = 0;
-      clearTimeout(clickTimerRef.current);
-      setShowClearModal(true);
-    }
+    setShowClearModal(true);
   };
 
   return (
@@ -51,7 +34,7 @@ export default function Sidebar({
             width="60" height="60" viewBox="4 2 32 37" fill="none" xmlns="http://www.w3.org/2000/svg"
             style={{ flexShrink: 0, cursor: 'pointer' }}
             onClick={handleLogoClick}
-            title="Triple clic para limpiar el storage"
+            title="Clic para limpiar el storage"
           >
             <defs>
               <linearGradient id="shieldGrad" x1="4" y1="2" x2="36" y2="39" gradientUnits="userSpaceOnUse">

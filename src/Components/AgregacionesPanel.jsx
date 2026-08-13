@@ -10,7 +10,7 @@ export default function AgregacionesPanel() {
   const [isEditing, setIsEditing] = useState(false);
   
   // Form state
-  const [formData, setFormData] = useState({ name: '', description: '', content: '' });
+  const [formData, setFormData] = useState({ name: '', description: '', collection: '', content: '' });
 
   useEffect(() => {
     fetchAgregaciones();
@@ -40,8 +40,8 @@ export default function AgregacionesPanel() {
   };
 
   const handleSave = async () => {
-    if (!formData.name || !formData.content) {
-      toast.error('Nombre y contenido son obligatorios');
+    if (!formData.name || !formData.content || !formData.collection) {
+      toast.error('Nombre, colección y contenido son obligatorios');
       return;
     }
     
@@ -76,12 +76,12 @@ export default function AgregacionesPanel() {
   };
 
   const startEdit = (agr) => {
-    setFormData({ name: agr.name, description: agr.description || '', content: agr.content });
+    setFormData({ name: agr.name, description: agr.description || '', collection: agr.collection || '', content: agr.content });
     setIsEditing('edit');
   };
 
   const startNew = () => {
-    setFormData({ name: '', description: '', content: '' });
+    setFormData({ name: '', description: '', collection: '', content: '' });
     setSelectedAgr(null);
     setIsEditing('new');
   };
@@ -128,8 +128,8 @@ export default function AgregacionesPanel() {
               <div style={{ fontWeight: '600', color: selectedAgr?.id === agr.id ? '#fff' : 'var(--on-surface)', marginBottom: '4px' }}>
                 {agr.name}
               </div>
-              {agr.description && (
-                <div style={{ fontSize: '12px', color: selectedAgr?.id === agr.id ? 'rgba(255,255,255,0.8)' : 'var(--on-surface-variant)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {agr.description && selectedAgr?.id === agr.id && (
+                <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.8)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {agr.description}
                 </div>
               )}
@@ -177,6 +177,18 @@ export default function AgregacionesPanel() {
                 style={{ width: '100%' }}
               />
             </div>
+            
+            <div>
+              <label style={{ display: 'block', marginBottom: '8px', color: 'var(--on-surface-variant)' }}>Colección a la que pertenece</label>
+              <input 
+                className="inscripciones-input"
+                type="text" 
+                value={formData.collection}
+                onChange={e => setFormData({ ...formData, collection: e.target.value })}
+                placeholder="Ej. users, enrollments, etc."
+                style={{ width: '100%' }}
+              />
+            </div>
 
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
               <label style={{ display: 'block', marginBottom: '8px', color: 'var(--on-surface-variant)' }}>Pipeline (JSON)</label>
@@ -194,6 +206,11 @@ export default function AgregacionesPanel() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div>
                 <h2 style={{ margin: '0 0 8px 0', color: 'var(--on-surface)' }}>{selectedAgr.name}</h2>
+                {selectedAgr.collection && (
+                  <div style={{ display: 'inline-block', background: 'var(--surface-low)', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', color: 'var(--primary)', marginBottom: '8px', border: '1px solid var(--glass-border)' }}>
+                    Colección: {selectedAgr.collection}
+                  </div>
+                )}
                 {selectedAgr.description && (
                   <p style={{ margin: 0, color: 'var(--on-surface-variant)' }}>{selectedAgr.description}</p>
                 )}

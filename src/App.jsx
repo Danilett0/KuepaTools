@@ -6,6 +6,7 @@ import "react-toastify/dist/ReactToastify.css";
 import { Users, RefreshCw, BarChart2, Search, BookOpen, GraduationCap } from "lucide-react";
 import Sidebar from "./Components/Sidebar.jsx";
 import AppRouter from "./Components/AppRouter.jsx";
+import { useAppStore } from "./store/useAppStore.js";
 
 const NAV_ITEMS = [
   {
@@ -36,9 +37,8 @@ const NAV_ITEMS = [
 ];
 
 function App() {
-  const [activeComponent, setActiveComponent] = useState("inscripciones-estudiante");
-  const [expandedMenu, setExpandedMenu] = useState(null);
-  const [showClearModal, setShowClearModal] = useState(false);
+  const activeComponent = useAppStore(state => state.activeComponent);
+  const setShowClearModal = useAppStore(state => state.setShowClearModal);
 
   const handleConfirmClear = () => {
     localStorage.clear();
@@ -50,12 +50,6 @@ function App() {
   return (
     <div className="app-wrapper">
       <Sidebar
-        activeComponent={activeComponent}
-        expandedMenu={expandedMenu}
-        showClearModal={showClearModal}
-        setActiveComponent={setActiveComponent}
-        setExpandedMenu={setExpandedMenu}
-        setShowClearModal={setShowClearModal}
         onConfirmClear={handleConfirmClear}
         navItems={NAV_ITEMS}
       />
@@ -65,7 +59,7 @@ function App() {
           className="app-container"
           style={activeComponent === "informacion" ? { maxWidth: "100%", height: "100%" } : {}}
         >
-          <AppRouter activeComponent={activeComponent} />
+          <AppRouter />
         </div>
       </main>
 
