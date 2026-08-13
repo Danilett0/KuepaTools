@@ -7,6 +7,7 @@ import { useUsuariosCompletos } from '../hooks/useUsuariosCompletos';
 import { useCatalogos } from '../hooks/useCatalogos';
 import AllianceSwitcher from './ui/AllianceSwitcher';
 import ClearButton from './ui/ClearButton';
+import { useAppStore } from '../store/useAppStore';
 
 export default function ProgramasPorEstudiante() {
   const { findUsersByIncList, findUser } = useUsuariosCompletos();
@@ -24,6 +25,18 @@ export default function ProgramasPorEstudiante() {
   const allianceId = alianza === 'kuepa'
     ? '602169e217b5c8a27f9e9c06'
     : '6303ed663138387a1669d82a';
+
+  const aiPrefilledData = useAppStore(state => state.aiPrefilledData);
+  const setAiPrefilledData = useAppStore(state => state.setAiPrefilledData);
+
+  useEffect(() => {
+    if (aiPrefilledData && aiPrefilledData.intent === 'GET_PROGRAMS') {
+      if (aiPrefilledData.ids && aiPrefilledData.ids.length > 0) {
+        setIdsText(aiPrefilledData.ids.join('\n'));
+      }
+      setAiPrefilledData(null);
+    }
+  }, [aiPrefilledData, setIdsText, setAiPrefilledData]);
 
   // Parse input lines
   const parseLines = useCallback(() => {

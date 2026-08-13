@@ -7,6 +7,7 @@ import { Activity } from "lucide-react";
 import CommandsDisplay from "./CommandsDisplay";
 import AllianceSwitcher from "./ui/AllianceSwitcher";
 import ClearButton from "./ui/ClearButton";
+import { useAppStore } from "../store/useAppStore";
 
 function SegundaPagina() {
   const [alliance, setAlliance] = useLocalStorage("auditar-alliance", "6303ed663138387a1669d82a");
@@ -16,8 +17,10 @@ function SegundaPagina() {
   const [manualProgram, setManualProgram] = useState(false);
 
   const { programas: programasData } = useCatalogos();
-
   const [commands, setCommands] = useState([]);
+  
+  const aiPrefilledData = useAppStore(state => state.aiPrefilledData);
+  const setAiPrefilledData = useAppStore(state => state.setAiPrefilledData);
 
   const programasMap = useMemo(() =>
     programasData ? Object.fromEntries(programasData.map(p => [p._id.$oid, p])) : {}
@@ -38,6 +41,22 @@ function SegundaPagina() {
       setSecondStudentId(user._id?.$oid || user._id);
     }
   }, [secondStudentId, alliance, setSecondStudentId]);
+
+  // ── AI Prefill ───────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (aiPrefilledData && aiPrefilledData.intent === 'AUDIT_STATS') {
+      if (aiPrefilledData.ids && aiPrefilledData.ids.length > 0) {
+        setSecondStudentId(aiPrefilledData.ids[0]);
+      }
+      if (aiPrefilledData.ids && aiPrefilledData.ids.length > 1) {
+        setSecondProgramId(aiPrefilledData.ids[1]);
+      }
+      if (aiPrefilledData.ids && aiPrefilledData.ids.length > 2) {
+        setGroupId(aiPrefilledData.ids[2]);
+      }
+      setAiPrefilledData(null);
+    }
+  }, [aiPrefilledData, setSecondStudentId, setSecondProgramId, setGroupId, setAiPrefilledData]);
 
   useEffect(() => {
     const resolvedStudentId = selectedUser ? (selectedUser._id?.$oid || selectedUser._id) : secondStudentId.trim();

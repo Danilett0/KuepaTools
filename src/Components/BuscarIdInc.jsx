@@ -6,6 +6,7 @@ import { useUsuariosCompletos } from '../hooks/useUsuariosCompletos';
 import AllianceSwitcher from './ui/AllianceSwitcher';
 import ClearButton from './ui/ClearButton';
 import { ALLIANCE_IDS } from '../utils/constants';
+import { useAppStore } from '../store/useAppStore';
 
 const ALLIANCE_ID = {
   na:    ALLIANCE_IDS.na,
@@ -18,6 +19,18 @@ export default function BuscarIdInc() {
   const [alianza, setAlianza] = useLocalStorage('buscarid-alianza', 'na');
   const [resultado, setResultado] = useState([]);
   const [loading, setLoading] = useState(false);
+
+  const aiPrefilledData = useAppStore(state => state.aiPrefilledData);
+  const setAiPrefilledData = useAppStore(state => state.setAiPrefilledData);
+
+  useEffect(() => {
+    if (aiPrefilledData && aiPrefilledData.intent === 'SEARCH_ID') {
+      if (aiPrefilledData.ids && aiPrefilledData.ids.length > 0) {
+        setIncText(aiPrefilledData.ids.join('\n'));
+      }
+      setAiPrefilledData(null);
+    }
+  }, [aiPrefilledData, setIncText, setAiPrefilledData]);
 
   // Parse the textarea into a list of { raw, incNum } entries
   const parseLines = useCallback(() => {

@@ -129,7 +129,7 @@ export default function AgregacionesPanel() {
                 {agr.name}
               </div>
               {agr.description && selectedAgr?.id === agr.id && (
-                <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.8)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.8)', marginTop: '6px', lineHeight: '1.4' }}>
                   {agr.description}
                 </div>
               )}

@@ -3,9 +3,11 @@ import { useState } from "react";
 import { toast } from "react-toastify";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import { Users, RefreshCw, BarChart2, Search, BookOpen, GraduationCap } from "lucide-react";
+import { Users, RefreshCw, BarChart2, Search, BookOpen, GraduationCap, Bot } from "lucide-react";
+import { useEffect } from "react";
 import Sidebar from "./Components/Sidebar.jsx";
 import AppRouter from "./Components/AppRouter.jsx";
+import KuepaCommandPalette from "./Components/ui/KuepaCommandPalette.jsx";
 import { useAppStore } from "./store/useAppStore.js";
 
 const NAV_ITEMS = [
@@ -39,6 +41,19 @@ const NAV_ITEMS = [
 function App() {
   const activeComponent = useAppStore(state => state.activeComponent);
   const setShowClearModal = useAppStore(state => state.setShowClearModal);
+  const { isCommandPaletteOpen, setIsCommandPaletteOpen } = useAppStore();
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Use Alt + K (Option + K on Mac) instead of Ctrl + K to avoid browser conflicts
+      if (e.altKey && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsCommandPaletteOpen(!isCommandPaletteOpen);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isCommandPaletteOpen, setIsCommandPaletteOpen]);
 
   const handleConfirmClear = () => {
     localStorage.clear();
@@ -55,6 +70,7 @@ function App() {
       />
 
       <main className="main-content">
+        <KuepaCommandPalette />
         <div
           className="app-container"
           style={activeComponent === "informacion" ? { maxWidth: "100%", height: "100%" } : {}}
@@ -62,6 +78,34 @@ function App() {
           <AppRouter />
         </div>
       </main>
+
+      {/* Floating AI Button */}
+      <button
+        onClick={() => setIsCommandPaletteOpen(true)}
+        style={{
+          position: 'fixed',
+          bottom: '24px',
+          right: '24px',
+          width: '56px',
+          height: '56px',
+          borderRadius: '28px',
+          backgroundColor: 'var(--primary)',
+          color: '#000',
+          border: 'none',
+          boxShadow: '0 8px 24px rgba(18, 163, 131, 0.4)',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9998,
+          transition: 'transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)',
+        }}
+        onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1) translateY(-4px)'}
+        onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1) translateY(0)'}
+        title="Abrir Kuepa AI (Alt+K)"
+      >
+        <Bot size={28} />
+      </button>
 
       <ToastContainer
         theme="dark"

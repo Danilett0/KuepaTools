@@ -7,8 +7,11 @@ import ClearButton from '../ui/ClearButton';
 import AllianceSwitcher from '../ui/AllianceSwitcher';
 import IncAutocomplete from '../ui/IncAutocomplete';
 import { ALLIANCE_IDS } from '../../utils/constants';
+import { useAppStore } from '../../store/useAppStore';
 
 export default function FormEstudiante() {
+  const aiPrefilledData = useAppStore(state => state.aiPrefilledData);
+  const setAiPrefilledData = useAppStore(state => state.setAiPrefilledData);
   const [groupId2, setGroupId2] = useLocalStorage('groupId2-estudiante', '');
   const [txareaIds, setTxareaIds] = useLocalStorage('txareaIds-estudiante', '');
   const [studentIds2, setStudentIds2] = useLocalStorage('studentIds2-estudiante', Array(8).fill(''));
@@ -22,6 +25,23 @@ export default function FormEstudiante() {
   useEffect(() => {
     if (generatedCommands.length > 0) setGeneratedCommands([]);
   }, [groupId2, studentIds2, txareaIds, alianza]);
+
+  useEffect(() => {
+    if (aiPrefilledData && aiPrefilledData.intent === 'ENROLL') {
+      if (aiPrefilledData.ids && aiPrefilledData.ids.length > 0) {
+        setGroupId2(aiPrefilledData.ids[0]); // student ID
+      }
+      if (aiPrefilledData.ids && aiPrefilledData.ids.length > 1) {
+        setInputMode('manual');
+        setStudentIds2(prev => {
+          const updated = [...prev];
+          updated[0] = aiPrefilledData.ids[1]; // group ID
+          return updated;
+        });
+      }
+      setAiPrefilledData(null);
+    }
+  }, [aiPrefilledData, setGroupId2, setStudentIds2, setInputMode, setAiPrefilledData]);
 
   const handleClear = useCallback(() => {
     setGeneratedCommands([]);

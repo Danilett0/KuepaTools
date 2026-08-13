@@ -6,6 +6,7 @@ import AllianceSwitcher from "./ui/AllianceSwitcher";
 import ClearButton from "./ui/ClearButton";
 import IncAutocomplete from "./ui/IncAutocomplete";
 import { ALLIANCE_IDS } from "../utils/constants";
+import { useAppStore } from "../store/useAppStore";
 
 // ── Utilidad: extrae el ID del grupo académico ──────────────────────────────
 function extractGroupId(input) {
@@ -20,6 +21,18 @@ function extractGroupId(input) {
 // ── Card 1: Deshacer publicación ────────────────────────────────────────────
 function UndoPublicationCard() {
   const [inputValue, setInputValue] = useLocalStorage("herr_undo_groupInput", "");
+  
+  const aiPrefilledData = useAppStore(state => state.aiPrefilledData);
+  const setAiPrefilledData = useAppStore(state => state.setAiPrefilledData);
+
+  useEffect(() => {
+    if (aiPrefilledData && aiPrefilledData.intent === 'UNDO_PUBLICATION') {
+      if (aiPrefilledData.ids && aiPrefilledData.ids.length > 0) {
+        setInputValue(aiPrefilledData.ids[0]);
+      }
+      setAiPrefilledData(null);
+    }
+  }, [aiPrefilledData, setInputValue, setAiPrefilledData]);
 
   const groupId = extractGroupId(inputValue);
   const command = groupId ? `magik run:prod undo:publication ["${groupId}"]` : "";
@@ -120,6 +133,21 @@ function FinalUserCard() {
   const [incText, setIncText] = useLocalStorage("herr_final_incText", "");
   const [studentId, setStudentId] = useState("");
   const [studentName, setStudentName] = useState("");
+
+  const aiPrefilledData = useAppStore(state => state.aiPrefilledData);
+  const setAiPrefilledData = useAppStore(state => state.setAiPrefilledData);
+
+  useEffect(() => {
+    if (aiPrefilledData && aiPrefilledData.intent === 'FINAL_USER') {
+      if (aiPrefilledData.ids && aiPrefilledData.ids.length > 0) {
+        setIncText(aiPrefilledData.ids[0]);
+      }
+      if (aiPrefilledData.ids && aiPrefilledData.ids.length > 1) {
+        setGroupId(aiPrefilledData.ids[1]);
+      }
+      setAiPrefilledData(null);
+    }
+  }, [aiPrefilledData, setIncText, setGroupId, setAiPrefilledData]);
 
   const resolvedGroupId = extractGroupId(groupId);
 
@@ -268,6 +296,18 @@ function FinalUserCard() {
 function ExtractGroupsCard() {
   const [inputText, setInputText] = useLocalStorage("herr_extract_input", "");
   const [extractedIds, setExtractedIds] = useState([]);
+
+  const aiPrefilledData = useAppStore(state => state.aiPrefilledData);
+  const setAiPrefilledData = useAppStore(state => state.setAiPrefilledData);
+
+  useEffect(() => {
+    if (aiPrefilledData && aiPrefilledData.intent === 'EXTRACT_GROUPS') {
+      if (aiPrefilledData.ids && aiPrefilledData.ids.length > 0) {
+        setInputText(aiPrefilledData.ids.join('\n'));
+      }
+      setAiPrefilledData(null);
+    }
+  }, [aiPrefilledData, setInputText, setAiPrefilledData]);
 
   useEffect(() => {
     if (!inputText.trim()) {
