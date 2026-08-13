@@ -1,6 +1,7 @@
 import React, { lazy, Suspense } from "react";
 import { useAppStore } from "../store/useAppStore.js";
 import SuspenseLoader from "./ui/SuspenseLoader.jsx";
+import PageTransition from "./ui/PageTransition.jsx";
 
 const Inscripciones = lazy(() => import("./Inscripciones.jsx"));
 const CambiosEstadoBemo = lazy(() => import("./CambioEstados.jsx"));
@@ -54,7 +55,9 @@ export default function AppRouter() {
 
   return (
     <Suspense fallback={<SuspenseLoader />}>
-      {renderComponent()}
+      <PageTransition transitionKey={activeComponent}>
+        {renderComponent()}
+      </PageTransition>
     </Suspense>
   );
 }

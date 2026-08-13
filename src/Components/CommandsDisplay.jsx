@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { toast } from "react-toastify";
 import { Copy, Check, X, ChevronDown, ChevronRight } from "lucide-react";
 
@@ -6,6 +6,22 @@ function CommandsDisplay({ commands, onClear }) {
   const [copiedIndex, setCopiedIndex] = useState(null);
   const [copiedAll, setCopiedAll] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+  const lastCopiedRef = useRef("");
+
+  useEffect(() => {
+    if (commands && commands.length > 0) {
+      const textToCopy = commands.map((c) => c.trim()).join("\n");
+      // Prevent duplicate copying/toasts for the same generated commands
+      if (lastCopiedRef.current !== textToCopy) {
+        navigator.clipboard.writeText(textToCopy).then(() => {
+          toast.success("Comandos copiados al portapapeles automáticamente");
+          lastCopiedRef.current = textToCopy;
+        }).catch(err => console.error("Error auto-copiando:", err));
+      }
+    } else {
+      lastCopiedRef.current = "";
+    }
+  }, [commands]);
 
   if (!commands || commands.length === 0) return null;
 

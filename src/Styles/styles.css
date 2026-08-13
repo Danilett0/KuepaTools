@@ -1,15 +1,18 @@
 @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Space+Grotesk:wght@400;600&display=swap');
 
 :root {
-  --surface-void: #090909;
-  --surface-low: #1c1b1b;
+  --surface-void: #050505;
+  --surface-low: #111111;
+  --surface-overlay: rgba(20, 20, 20, 0.7);
   --primary: #12a383;
   --primary-container: #06a080;
-  --on-surface: #e5e2e1;
-  --on-surface-variant: #cae1d7;
-  --gold-glow: rgba(6,160,128,0.2);
-  --glass-bg: rgba(28, 27, 27, 0.6);
-  --glass-border: rgba(255, 255, 255, 0.08);
+  --on-surface: #ffffff;
+  --on-surface-variant: #a0aec0;
+  --gold-glow: rgba(18, 163, 131, 0.25);
+  --glass-bg: rgba(18, 18, 18, 0.45);
+  --glass-border: rgba(255, 255, 255, 0.06);
+  --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+  --glass-inner-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 body {
@@ -73,15 +76,13 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .sidebar-item:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.03);
   color: var(--on-surface);
-  transform: translateX(4px);
+  transform: translateX(6px);
 }
 
 .sidebar-item.active {
-  background: var(--primary-container);
-  color: #fff;
-  box-shadow: 0 4px 20px var(--gold-glow);
+  color: var(--primary);
 }
 
 .main-content {
@@ -152,12 +153,13 @@ h1, h2, h3, h4, h5, h6 {
 
 .inscripciones-content, .content-container {
   background: var(--glass-bg);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
   border: 1px solid var(--glass-border);
+  border-top: 1px solid rgba(255,255,255,0.12);
   padding: 32px;
   border-radius: 24px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--glass-shadow), var(--glass-inner-shadow);
   width: 100%;
   box-sizing: border-box;
 }
@@ -187,12 +189,13 @@ h1, h2, h3, h4, h5, h6 {
   padding: 16px;
   border-radius: 12px;
   border: 1px solid var(--glass-border);
-  background: rgba(0, 0, 0, 0.3);
+  background: rgba(0, 0, 0, 0.2);
   color: var(--on-surface);
-  font-size: 16px;
+  font-size: 15px;
   font-family: 'Space Grotesk', sans-serif;
   box-sizing: border-box;
-  transition: all 0.3s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
 }
 
 .inscripciones-input::placeholder, .txareaids::placeholder, .input::placeholder {
@@ -247,12 +250,14 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .btn-primary { 
-  background-color: var(--primary); 
-  box-shadow: 0 4px 15px var(--gold-glow);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-container) 100%);
+  box-shadow: 0 4px 15px var(--gold-glow), inset 0 1px 1px rgba(255,255,255,0.2);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .btn-primary:hover { 
-  background-color: var(--primary-container); 
-  box-shadow: 0 6px 20px var(--gold-glow);
+  background: linear-gradient(135deg, #15b894 0%, var(--primary) 100%);
+  box-shadow: 0 8px 25px rgba(18, 163, 131, 0.4), inset 0 1px 1px rgba(255,255,255,0.3);
+  transform: translateY(-2px);
 }
 
 .btn-outline-danger {
@@ -364,18 +369,18 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Scrollbars */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: var(--surface-void); 
+  background: transparent; 
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1); 
+  background: rgba(255, 255, 255, 0.05); 
   border-radius: 10px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2); 
+  background: rgba(255, 255, 255, 0.15); 
 }
 
 /* Animations */

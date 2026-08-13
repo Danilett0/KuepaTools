@@ -1,5 +1,5 @@
-
 import { ChevronDown, ChevronRight, Info } from "lucide-react";
+import { motion } from "framer-motion";
 import ClearStorageModal from "./ui/ClearStorageModal.jsx";
 import { useAppStore } from "../store/useAppStore.js";
 
@@ -83,7 +83,7 @@ export default function Sidebar({
               <div key={item.id} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 <div
                   className={`sidebar-item ${isActive && !item.subItems ? 'active' : ''}`}
-                  style={item.subItems && isActive ? { color: 'var(--primary)' } : {}}
+                  style={{ position: 'relative', ...(item.subItems && isActive ? { color: 'var(--primary)' } : {}) }}
                   onClick={() => {
                     if (item.subItems) {
                       setExpandedMenu(isExpanded ? null : item.id);
@@ -96,11 +96,30 @@ export default function Sidebar({
                     }
                   }}
                 >
-                  <Icon size={20} />
-                  <span style={{ flex: 1 }}>{item.label}</span>
-                  {item.subItems && (
-                    isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />
+                  {isActive && !item.subItems && (
+                    <motion.div
+                      layoutId="sidebar-active-indicator"
+                      className="sidebar-active-bg"
+                      initial={false}
+                      transition={{ type: "spring", stiffness: 350, damping: 30 }}
+                      style={{
+                        position: "absolute",
+                        inset: 0,
+                        background: "var(--surface-overlay)",
+                        borderLeft: "3px solid var(--primary)",
+                        boxShadow: "inset 0 0 20px rgba(18, 163, 131, 0.05)",
+                        borderRadius: "12px",
+                        zIndex: 0
+                      }}
+                    />
                   )}
+                  <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', gap: '16px', width: '100%' }}>
+                    <Icon size={20} />
+                    <span style={{ flex: 1 }}>{item.label}</span>
+                    {item.subItems && (
+                      isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />
+                    )}
+                  </div>
                 </div>
                 {item.subItems && isExpanded && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', paddingLeft: '28px', marginTop: '4px' }}>
@@ -108,10 +127,27 @@ export default function Sidebar({
                       <div
                         key={sub.id}
                         className={`sidebar-item ${activeComponent === sub.id ? 'active' : ''}`}
-                        style={{ padding: '10px 16px', fontSize: '13px' }}
+                        style={{ padding: '10px 16px', fontSize: '13px', position: 'relative' }}
                         onClick={() => setActiveComponent(sub.id)}
                       >
-                        {sub.label}
+                        {activeComponent === sub.id && (
+                          <motion.div
+                            layoutId="sidebar-active-indicator"
+                            className="sidebar-active-bg"
+                            initial={false}
+                            transition={{ type: "spring", stiffness: 350, damping: 30 }}
+                            style={{
+                              position: "absolute",
+                              inset: 0,
+                              background: "var(--surface-overlay)",
+                              borderLeft: "3px solid var(--primary)",
+                              boxShadow: "inset 0 0 20px rgba(18, 163, 131, 0.05)",
+                              borderRadius: "12px",
+                              zIndex: 0
+                            }}
+                          />
+                        )}
+                        <span style={{ position: 'relative', zIndex: 1 }}>{sub.label}</span>
                       </div>
                     ))}
                   </div>
@@ -124,10 +160,30 @@ export default function Sidebar({
         <div style={{ marginTop: 'auto', paddingTop: '20px', borderTop: '1px solid var(--glass-border)' }}>
           <div
             className={`sidebar-item ${activeComponent === 'informacion' ? 'active' : ''}`}
+            style={{ position: 'relative' }}
             onClick={() => { setActiveComponent('informacion'); setExpandedMenu(null); }}
           >
-            <Info size={20} />
-            <span style={{ flex: 1 }}>Información</span>
+            {activeComponent === 'informacion' && (
+              <motion.div
+                layoutId="sidebar-active-indicator"
+                className="sidebar-active-bg"
+                initial={false}
+                transition={{ type: "spring", stiffness: 350, damping: 30 }}
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  background: "var(--surface-overlay)",
+                  borderLeft: "3px solid var(--primary)",
+                  boxShadow: "inset 0 0 20px rgba(18, 163, 131, 0.05)",
+                  borderRadius: "12px",
+                  zIndex: 0
+                }}
+              />
+            )}
+            <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', gap: '16px', width: '100%' }}>
+              <Info size={20} />
+              <span style={{ flex: 1 }}>Información</span>
+            </div>
           </div>
         </div>
       </aside>
