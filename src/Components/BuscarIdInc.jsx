@@ -5,10 +5,11 @@ import { useLocalStorage } from '../hooks/useLocalStorage';
 import { findUsersByIncList } from '../services/usuariosService';
 import AllianceSwitcher from './ui/AllianceSwitcher';
 import ClearButton from './ui/ClearButton';
+import { ALLIANCE_IDS } from '../utils/constants';
 
 const ALLIANCE_ID = {
-  na:    '6303ed663138387a1669d82a',
-  kuepa: '602169e217b5c8a27f9e9c06',
+  na:    ALLIANCE_IDS.na,
+  kuepa: ALLIANCE_IDS.kuepa,
 };
 
 const BuscarIdInc = () => {

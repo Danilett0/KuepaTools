@@ -5,17 +5,15 @@ import { toast } from "react-toastify";
 import AllianceSwitcher from "./ui/AllianceSwitcher";
 import ClearButton from "./ui/ClearButton";
 import IncAutocomplete from "./ui/IncAutocomplete";
+import { ALLIANCE_IDS } from "../utils/constants";
 
 // ── Utilidad: extrae el ID del grupo académico ──────────────────────────────
 function extractGroupId(input) {
   const trimmed = input.trim();
   if (!trimmed) return "";
-  // Si es URL, extraer el ID de 24 chars hex que sigue a "details/"
-  const urlMatch = trimmed.match(/details\/([a-f0-9]{24})/i);
-  if (urlMatch) return urlMatch[1];
-  // Si es directamente un ObjectId válido (24 caracteres hexadecimales)
-  if (/^[a-f0-9]{24}$/i.test(trimmed)) return trimmed;
-  // Cualquier otro valor no es válido
+  // Extrae un ObjectId válido (24 caracteres hexadecimales) de cualquier parte del texto
+  const match = trimmed.match(/\b([a-f0-9]{24})\b/i);
+  if (match) return match[1];
   return "";
 }
 
@@ -126,8 +124,8 @@ function FinalUserCard() {
   const resolvedGroupId = extractGroupId(groupId);
 
   const allianceId = alianza === "kuepa"
-    ? "602169e217b5c8a27f9e9c06"
-    : "6303ed663138387a1669d82a";
+    ? ALLIANCE_IDS.kuepa
+    : ALLIANCE_IDS.na;
 
   const handleSelectUser = (user) => {
     if (user) {

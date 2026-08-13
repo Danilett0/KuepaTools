@@ -7,6 +7,7 @@ import { toast } from "react-toastify";
 import AllianceSwitcher from "./ui/AllianceSwitcher";
 import ClearButton from "./ui/ClearButton";
 import IncAutocomplete from "./ui/IncAutocomplete";
+import { ALLIANCE_IDS } from "../utils/constants";
 
 function ComandosBemoInscripciones({ formType = "estudiante" }) {
   const showForm2 = formType === "estudiante";
@@ -159,29 +160,7 @@ function ComandosBemoInscripciones({ formType = "estudiante" }) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [showForm2, showForm3, showForm4, handleClear]);
 
-  const BuscarId = (isForm2 = false) => {
-    if (loading) {
-      toast.info("Cargando base de datos, por favor espera...");
-      return;
-    }
-    if (isForm2 && groupId2.trim() !== "") {
-      const codigo = Number(groupId2.trim());
-      const allianceId = alianza === "kuepa"
-        ? "602169e217b5c8a27f9e9c06"
-        : "6303ed663138387a1669d82a";
 
-      const encontrado = usuariosCompletos.find(
-        (user) => user.incremental_user_code === codigo && user.alliance_id?.$oid === allianceId
-      );
-      if (encontrado) {
-        setGroupId2(encontrado._id.$oid);
-      } else {
-        toast.error("INC de estudiante no encontrado.");
-      }
-    } else {
-      toast.error("Por favor ingrese el INC del estudiante a buscar.");
-    }
-  };
 
   const handleGenerate = (isForm2 = false) => {
     if (!txareaIds || txareaIds.trim() === "") return;
@@ -452,7 +431,7 @@ function ComandosBemoInscripciones({ formType = "estudiante" }) {
                     </div>
                   )}
                   <IncAutocomplete
-                    alianzaId={alianza === "kuepa" ? "602169e217b5c8a27f9e9c06" : "6303ed663138387a1669d82a"}
+                    alianzaId={alianza === "kuepa" ? ALLIANCE_IDS.kuepa : ALLIANCE_IDS.na}
                     value={groupId2}
                     onChange={setGroupId2}
                     onSelect={(user) => {

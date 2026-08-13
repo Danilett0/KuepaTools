@@ -12,10 +12,12 @@
  *      "md" → padding más amplio.
  */
 
+import { ALLIANCE_IDS } from "../../utils/constants";
+
 const NA_SHORT = "na";
 const KUEPA_SHORT = "kuepa";
-const NA_LONG = "6303ed663138387a1669d82a";
-const KUEPA_LONG = "602169e217b5c8a27f9e9c06";
+const NA_LONG = ALLIANCE_IDS.na;
+const KUEPA_LONG = ALLIANCE_IDS.kuepa;
 
 const STYLES = {
   sm: { fontSize: "11px", padding: "3px 10px", borderRadius: "6px" },

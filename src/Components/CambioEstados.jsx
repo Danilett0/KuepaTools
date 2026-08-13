@@ -8,6 +8,7 @@ import { findUser, findUsersByIncList } from "../services/usuariosService";
 import { useCatalogos } from "../hooks/useCatalogos";
 import ClearButton from "./ui/ClearButton";
 import IncAutocomplete from "./ui/IncAutocomplete";
+import { ALLIANCE_IDS } from "../utils/constants";
 
 // ─── Datos de alianzas y estados ────────────────────────────────────────────
 
@@ -17,8 +18,8 @@ const alianzaOptions = [
 ];
 
 const ALLIANCE_MONGO_MAP = {
-  na: "6303ed663138387a1669d82a",
-  kuepa: "602169e217b5c8a27f9e9c06",
+  na: ALLIANCE_IDS.na,
+  kuepa: ALLIANCE_IDS.kuepa,
 };
 
 const stateOptionsByAlianza = {
