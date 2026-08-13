@@ -502,7 +502,7 @@ const Informacion = () => {
             </div>
 
             {/* Paginación */}
-            {renderPagination(usuariosPagina, totalPages, filteredUsers.length, pageUsers.length, setUsuariosPagina)}
+            {renderPagination(usuariosPagina, totalPages, totalServerUsers, pageUsers.length, setUsuariosPagina)}
           </div>
         );
       }
