@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Copy, Search, ArrowRight, Loader2 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { useLocalStorage } from '../hooks/useLocalStorage';

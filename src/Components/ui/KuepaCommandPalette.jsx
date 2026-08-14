@@ -55,9 +55,8 @@ export default function KuepaCommandPalette() {
   // Analyze intent manually when Enter is pressed
   const handleAnalyze = async (overrideText = null) => {
     const textToAnalyze = overrideText !== null ? overrideText : inputValue;
-    if (textToAnalyze.trim().length < 3 || !apiKey || analyzingState) return;
-    
-    setAnalyzingState('ai');
+    const minLength = chatHistory.length > 0 ? 1 : 3; // Permitir respuestas cortas ("1", "2") cuando hay conversación activa
+    if (textToAnalyze.trim().length < minLength || !apiKey || analyzingState) return;
     
     const newUserMessage = { id: Date.now().toString(), role: 'user', text: textToAnalyze };
     const updatedHistory = [...chatHistory, newUserMessage];
@@ -68,216 +67,81 @@ export default function KuepaCommandPalette() {
     }
     
     try {
-      const historyForGemini = updatedHistory.map((m, index) => {
-        if (index === updatedHistory.length - 1 && m.role === 'user') {
-          return { role: 'user', text: `[NUEVA TAREA - IGNORA LAS TAREAS ANTERIORES]: ${m.text}` };
-        }
-        return { role: m.role, text: m.text };
-      });
-      const geminiResult = await analyzeIntentWithGemini(historyForGemini, apiKey);
-      
-      if (geminiResult && (geminiResult.type === 'INCOMPLETE' || geminiResult.type === 'INFO')) {
-        const aiMessage = { id: (Date.now() + 1).toString(), role: 'ai', text: geminiResult.message, parsedResult: geminiResult };
-        setChatHistory([...updatedHistory, aiMessage]);
-        setAnalyzingState(null);
-        return;
-      }
+      const { AgentOrchestrator } = await import('../../services/AgentOrchestrator');
+      const orchestrator = new AgentOrchestrator(apiKey, aiAlliance);
 
-      if (geminiResult && geminiResult.type === 'QUERY' && geminiResult.query) {
-        setAnalyzingState('db_processing');
-        const { table, searchTerm } = geminiResult.query;
-        let dbResultsStr = "No se encontraron resultados.";
-        
-        try {
-          if (table === 'alianzas') {
-            const { data } = await supabase.from('alianzas').select('mongo_id, name').ilike('name', `%${searchTerm || ''}%`).limit(10);
-            if (data && data.length) dbResultsStr = data.map(d => `ID: ${d.mongo_id}, Nombre: ${d.name}`).join(' | ');
-          } else if (table === 'programas') {
-            const { data } = await supabase.from('programas').select('mongo_id, name').eq('alliance_id', ALLIANCE_IDS[aiAlliance]).ilike('name', `%${searchTerm || ''}%`).limit(10);
-            if (data && data.length) dbResultsStr = data.map(d => `ID: ${d.mongo_id}, Nombre: ${d.name}`).join(' | ');
-          } else if (table === 'estados') {
-            let results = [];
-            for (const [aly, cat] of Object.entries(STATE_OPTIONS_BY_ALIANZA)) {
-              const filtered = cat.filter(e => e.label.toLowerCase().includes((searchTerm || '').toLowerCase()));
-              if (filtered.length) {
-                results.push(`Alianza ${aly.toUpperCase()}: ` + filtered.map(d => `ID: ${d.value} (${d.label})`).join(', '));
-              }
-            }
-            if (results.length) dbResultsStr = results.join(' || ');
-          }
-        } catch (e) {
-          console.error("Error consultando BD para IA:", e);
-          dbResultsStr = "Error técnico al consultar la base de datos.";
-        }
+      // Loop for QUERY resolutions
+      let currentHistory = [...updatedHistory];
+      let isFinalResult = false;
+      let finalResult = null;
 
-        const systemMsgText = `[RESULTADOS DE BD PARA '${searchTerm}']: ${dbResultsStr}\nResponde al usuario basándote EXCLUSIVAMENTE en esto. No inventes.`;
-        const newHistoryForNextTurn = [
-          ...updatedHistory, 
-          { id: Date.now().toString(), role: 'ai', text: `*(Consulté la base de datos buscando ${searchTerm}...)*`, isHidden: true }, 
-          { id: (Date.now()+1).toString(), role: 'user', text: systemMsgText, isHidden: true }
-        ];
+      while (!isFinalResult) {
+        // En lugar de llamar a Gemini directo, llamamos a nuestro Orquestador
+        // NOTA: Para el loop interno de queries, le pasamos solo el último mensaje como userText,
+        // pero la magia real ya está encapsulada.
+        const lastMsgText = currentHistory[currentHistory.length - 1].text;
+        const historyForOrchestrator = currentHistory.slice(0, -1);
         
-        const historyForGemini2 = newHistoryForNextTurn.map(m => ({ role: m.role, text: m.text }));
-        const geminiResult2 = await analyzeIntentWithGemini(historyForGemini2, apiKey);
-        
-        let finalText = geminiResult2?.message || '';
-        if (geminiResult2?.type === 'COMMANDS') finalText = geminiResult2.commands?.[0] || '';
-        
-        const finalAiMessage = { id: (Date.now() + 2).toString(), role: 'ai', text: finalText, parsedResult: geminiResult2 };
-        setChatHistory([...newHistoryForNextTurn, finalAiMessage]);
-        setAnalyzingState(null);
-        return;
-      }
-      
-      // RESOLUCIÓN MÁGICA: Convertir INCs cortos a ObjectIDs y programas semánticos
-      if (geminiResult && geminiResult.type === 'COMMANDS' && geminiResult.commands) {
-        setAnalyzingState('db_processing');
-        const resolvedCommands = await Promise.all(geminiResult.commands.map(async (cmd) => {
-          let newCmd = cmd;
-          let studentUser = null;
+        const result = await orchestrator.processMessage(lastMsgText, historyForOrchestrator, setAnalyzingState);
+
+        if (result.type === 'QUERY' && result.query) {
+          setAnalyzingState('db_processing');
+          const { table, searchTerm } = result.query;
+          let dbResultsStr = "No se encontraron resultados.";
           
-          // 1. Resolver IDs cortos (INCs de 1 a 7 dígitos)
-          const incRegex = /["'](\d{1,7})["']/g;
-          const incMatches = [...newCmd.matchAll(incRegex)];
-          
-          for (const match of incMatches) {
-            const inc = match[1];
-            try {
-              studentUser = await findUser(inc, ALLIANCE_IDS[aiAlliance]);
-              if (studentUser && studentUser._id && studentUser._id.$oid) {
-                newCmd = newCmd.replace(match[0], `"${studentUser._id.$oid}"`);
-              } else {
-                toast.warning(`El estudiante con ID ${inc} no fue encontrado en tu base de datos.`);
-              }
-            } catch (err) {
-              console.error("Error resolviendo ID mágico:", err);
-            }
-          }
-
-          const normalizeStr = (str) => str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-
-          // 2. Resolver programas faltantes basados en los programas del usuario
-          const programRegex = /\[FALTA_ID_?(DE_)?PROGRAMA(?:_([^\]]+))?\]/gi;
-          const progMatches = [...newCmd.matchAll(programRegex)];
-          
-          if (progMatches.length > 0 && studentUser && studentUser.programs?.length > 0) {
-            try {
-              const { data: progCatalog } = await supabase.from('programas')
-                .select('mongo_id, name')
-                .eq('alliance_id', ALLIANCE_IDS[aiAlliance]);
-              const programasMap = {};
-              if (progCatalog) {
-                progCatalog.forEach(p => { programasMap[p.mongo_id] = p.name; });
-              }
-
-              const studentProgIds = studentUser.programs
-                .map(p => p.structure?.$oid || p.structure)
-                .filter(Boolean);
-              
-              const studentProgs = studentProgIds.map(id => ({
-                id,
-                name: normalizeStr(programasMap[id] || '')
-              }));
-
-              for (const match of progMatches) {
-                let semanticHint = '';
-                if (match[2]) {
-                  semanticHint = normalizeStr(match[2].replace(/_/g, ' ')); 
-                } else if (updatedHistory.length > 0 && updatedHistory[updatedHistory.length - 1].role === 'user') {
-                  const lastMsg = updatedHistory[updatedHistory.length - 1].text;
-                  if (lastMsg.length < 40) { // Si es una respuesta corta, asumimos que es el programa
-                    semanticHint = normalizeStr(lastMsg);
-                  }
-                }
-
-                if (semanticHint) {
-                  let keywords = semanticHint.split(' ').filter(w => w.length > 3);
-                  if (keywords.length === 0) keywords = [semanticHint.trim()];
-                  
-                  let bestMatch = null;
-                  let maxMatches = 0;
-                  
-                  studentProgs.forEach(p => {
-                    const matches = keywords.filter(k => p.name.includes(k)).length;
-                    if (matches > maxMatches) {
-                      maxMatches = matches;
-                      bestMatch = p;
-                    }
-                  });
-
-                  if (!bestMatch) {
-                    bestMatch = studentProgs.find(p => p.name.includes(semanticHint));
-                  }
-
-                  if (bestMatch) {
-                    newCmd = newCmd.replace(match[0], bestMatch.id); // Sin comillas dobles inyectadas
-                  } else {
-                    throw new Error(`INCOMPLETE:El estudiante no tiene matriculado ningún programa asociado a "${semanticHint}". ¿Me aclaras el nombre correcto del programa?`);
-                  }
-                } else {
-                  // NO tenemos hint semántico
-                  if (studentProgs.length === 1) {
-                    newCmd = newCmd.replace(match[0], studentProgs[0].id); // Sin comillas dobles
-                  } else {
-                    const programNames = studentProgs.map(p => p.name).join(', ');
-                    throw new Error(`INCOMPLETE:El estudiante tiene múltiples programas matriculados (${programNames}). ¿Para cuál de ellos quieres realizar la acción?`);
-                  }
-                }
-              }
-            } catch (err) {
-              if (err.message && err.message.startsWith('INCOMPLETE:')) return err;
-              console.error("Error resolviendo programa semántico:", err);
-            }
-          }
-
-          // Verificar si quedaron comodines sin resolver (ej: estudiante sin programas)
-          const unresolvedMatches = [...newCmd.matchAll(/\[FALTA_ID_?(DE_)?PROGRAMA(?:_([^\]]+))?\]/gi)];
-          if (unresolvedMatches.length > 0) {
-            return new Error(`INCOMPLETE:No pude determinar el programa del estudiante en la base de datos (puede que no tenga programas matriculados). Por favor, indícame a qué programa te refieres.`);
-          }
-
-          // 3. Resolver Estados Dinámicamente (ej: "Requisitos Academicos" -> ObjectID)
           try {
-            const estadosCatalog = STATE_OPTIONS_BY_ALIANZA[aiAlliance] || [];
-            if (estadosCatalog.length > 0) {
-              const regexQuotes = /"([^"]+)"/g;
-              let match;
-              while ((match = regexQuotes.exec(newCmd)) !== null) {
-                const potentialState = match[1];
-                const matchedState = estadosCatalog.find(e => normalizeStr(e.label) === normalizeStr(potentialState));
-                if (matchedState) {
-                  newCmd = newCmd.replace(`"${potentialState}"`, `"${matchedState.value}"`);
+            if (table === 'alianzas') {
+              const { data } = await supabase.from('alianzas').select('mongo_id, name').ilike('name', `%${searchTerm || ''}%`).limit(10);
+              if (data && data.length) dbResultsStr = data.map(d => `ID: ${d.mongo_id}, Nombre: ${d.name}`).join(' | ');
+            } else if (table === 'programas') {
+              const { data } = await supabase.from('programas').select('mongo_id, name').eq('alliance_id', ALLIANCE_IDS[aiAlliance]).ilike('name', `%${searchTerm || ''}%`).limit(10);
+              if (data && data.length) dbResultsStr = data.map(d => `ID: ${d.mongo_id}, Nombre: ${d.name}`).join(' | ');
+            } else if (table === 'estados') {
+              let results = [];
+              for (const [aly, cat] of Object.entries(STATE_OPTIONS_BY_ALIANZA)) {
+                const filtered = cat.filter(e => e.label.toLowerCase().includes((searchTerm || '').toLowerCase()));
+                if (filtered.length) {
+                  results.push(`Alianza ${aly.toUpperCase()}: ` + filtered.map(d => `ID: ${d.value} (${d.label})`).join(', '));
                 }
               }
+              if (results.length) dbResultsStr = results.join(' || ');
             }
-          } catch (err) {
-            console.error("Error resolviendo estado semántico:", err);
+          } catch (e) {
+            console.error("Error consultando BD para IA:", e);
+            dbResultsStr = "Error técnico al consultar la base de datos.";
           }
 
-          return newCmd;
-        }));
-
-        const incompleteError = resolvedCommands.find(cmd => cmd instanceof Error);
-        if (incompleteError) {
-          throw incompleteError;
+          const systemMsgText = `[RESULTADOS DE BD PARA '${searchTerm}']: ${dbResultsStr}\nResponde al usuario basándote EXCLUSIVAMENTE en esto. No inventes.`;
+          
+          currentHistory = [
+            ...currentHistory, 
+            { id: Date.now().toString(), role: 'ai', text: `*(Consulté la base de datos buscando ${searchTerm}...)*`, isHidden: true }, 
+            { id: (Date.now()+1).toString(), role: 'user', text: systemMsgText, isHidden: true }
+          ];
+          // Volver a loopear para que el orquestador resuelva con el nuevo contexto
+        } else {
+          isFinalResult = true;
+          finalResult = result;
         }
-
-        geminiResult.commands = resolvedCommands;
       }
-      
-      const aiMessage = { id: (Date.now() + 1).toString(), role: 'ai', text: '', parsedResult: geminiResult };
-      setChatHistory([...updatedHistory, aiMessage]);
+
+      // Procesar el resultado final del orquestador
+      if (finalResult && (finalResult.type === 'INCOMPLETE' || finalResult.type === 'INFO')) {
+        const aiMessage = { id: (Date.now() + 2).toString(), role: 'ai', text: finalResult.message, parsedResult: finalResult };
+        setChatHistory([...currentHistory, aiMessage]);
+      } else if (finalResult && finalResult.type === 'COMMANDS') {
+        const aiMessage = { id: (Date.now() + 2).toString(), role: 'ai', text: '', parsedResult: finalResult };
+        setChatHistory([...currentHistory, aiMessage]);
+      } else if (finalResult && finalResult.type === 'ROUTE') {
+        const aiMessage = { id: (Date.now() + 2).toString(), role: 'ai', text: '', parsedResult: finalResult };
+        setChatHistory([...currentHistory, aiMessage]);
+      } else {
+        throw new Error("Respuesta de IA no reconocida.");
+      }
       
     } catch (error) {
-      if (error.message && error.message.startsWith('INCOMPLETE:')) {
-        const msg = error.message.replace('INCOMPLETE:', '');
-        const incompleteResult = { type: 'INCOMPLETE', message: msg };
-        const aiMessage = { id: (Date.now() + 1).toString(), role: 'ai', text: msg, parsedResult: incompleteResult };
-        setChatHistory([...updatedHistory, aiMessage]);
-      } else {
-        console.error("Gemini Error:", error);
-        toast.error(error.message || "Ocurrió un error al conectar con la IA");
-      }
+      console.error("Agent Error:", error);
+      toast.error(error.message || "Ocurrió un error al conectar con la IA");
     } finally {
       setAnalyzingState(null);
     }
@@ -606,6 +470,8 @@ export default function KuepaCommandPalette() {
                       <div style={{ marginTop: '4px', background: 'rgba(255, 255, 255, 0.05)', borderRadius: '50%', padding: '6px' }}>
                         {analyzingState === 'ai' ? (
                           <Loader2 size={20} color="var(--primary)" style={{ animation: 'spin 1s linear infinite' }} />
+                        ) : analyzingState === 'resolving_students' ? (
+                          <Search size={20} color="#60a5fa" style={{ animation: 'pulse 1.5s infinite' }} />
                         ) : (
                           <Zap size={20} color="#eab308" style={{ animation: 'pulse 1.5s infinite' }} />
                         )}
@@ -615,10 +481,11 @@ export default function KuepaCommandPalette() {
                         padding: '14px 20px', 
                         borderRadius: '0 16px 16px 16px', 
                         border: '1px solid var(--glass-border)',
-                        color: analyzingState === 'ai' ? 'var(--primary)' : '#eab308',
+                        color: analyzingState === 'ai' ? 'var(--primary)' : analyzingState === 'resolving_students' ? '#60a5fa' : '#eab308',
                         fontSize: '14px',
                         fontWeight: 600
                       }}>
+                        {analyzingState === 'resolving_students' && "Buscando datos del estudiante en la base de datos..."}
                         {analyzingState === 'ai' && "Generando respuesta con Inteligencia Artificial..."}
                         {analyzingState === 'db_processing' && "Traduciendo y validando información en la base de datos..."}
                       </div>
