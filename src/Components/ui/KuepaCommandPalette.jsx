@@ -318,7 +318,18 @@ export default function KuepaCommandPalette() {
                     Empieza a escribir para interactuar con Kuepa AI...
                   </div>
                 ) : (
-                  chatHistory.map((msg, index) => {
+                  (() => {
+                    // Pre-calculate which COMMANDS messages need a "NUEVO" divider
+                    let commandBatchCount = 0;
+                    const commandBatchIndices = {};
+                    chatHistory.forEach((msg, idx) => {
+                      if (!msg.isHidden && msg.role === 'ai' && msg.parsedResult?.type === 'COMMANDS' && msg.parsedResult.commands?.length > 0) {
+                        commandBatchCount++;
+                        commandBatchIndices[idx] = commandBatchCount;
+                      }
+                    });
+
+                    return chatHistory.map((msg, index) => {
                     if (msg.isHidden) return null;
                     if (msg.role === 'user') {
                       return (
@@ -363,8 +374,42 @@ export default function KuepaCommandPalette() {
                       );
                     } else if (msg.role === 'ai') {
                       const parsedResult = msg.parsedResult;
+                      const isCommandBlock = parsedResult?.type === 'COMMANDS' && parsedResult.commands?.length > 0;
+                      const batchNumber = commandBatchIndices[index];
+                      const showNuevoDivider = isCommandBlock && batchNumber > 1;
+
                       return (
-                        <div key={msg.id || index} style={{ display: 'flex', justifyContent: 'flex-start', maxWidth: '90%' }}>
+                        <React.Fragment key={msg.id || index}>
+                          {/* ── NUEVO divider between command batches ── */}
+                          {showNuevoDivider && (
+                            <div style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '16px',
+                              margin: '8px 0',
+                              userSelect: 'none',
+                            }}>
+                              <div style={{ flex: 1, height: '1px', background: 'linear-gradient(90deg, transparent, var(--primary), transparent)' }} />
+                              <span style={{
+                                fontSize: '11px',
+                                fontWeight: 800,
+                                letterSpacing: '0.15em',
+                                textTransform: 'uppercase',
+                                color: 'var(--primary)',
+                                fontFamily: "'Space Grotesk', sans-serif",
+                                padding: '4px 14px',
+                                borderRadius: '100px',
+                                border: '1px solid rgba(18, 163, 131, 0.3)',
+                                background: 'rgba(18, 163, 131, 0.08)',
+                                boxShadow: '0 0 12px rgba(18, 163, 131, 0.15)',
+                                whiteSpace: 'nowrap',
+                              }}>
+                                ✦ NUEVO
+                              </span>
+                              <div style={{ flex: 1, height: '1px', background: 'linear-gradient(90deg, transparent, var(--primary), transparent)' }} />
+                            </div>
+                          )}
+                        <div style={{ display: 'flex', justifyContent: 'flex-start', maxWidth: '90%' }}>
                           <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', width: '100%' }}>
                             <div style={{ marginTop: '4px', background: 'rgba(18, 163, 131, 0.1)', borderRadius: '50%', padding: '6px' }}>
                               <Bot size={20} color="var(--primary)" />
@@ -381,7 +426,7 @@ export default function KuepaCommandPalette() {
                                     </span>
                                   </div>
                                 </div>
-                              ) : parsedResult?.type === 'COMMANDS' && parsedResult.commands?.length > 0 ? (
+                              ) : isCommandBlock ? (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
                                     <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--primary)' }}>
@@ -457,10 +502,12 @@ export default function KuepaCommandPalette() {
                             </div>
                           </div>
                         </div>
+                        </React.Fragment>
                       );
                     }
                     return null;
-                  })
+                  });
+                  })()
                 )}
                 
                 {/* Loader in chat */}
