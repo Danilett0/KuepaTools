@@ -44,7 +44,8 @@
   "devDependencies": {
     "@vitejs/plugin-react": "^6.0.5",
     "baseline-browser-mapping": "^2.10.34",
-    "vite": "^8.2.1"
+    "vite": "^8.2.1",
+    "ws": "^8.21.3"
   },
   "overrides": {
     "ajv-keywords@5": {
