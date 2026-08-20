@@ -188,7 +188,7 @@ function buildContextBlock(students, objectIds) {
       for (const p of s.programs) {
         context += `\n    • "${p.name}" (ID: ${p.id})`;
       }
-      context += `\n  → Tiene múltiples programas. PREGUNTA al usuario cuál necesita, listando los nombres.`;
+      context += `\n  → Tiene múltiples programas. Si la acción requiere program_id, verifica si el usuario ya mencionó cuál quiere (ej: por nombre o palabra clave), y USA su ID directamente. Si no lo especificó, PREGUNTA al usuario cuál necesita listando los nombres con saltos de línea (\\n) como una lista vertical. Si la acción NO requiere program_id (ej. enroll_user, remove_user, fix_deliverable), ignora los programas.`;
     }
   }
   

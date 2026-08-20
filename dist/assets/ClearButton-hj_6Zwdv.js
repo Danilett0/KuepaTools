@@ -1,0 +1,1 @@
+import{g as e,i as t}from"./index-DEbEs_fK.js";var n=e();function r({onClick:e,title:r=`Limpiar`}){return(0,n.jsxs)(`button`,{className:`btn-clear`,onClick:e,title:r,children:[(0,n.jsx)(t,{size:12}),`Limpiar`]})}export{r as t};

@@ -453,9 +453,9 @@ export default function KuepaCommandPalette() {
                                   </div>
                                   {parsedResult.commands.map((cmd, i) => (
                                     <div key={i} style={{ padding: '12px', background: 'var(--surface-void)', borderRadius: '8px', border: '1px solid var(--glass-border)' }}>
-                                      <code style={{ color: 'var(--primary)', fontSize: '14px', fontFamily: "'Space Grotesk', monospace", wordBreak: 'break-all', whiteSpace: 'pre-wrap' }}>
+                                      <div style={{ color: 'var(--on-surface)', fontSize: '15px', wordBreak: 'break-all', whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>
                                         {cmd}
-                                      </code>
+                                      </div>
                                     </div>
                                   ))}
                                 </div>
@@ -495,7 +495,7 @@ export default function KuepaCommandPalette() {
                                   <ArrowRight size={18} color="var(--on-surface-variant)" />
                                 </div>
                               ) : (
-                                <div style={{ color: 'var(--on-surface-variant)', fontSize: '15px' }}>
+                                <div style={{ color: 'var(--on-surface-variant)', fontSize: '15px', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>
                                   {msg.text || "Procesando..."}
                                 </div>
                               )}

@@ -147,7 +147,14 @@ export class AgentOrchestrator {
     onThinkingStateChange('ai');
     
     // Construir historial para Gemini
-    const historyForGemini = chatHistory.map((m) => ({ role: m.role, text: m.text }));
+    const historyForGemini = chatHistory.map((m) => {
+      let textContent = m.text;
+      // Si la IA generó comandos, su texto visible suele estar vacío, lo que confunde al LLM haciéndole creer que no respondió.
+      if (m.role === 'ai' && !textContent && m.parsedResult?.type === 'COMMANDS') {
+        textContent = "[Acciones generadas y ejecutadas por el sistema. No repetir.]";
+      }
+      return { role: m.role, text: textContent };
+    });
     // Agregar el mensaje actual enriquecido
     // Si hay historial, es una continuación (ej. el usuario respondió "2" a una pregunta)
     const isFollowUp = chatHistory.length > 0;
