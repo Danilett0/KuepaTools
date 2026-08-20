@@ -212,6 +212,7 @@ export default function KuepaCommandPalette() {
             }}
           >
             <motion.div
+              layout
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -219,7 +220,7 @@ export default function KuepaCommandPalette() {
               style={{
                 width: '100%',
                 maxWidth: '760px',
-                height: '80vh',
+                height: (chatHistory.length > 0 || analyzingState) ? '80vh' : 'auto',
                 maxHeight: '800px',
                 backgroundColor: 'var(--surface-void)',
                 borderRadius: '20px',
@@ -308,16 +309,9 @@ export default function KuepaCommandPalette() {
               </div>
 
               {/* Chat History Area (Scrollable) */}
+              {(chatHistory.length > 0 || analyzingState) && (
               <div style={{ padding: '24px', flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '20px', background: 'rgba(0,0,0,0.2)' }}>
-                {!apiKey ? (
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--on-surface-variant)' }}>
-                    Configura tu API Key (⚙️) para activar Kuepa AI.
-                  </div>
-                ) : chatHistory.length === 0 ? (
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--on-surface-variant)' }}>
-                    Empieza a escribir para interactuar con Kuepa AI...
-                  </div>
-                ) : (
+                {chatHistory.length > 0 && (
                   (() => {
                     // Pre-calculate which COMMANDS messages need a "NUEVO" divider
                     let commandBatchCount = 0;
@@ -510,37 +504,109 @@ export default function KuepaCommandPalette() {
                   })()
                 )}
                 
-                {/* Loader in chat */}
-                {analyzingState && (
-                  <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-                      <div style={{ marginTop: '4px', background: 'rgba(255, 255, 255, 0.05)', borderRadius: '50%', padding: '6px' }}>
-                        {analyzingState === 'ai' ? (
-                          <Loader2 size={20} color="var(--primary)" style={{ animation: 'spin 1s linear infinite' }} />
-                        ) : analyzingState === 'resolving_students' ? (
-                          <Search size={20} color="#60a5fa" style={{ animation: 'pulse 1.5s infinite' }} />
-                        ) : (
-                          <Zap size={20} color="#eab308" style={{ animation: 'pulse 1.5s infinite' }} />
-                        )}
+                {/* Premium Animated Loader in chat */}
+                <AnimatePresence>
+                  {analyzingState && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.2 } }}
+                      style={{ display: 'flex', justifyContent: 'flex-start', margin: '8px 0' }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                        {/* Glowing Orb Icon */}
+                        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                           <motion.div
+                             animate={{ rotate: 360 }}
+                             transition={{ repeat: Infinity, duration: 3, ease: "linear" }}
+                             style={{
+                               position: 'absolute',
+                               inset: '-6px',
+                               borderRadius: '50%',
+                               background: analyzingState === 'ai' 
+                                 ? 'conic-gradient(from 0deg, transparent, transparent, var(--primary))' 
+                                 : analyzingState === 'resolving_students' 
+                                 ? 'conic-gradient(from 0deg, transparent, transparent, #60a5fa)'
+                                 : 'conic-gradient(from 0deg, transparent, transparent, #eab308)',
+                               opacity: 0.8,
+                               filter: 'blur(2px)'
+                             }}
+                           />
+                           <div style={{ position: 'relative', background: 'var(--surface-void)', borderRadius: '50%', padding: '10px', zIndex: 2, display: 'flex', border: '1px solid var(--glass-border)' }}>
+                             {analyzingState === 'ai' ? <Bot size={20} color="var(--primary)" /> : 
+                              analyzingState === 'resolving_students' ? <Search size={20} color="#60a5fa" /> : 
+                              <Zap size={20} color="#eab308" />}
+                           </div>
+                        </div>
+                        
+                        {/* Magic Waveform Bubble */}
+                        <div style={{ 
+                          background: 'linear-gradient(135deg, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.2) 100%)', 
+                          backdropFilter: 'blur(12px)',
+                          padding: '12px 24px', 
+                          borderRadius: '100px', // Totalmente redondo para evitar lo "cuadrado"
+                          border: '1px solid rgba(255,255,255,0.05)',
+                          boxShadow: '0 8px 32px rgba(0,0,0,0.3), inset 0 0 20px rgba(18,163,131,0.05)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '16px'
+                        }}>
+                          {/* AI Magic Waveform (como Siri / Voice AI) */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', height: '24px' }}>
+                            {[0, 1, 2, 3, 4, 5, 6].map(i => {
+                              // Generamos un patrón de ola para la animación
+                              const delay = i * 0.15;
+                              const colors = analyzingState === 'ai'
+                                ? ['var(--primary)', '#34d399', 'var(--primary)']
+                                : analyzingState === 'resolving_students'
+                                ? ['#3b82f6', '#93c5fd', '#3b82f6']
+                                : ['#eab308', '#fde047', '#eab308'];
+
+                              return (
+                                <motion.div
+                                  key={i}
+                                  animate={{ 
+                                    height: ['8px', '24px', '8px'],
+                                    backgroundColor: colors
+                                  }}
+                                  transition={{ 
+                                    repeat: Infinity, 
+                                    duration: 1.2, 
+                                    delay: delay, 
+                                    ease: "easeInOut" 
+                                  }}
+                                  style={{
+                                    width: '4px',
+                                    borderRadius: '4px',
+                                    backgroundColor: colors[0],
+                                    boxShadow: `0 0 10px ${colors[0]}80`
+                                  }}
+                                />
+                              )
+                            })}
+                          </div>
+                          
+                          {/* Texto limpio y moderno */}
+                          <span style={{
+                            color: 'var(--on-surface)',
+                            fontSize: '14px',
+                            fontWeight: 600,
+                            letterSpacing: '0.5px',
+                            fontFamily: "'Space Grotesk', sans-serif",
+                            opacity: 0.9
+                          }}>
+                            {analyzingState === 'resolving_students' && "Buscando al estudiante..."}
+                            {analyzingState === 'ai' && "Generando magia..."}
+                            {analyzingState === 'db_processing' && "Cruzando información..."}
+                          </span>
+                        </div>
                       </div>
-                      <div style={{ 
-                        background: 'var(--surface-low)', 
-                        padding: '14px 20px', 
-                        borderRadius: '0 16px 16px 16px', 
-                        border: '1px solid var(--glass-border)',
-                        color: analyzingState === 'ai' ? 'var(--primary)' : analyzingState === 'resolving_students' ? '#60a5fa' : '#eab308',
-                        fontSize: '14px',
-                        fontWeight: 600
-                      }}>
-                        {analyzingState === 'resolving_students' && "Buscando datos del estudiante en la base de datos..."}
-                        {analyzingState === 'ai' && "Generando respuesta con Inteligencia Artificial..."}
-                        {analyzingState === 'db_processing' && "Traduciendo y validando información en la base de datos..."}
-                      </div>
-                    </div>
-                  </div>
-                )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
                 <div ref={messagesEndRef} />
               </div>
+              )}
 
               {/* Input Area (Bottom) */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px 24px', borderTop: '1px solid var(--glass-border)' }}>
