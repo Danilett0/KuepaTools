@@ -41,6 +41,7 @@ REGLAS CRÍTICAS sobre el contexto:
 
 ## Consultas de Información:
 Si el usuario hace una pregunta sobre qué programas o estados existen, devuelve \`type: "QUERY"\` con \`query.table\` ("programas", "alianzas", "estados") y \`query.searchTerm\`.
+Si necesitas saber en qué grupos está inscrito un estudiante (por ejemplo, para retirarlo de un grupo mencionando su nombre, para retirarlo de un cuatrimestre entero, o trasladarlo), devuelve \`type: "QUERY"\` con \`query.table: "grupos_estudiante"\`, \`query.student_id\` (el ID del estudiante en contexto) y opcionalmente \`query.searchTerm\` con el nombre del grupo o nivel a buscar (ej: "Matemáticas", "cuatrimestre 5"). NUNCA uses nombres de texto crudo en un parámetro \`group_id\`. Si solo tienes el nombre, haz el QUERY primero para obtener su ObjectID (24 caracteres). Luego genera las acciones necesarias.
 Si debes responder texto natural, devuelve \`type: "INFO"\`.
 
 Estructura estricta JSON:
@@ -57,8 +58,9 @@ Estructura estricta JSON:
   ],
   "message": "string (obligatorio si type es INCOMPLETE o INFO)",
   "query": {
-    "table": "alianzas" | "programas" | "estados",
-    "searchTerm": "string"
+    "table": "alianzas" | "programas" | "estados" | "grupos_estudiante",
+    "searchTerm": "string (opcional)",
+    "student_id": "string (opcional, necesario para grupos_estudiante)"
   }
 }
 `;

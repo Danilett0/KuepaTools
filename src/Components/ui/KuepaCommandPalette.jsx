@@ -105,6 +105,34 @@ export default function KuepaCommandPalette() {
                 }
               }
               if (results.length) dbResultsStr = results.join(' || ');
+            } else if (table === 'grupos_estudiante') {
+              const studentIdToQuery = result.query.student_id;
+              if (studentIdToQuery) {
+                const { data } = await supabase
+                  .from('structures')
+                  .select('mongo_id, name, parent:parent_id(level:pensum_level_id(name))')
+                  .contains('users', [studentIdToQuery]);
+                  
+                if (data && data.length) {
+                  let mapped = data;
+                  if (searchTerm) {
+                    const searchLower = searchTerm.toLowerCase();
+                    mapped = data.filter(g => 
+                      g.name.toLowerCase().includes(searchLower) || 
+                      g.parent?.level?.name?.toLowerCase().includes(searchLower)
+                    );
+                  }
+                  if (mapped.length) {
+                    dbResultsStr = mapped.map(d => `GrupoID: ${d.mongo_id} | Nombre: ${d.name} | Nivel: ${d.parent?.level?.name || 'N/A'}`).join('\n');
+                  } else {
+                    dbResultsStr = `El estudiante no está en ningún grupo que coincida con el nivel "${searchTerm}".`;
+                  }
+                } else {
+                  dbResultsStr = "El estudiante no tiene grupos inscritos actualmente.";
+                }
+              } else {
+                dbResultsStr = "Falta especificar el student_id para consultar los grupos.";
+              }
             }
           } catch (e) {
             console.error("Error consultando BD para IA:", e);
