@@ -14,6 +14,7 @@ const ProgramasPorEstudiante = lazy(() => import("./ProgramasPorEstudiante.jsx")
 const UndoPublicationPage = lazy(() => import("./HerramientasAcademicos.jsx").then(module => ({ default: module.UndoPublicationPage })));
 const FinalUserPage = lazy(() => import("./HerramientasAcademicos.jsx").then(module => ({ default: module.FinalUserPage })));
 const ExtractGroupsPage = lazy(() => import("./HerramientasAcademicos.jsx").then(module => ({ default: module.ExtractGroupsPage })));
+const StudentGroupsPage = lazy(() => import("./HerramientasAcademicos.jsx").then(module => ({ default: module.StudentGroupsPage })));
 
 /**
  * AppRouter
@@ -48,6 +49,8 @@ export default function AppRouter() {
         return <FinalUserPage key="herramientas-final" />;
       case "herramientas-extraer":
         return <ExtractGroupsPage key="herramientas-extraer" />;
+      case "herramientas-estudiante":
+        return <StudentGroupsPage key="herramientas-estudiante" />;
       default:
         return <Inscripciones key="default" formType="estudiante" />;
     }

@@ -34,6 +34,7 @@ const NAV_ITEMS = [
       { id: "herramientas-undo", label: "Deshacer Publicación" },
       { id: "herramientas-final", label: "Re-calcular Nota Estudiante" },
       { id: "herramientas-extraer", label: "Extraer Grupos académicos" },
+      { id: "herramientas-estudiante", label: "Grupos por estudiante" },
     ],
   },
 ];
