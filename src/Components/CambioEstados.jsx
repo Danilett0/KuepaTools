@@ -249,6 +249,7 @@ function CambiosEstadoBemo() {
       setSingleProgramId("");
       setSingleState("");
       setSingleManualProgram(false);
+      setSingleSelectedUser(null);
     }
     setGeneratedCommands([]);
   }, [mode, setStudentIdsText, setProgramIdsText, setSelectedAlianza, setSelectedState, setSingleStudentId, setSingleProgramId, setSingleState]);
@@ -452,6 +453,7 @@ function CambiosEstadoBemo() {
                       setSingleProgramId("");
                       setSingleState("");
                       setSingleManualProgram(false);
+                      setSingleSelectedUser(null);
                       setGeneratedCommands([]);
                     }}
                   />

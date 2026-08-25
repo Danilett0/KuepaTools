@@ -7,6 +7,7 @@ import { Activity } from "lucide-react";
 import CommandsDisplay from "./CommandsDisplay";
 import AllianceSwitcher from "./ui/AllianceSwitcher";
 import ClearButton from "./ui/ClearButton";
+import IncAutocomplete from "./ui/IncAutocomplete";
 import { useAppStore } from "../store/useAppStore";
 
 function SegundaPagina() {
@@ -88,6 +89,7 @@ function SegundaPagina() {
     setGroupId("");
     setCommands([]);
     setManualProgram(false);
+    setSelectedUser(null);
   }, [setSecondStudentId, setSecondProgramId, setGroupId]);
 
   useEffect(() => {
@@ -136,15 +138,33 @@ function SegundaPagina() {
                     onChange={(val) => { setAlliance(val); handleClear(); }}
                   />
                 </div>
-                <input
-                  type="text"
+                <IncAutocomplete
+                  alianzaId={alliance}
                   value={secondStudentId}
-                  onChange={(e) => setSecondStudentId(e.target.value)}
+                  onChange={setSecondStudentId}
                   onBlur={handleStudentIdBlur}
-                  className="inscripciones-input"
-                  placeholder="Ingrese id"
-                  style={{ height: "48px", padding: "0 16px" }}
+                  onSelect={(user) => {
+                    if (user) {
+                      setSecondStudentId(user._id?.$oid || user._id);
+                      setSelectedUser(user);
+                    } else {
+                      setSelectedUser(null);
+                    }
+                    setSecondProgramId("");
+                  }}
+                  placeholder="INC o ID del estudiante"
+                  inputStyle={{ height: "48px", padding: "0 40px 0 16px" }}
                 />
+                {secondStudentId && !selectedUser && (
+                  <div style={{ fontSize: "12px", color: "#ef4444", marginTop: "6px" }}>
+                    Estudiante no encontrado
+                  </div>
+                )}
+                {selectedUser && (
+                  <div style={{ fontSize: "11px", color: "var(--primary)", marginTop: "4px", fontFamily: "'Space Grotesk', sans-serif" }}>
+                    ✓ {selectedUser.profile?.full_name}
+                  </div>
+                )}
               </div>
 
               <div className="input-wrapper">

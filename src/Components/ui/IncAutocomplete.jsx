@@ -55,10 +55,10 @@ export default function IncAutocomplete({
     // Reset state on every change
     setNotFound(false);
     setSuggestions([]);
-    onSelect?.(null);
 
     if (!val || val.length < MIN_CHARS) {
       setSearching(false);
+      onSelect?.(null);
       return;
     }
 

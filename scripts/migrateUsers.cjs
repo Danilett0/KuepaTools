@@ -75,6 +75,13 @@ async function migrate() {
   }
 
   console.log("Migration complete!");
+
+  try {
+    fs.unlinkSync('./users_updated.json');
+    console.log("Cleaned up: users_updated.json was successfully deleted.");
+  } catch (err) {
+    console.warn("Could not delete users_updated.json:", err.message);
+  }
 }
 
 migrate().catch(err => {
