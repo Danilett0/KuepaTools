@@ -1,13 +1,15 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocalStorage } from "../hooks/useLocalStorage";
-import { Copy, Terminal, User, List, Search } from "lucide-react";
+import { Copy, Terminal, User, List, Search, FileSpreadsheet } from "lucide-react";
 import { toast } from "react-toastify";
+import * as XLSX from "xlsx";
 import AllianceSwitcher from "./ui/AllianceSwitcher";
 import ClearButton from "./ui/ClearButton";
 import IncAutocomplete from "./ui/IncAutocomplete";
 import { ALLIANCE_IDS } from "../utils/constants";
 import { useAppStore } from "../store/useAppStore";
 import { supabase } from "../services/supabaseClient";
+import { useUsuariosCompletos } from "../hooks/useUsuariosCompletos";
 
 // ── Utilidad: extrae el ID del grupo académico ──────────────────────────────
 function extractGroupId(input) {
@@ -22,6 +24,7 @@ function extractGroupId(input) {
 // ── Card 1: Deshacer publicación ────────────────────────────────────────────
 function UndoPublicationCard() {
   const [inputValue, setInputValue] = useLocalStorage("herr_undo_groupInput", "");
+  const fileInputRef = useRef(null);
   
   const aiPrefilledData = useAppStore(state => state.aiPrefilledData);
   const setAiPrefilledData = useAppStore(state => state.setAiPrefilledData);
@@ -35,8 +38,10 @@ function UndoPublicationCard() {
     }
   }, [aiPrefilledData, setInputValue, setAiPrefilledData]);
 
-  const groupId = extractGroupId(inputValue);
-  const command = groupId ? `magik run:prod undo:publication ["${groupId}"]` : "";
+  const groupIds = Array.from(new Set(inputValue.match(/\b([a-f0-9]{24})\b/ig) || []));
+  const command = groupIds.length > 0 
+    ? `magik run:prod undo:publication [${groupIds.map(id => `"${id}"`).join(",")}]` 
+    : "";
 
   const handleClear = () => setInputValue("");
 
@@ -44,6 +49,37 @@ function UndoPublicationCard() {
     if (!command) return;
     navigator.clipboard.writeText(command);
     toast.success("Comando copiado al portapapeles");
+  };
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data);
+      let allText = "";
+      workbook.SheetNames.forEach(sheetName => {
+        const sheet = workbook.Sheets[sheetName];
+        const json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+        allText += json.flat().join(" ") + " ";
+      });
+      
+      const ids = Array.from(new Set(allText.match(/\b([a-f0-9]{24})\b/ig) || []));
+      if (ids.length > 0) {
+        setInputValue(prev => {
+          const prevIds = prev.match(/\b([a-f0-9]{24})\b/ig) || [];
+          return Array.from(new Set([...prevIds, ...ids])).filter(Boolean).join('\n');
+        });
+        toast.success(`Se extrajeron ${ids.length} grupos del archivo`);
+      } else {
+        toast.warning("No se encontraron IDs válidos en el archivo");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Error al leer el archivo Excel");
+    }
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   return (
@@ -71,18 +107,44 @@ function UndoPublicationCard() {
 
       {/* ── Input ───────────────────────────────────────────────────── */}
       <div className="input-wrapper" style={{ marginBottom: "20px" }}>
-        <label className="input-label">ID o URL del Grupo Académico</label>
-        <input
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <label className="input-label">ID o URL del Grupo Académico</label>
+          
+          <div style={{ position: "relative" }}>
+            <input 
+              type="file" 
+              accept=".xlsx, .xls, .csv" 
+              style={{ display: "none" }} 
+              ref={fileInputRef}
+              onChange={handleFileUpload}
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              title="Cargar Excel con IDs"
+              style={{
+                display: "flex", alignItems: "center", gap: "6px",
+                background: "var(--surface-void)", color: "var(--primary)",
+                border: "1px solid var(--glass-border)", borderRadius: "8px",
+                padding: "4px 10px", fontSize: "11px", fontWeight: 600,
+                cursor: "pointer", transition: "all 0.2s ease"
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--primary)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--glass-border)"; }}
+            >
+              <FileSpreadsheet size={14} /> Subir Excel
+            </button>
+          </div>
+        </div>
+        <textarea
           className="inscripciones-input"
-          type="text"
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
           placeholder="6765d926107fc303893724e9  ó  https://sis.kuepa.com/academic-group/details/…"
-          style={{ fontSize: "13px", fontFamily: "'Space Grotesk', monospace" }}
+          style={{ fontSize: "13px", fontFamily: "'Space Grotesk', monospace", minHeight: groupIds.length > 1 ? "80px" : "40px", resize: "vertical" }}
         />
-        {inputValue.trim() && !groupId && (
+        {inputValue.trim() && groupIds.length === 0 && (
           <span style={{ fontSize: "11px", color: "#ef4444", marginLeft: "4px", fontFamily: "'Space Grotesk', sans-serif" }}>
-            No se pudo extraer un ID válido
+            No se pudo extraer ningún ID válido
           </span>
         )}
       </div>
@@ -90,7 +152,9 @@ function UndoPublicationCard() {
       {/* ── Comando generado ─────────────────────────────────────────── */}
       <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <label className="input-label">Comando generado</label>
+          <label className="input-label">
+            Comando generado {groupIds.length > 0 && <span style={{ color: "var(--primary)" }}>({groupIds.length} grupos)</span>}
+          </label>
           {command && (
             <button
               onClick={handleCopy}
@@ -110,15 +174,17 @@ function UndoPublicationCard() {
           )}
         </div>
         <div className="commands" style={{
-          marginTop: 0, minHeight: "54px",
-          display: "flex", alignItems: "center",
+          marginTop: 0, minHeight: "54px", maxHeight: "150px", overflowY: "auto",
+          display: "flex", alignItems: command ? "flex-start" : "center",
+          paddingTop: command ? "12px" : undefined,
+          paddingBottom: command ? "12px" : undefined,
           opacity: command ? 1 : 0.4,
         }}>
           {command ? (
-            <span style={{ letterSpacing: "0.02em" }}>{command}</span>
+            <span style={{ letterSpacing: "0.02em", wordBreak: "break-all" }}>{command}</span>
           ) : (
             <span style={{ color: "rgba(202,225,215,0.35)", fontStyle: "italic", fontSize: "13px" }}>
-              Ingresa un ID o URL para generar el comando…
+              Ingresa un ID, URL o sube un Excel…
             </span>
           )}
         </div>
@@ -134,9 +200,14 @@ function FinalUserCard() {
   const [incText, setIncText] = useLocalStorage("herr_final_incText", "");
   const [studentId, setStudentId] = useState("");
   const [studentName, setStudentName] = useState("");
+  
+  const [bulkMode, setBulkMode] = useLocalStorage("herr_final_bulkMode", false);
+  const [bulkText, setBulkText] = useLocalStorage("herr_final_bulkText", "");
+  const fileInputRef = useRef(null);
 
   const aiPrefilledData = useAppStore(state => state.aiPrefilledData);
   const setAiPrefilledData = useAppStore(state => state.setAiPrefilledData);
+  const { findUsersByIncList } = useUsuariosCompletos();
 
   useEffect(() => {
     if (aiPrefilledData && aiPrefilledData.intent === 'FINAL_USER') {
@@ -171,17 +242,82 @@ function FinalUserCard() {
     setIncText("");
     setStudentId("");
     setStudentName("");
+    setBulkText("");
   };
 
-  const command =
-    resolvedGroupId && studentId
-      ? `magik run:prod:force final:user ["${resolvedGroupId}", "${studentId}"]`
-      : "";
+  const handleFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data);
+      let allText = "";
+      workbook.SheetNames.forEach(sheetName => {
+        const sheet = workbook.Sheets[sheetName];
+        const json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+        allText += json.flat().join(" ") + " ";
+      });
+      
+      const extractedIds = Array.from(new Set(allText.match(/\b([a-f0-9]{24})\b|\b(\d{4,12})\b/ig) || [])).filter(Boolean);
+      
+      if (extractedIds.length > 0) {
+        const mongoIds = extractedIds.filter(id => id.length === 24);
+        const incs = extractedIds.filter(id => id.length !== 24).map(Number).filter(n => !isNaN(n));
+        
+        let resolvedIds = [...mongoIds];
+        
+        if (incs.length > 0) {
+          const toastId = toast.loading("Resolviendo INCs en la base de datos...");
+          try {
+            const foundUsers = await findUsersByIncList(incs, allianceId);
+            const foundMongoIds = foundUsers.map(u => u._id.$oid);
+            resolvedIds = [...resolvedIds, ...foundMongoIds];
+            
+            if (foundUsers.length < incs.length) {
+              toast.update(toastId, { render: `Se resolvieron ${foundUsers.length} de ${incs.length} INCs`, type: "warning", isLoading: false, autoClose: 4000 });
+            } else {
+              toast.update(toastId, { render: `Todos los INCs fueron resueltos`, type: "success", isLoading: false, autoClose: 2000 });
+            }
+          } catch (err) {
+            console.error("Error resolviendo INCs:", err);
+            toast.update(toastId, { render: "Error al resolver INCs", type: "error", isLoading: false, autoClose: 3000 });
+          }
+        }
+        
+        const finalIds = Array.from(new Set(resolvedIds));
+        
+        if (finalIds.length > 0) {
+          setBulkText(finalIds.join('\n'));
+          setBulkMode(true);
+          if (incs.length === 0) {
+            toast.success(`Se extrajeron ${finalIds.length} estudiantes del archivo`);
+          }
+        } else {
+          toast.warning("No se pudieron resolver IDs válidos");
+        }
+      } else {
+        toast.warning("No se encontraron IDs válidos en el archivo");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Error al leer el archivo Excel");
+    }
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const studentIds = bulkMode 
+    ? Array.from(new Set(bulkText.match(/\b([a-f0-9]{24})\b|\b(\d{4,12})\b/ig) || [])).filter(Boolean)
+    : (studentId ? [studentId] : []);
+
+  const commands = resolvedGroupId && studentIds.length > 0
+    ? studentIds.map(id => `magik run:prod:force final:user ["${resolvedGroupId}", "${id}"]`).join("\n")
+    : "";
 
   const handleCopy = () => {
-    if (!command) return;
-    navigator.clipboard.writeText(command);
-    toast.success("Comando copiado al portapapeles");
+    if (!commands) return;
+    navigator.clipboard.writeText(commands);
+    toast.success("Comandos copiados al portapapeles");
   };
 
   return (
@@ -215,7 +351,9 @@ function FinalUserCard() {
 
         {/* Input grupo */}
         <div className="input-wrapper">
-          <label className="input-label">ID o URL del Grupo Académico</label>
+          <div style={{ display: "flex", alignItems: "flex-end", minHeight: "24px" }}>
+            <label className="input-label" style={{ marginBottom: 0 }}>ID o URL del Grupo Académico</label>
+          </div>
           <input
             className="inscripciones-input"
             type="text"
@@ -234,20 +372,74 @@ function FinalUserCard() {
           )}
         </div>
 
-        {/* Input INC estudiante con autocomplete */}
+        {/* Input INC estudiante con autocomplete / bulk */}
         <div className="input-wrapper">
-          <label className="input-label">INC del Estudiante</label>
-          <IncAutocomplete
-            alianzaId={allianceId}
-            value={incText}
-            onChange={setIncText}
-            onSelect={handleSelectUser}
-            placeholder="Ej: 292828"
-          />
-          {studentName && (
-            <span style={{ fontSize: "11px", color: "var(--primary)", marginLeft: "4px", display: "flex", alignItems: "center", gap: "4px" }}>
-              ✓ {studentName}
-            </span>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", minHeight: "24px" }}>
+            <label className="input-label" style={{ marginBottom: 0 }}>Estudiante(s)</label>
+            <div style={{ position: "relative" }}>
+              <input 
+                type="file" 
+                accept=".xlsx, .xls, .csv" 
+                style={{ display: "none" }} 
+                ref={fileInputRef}
+                onChange={handleFileUpload}
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                title="Cargar Excel con IDs"
+                style={{
+                  display: "flex", alignItems: "center", gap: "6px",
+                  background: "var(--surface-void)", color: "var(--primary)",
+                  border: "1px solid var(--glass-border)", borderRadius: "6px",
+                  padding: "2px 8px", fontSize: "10px", fontWeight: 600,
+                  cursor: "pointer", transition: "all 0.2s ease"
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--primary)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--glass-border)"; }}
+              >
+                <FileSpreadsheet size={12} /> Subir Excel
+              </button>
+            </div>
+          </div>
+          
+          {bulkMode ? (
+            <div className="inscripciones-input animate-slide-down" style={{ 
+              display: "flex", justifyContent: "space-between", alignItems: "center", 
+              background: "rgba(18, 163, 131, 0.05)", borderColor: "rgba(18, 163, 131, 0.3)",
+              padding: "0 16px", height: "52px"
+            }}>
+              <span style={{ fontSize: "13px", color: "var(--primary)", fontWeight: 700, fontFamily: "'Nunito', sans-serif" }}>
+                ✓ {studentIds.length} estudiantes listos
+              </span>
+              <button 
+                onClick={() => { setBulkMode(false); setBulkText(""); }} 
+                style={{ 
+                  background: "var(--surface-void)", border: "1px solid var(--glass-border)", 
+                  borderRadius: "6px", padding: "4px 10px", fontSize: "11px", fontWeight: 600,
+                  color: "var(--on-surface)", cursor: "pointer",
+                  transition: "all 0.2s ease"
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(239, 68, 68, 0.1)"; e.currentTarget.style.color = "#ef4444"; e.currentTarget.style.borderColor = "rgba(239, 68, 68, 0.3)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "var(--surface-void)"; e.currentTarget.style.color = "var(--on-surface)"; e.currentTarget.style.borderColor = "var(--glass-border)"; }}
+              >
+                Cancelar
+              </button>
+            </div>
+          ) : (
+            <div style={{}}>
+              <IncAutocomplete
+                alianzaId={allianceId}
+                value={incText}
+                onChange={setIncText}
+                onSelect={handleSelectUser}
+                placeholder="Ej: 292828"
+              />
+              {studentName && (
+                <span style={{ fontSize: "11px", color: "var(--primary)", marginLeft: "4px", display: "flex", alignItems: "center", gap: "4px", marginTop: "6px" }}>
+                  ✓ {studentName}
+                </span>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -255,8 +447,10 @@ function FinalUserCard() {
       {/* ── Comando generado ─────────────────────────────────────────── */}
       <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <label className="input-label">Comando generado</label>
-          {command && (
+          <label className="input-label">
+            Comandos generados {studentIds.length > 0 && <span style={{ color: "var(--primary)" }}>({studentIds.length})</span>}
+          </label>
+          {commands && (
             <button
               onClick={handleCopy}
               style={{
@@ -270,21 +464,26 @@ function FinalUserCard() {
               onMouseEnter={(e) => { e.currentTarget.style.opacity = "0.85"; }}
               onMouseLeave={(e) => { e.currentTarget.style.opacity = "1"; }}
             >
-              <Copy size={13} /> Copiar
+              <Copy size={13} /> {studentIds.length > 1 ? "Copiar Todos" : "Copiar"}
             </button>
           )}
         </div>
         <div className="commands" style={{
-          marginTop: 0, minHeight: "54px",
-          display: "flex", alignItems: "center",
-          opacity: command ? 1 : 0.4,
-          borderColor: command ? "rgba(124,58,237,0.4)" : "var(--glass-border)",
+          marginTop: 0, minHeight: "54px", maxHeight: "150px", overflowY: "auto",
+          display: "flex", flexDirection: "column", gap: "4px",
+          alignItems: commands ? "flex-start" : "center",
+          paddingTop: commands ? "12px" : undefined,
+          paddingBottom: commands ? "12px" : undefined,
+          opacity: commands ? 1 : 0.4,
+          borderColor: commands ? "rgba(124,58,237,0.4)" : "var(--glass-border)",
         }}>
-          {command ? (
-            <span style={{ letterSpacing: "0.02em" }}>{command}</span>
+          {commands ? (
+            commands.split('\n').map((cmd, idx) => (
+              <span key={idx} style={{ letterSpacing: "0.02em", whiteSpace: "nowrap" }}>{cmd}</span>
+            ))
           ) : (
             <span style={{ color: "rgba(202,225,215,0.35)", fontStyle: "italic", fontSize: "13px" }}>
-              Completa los dos campos para generar el comando…
+              Completa los datos para generar el comando…
             </span>
           )}
         </div>
