@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, Info } from "lucide-react";
+import { ChevronDown, ChevronRight, Info, LogOut } from "lucide-react";
 import { motion } from "framer-motion";
 import ClearStorageModal from "./ui/ClearStorageModal.jsx";
 import { useAppStore } from "../store/useAppStore.js";
@@ -21,6 +21,8 @@ export default function Sidebar({
   const setActiveComponent = useAppStore(state => state.setActiveComponent);
   const setExpandedMenu = useAppStore(state => state.setExpandedMenu);
   const setShowClearModal = useAppStore(state => state.setShowClearModal);
+  const logout = useAppStore(state => state.logout);
+
   const handleLogoClick = () => {
     setShowClearModal(true);
   };
@@ -183,6 +185,17 @@ export default function Sidebar({
             <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', gap: '16px', width: '100%' }}>
               <Info size={20} />
               <span style={{ flex: 1 }}>Información</span>
+            </div>
+          </div>
+
+          <div
+            className="sidebar-item"
+            style={{ position: 'relative', color: '#ff4757', marginTop: '4px' }}
+            onClick={logout}
+          >
+            <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', gap: '16px', width: '100%' }}>
+              <LogOut size={20} />
+              <span style={{ flex: 1 }}>Cerrar Sesión</span>
             </div>
           </div>
         </div>

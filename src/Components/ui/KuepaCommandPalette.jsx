@@ -9,6 +9,7 @@ import { useLocalStorage } from '../../hooks/useLocalStorage';
 import { toast } from 'react-toastify';
 import AllianceSwitcher from './AllianceSwitcher';
 import { ALLIANCE_IDS, STATE_OPTIONS_BY_ALIANZA } from '../../utils/constants';
+import { setGlobalSetting, getGlobalSetting } from '../../services/settingsService';
 
 export default function KuepaCommandPalette() {
   const { isCommandPaletteOpen, setIsCommandPaletteOpen, setActiveComponent, setAiPrefilledData, setExpandedMenu } = useAppStore();
@@ -17,6 +18,7 @@ export default function KuepaCommandPalette() {
   const [analyzingState, setAnalyzingState] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
   const [apiKey, setApiKey] = useLocalStorage('gemini_api_key', '');
+  const [isFetchingKey, setIsFetchingKey] = useState(false);
   const [aiAlliance, setAiAlliance] = useLocalStorage('ai_alliance', 'na');
   const inputRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -25,14 +27,26 @@ export default function KuepaCommandPalette() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  // Focus input when opened and scroll to bottom
+  // Focus input when opened, scroll to bottom, and load DB key if missing
   useEffect(() => {
+    const loadKeyFromDb = async () => {
+      if (!apiKey) {
+        setIsFetchingKey(true);
+        const dbKey = await getGlobalSetting('gemini_api_key');
+        if (dbKey) {
+          setApiKey(dbKey.replace(/['"]/g, '').trim());
+        }
+        setIsFetchingKey(false);
+      }
+    };
+
     if (isCommandPaletteOpen) {
       setTimeout(() => {
         inputRef.current?.focus();
       }, 100);
       setInputValue('');
       setChatHistory([]);
+      loadKeyFromDb();
     }
   }, [isCommandPaletteOpen]);
 
@@ -68,7 +82,8 @@ export default function KuepaCommandPalette() {
     
     try {
       const { AgentOrchestrator } = await import('../../services/AgentOrchestrator');
-      const orchestrator = new AgentOrchestrator(apiKey, aiAlliance);
+      const cleanApiKey = apiKey.replace(/['"]/g, '').trim();
+      const orchestrator = new AgentOrchestrator(cleanApiKey, aiAlliance);
 
       // Loop for QUERY resolutions
       let currentHistory = [...updatedHistory];
@@ -193,6 +208,23 @@ export default function KuepaCommandPalette() {
     });
   };
 
+  const handleApiKeyBlur = async () => {
+    // Solo guardamos en DB si la key no está vacía.
+    // Esto evita que limpiar el input (o un render inicial) sobreescriba la BD a vacío.
+    if (apiKey && apiKey.trim() !== '') {
+      const cleanKey = apiKey.replace(/['"]/g, '').trim();
+      if (cleanKey !== apiKey) {
+        setApiKey(cleanKey);
+      }
+      const success = await setGlobalSetting('gemini_api_key', cleanKey);
+      if (success) {
+        toast.success("API Key sincronizada globalmente ✨");
+      } else {
+        toast.error("Error guardando la API Key en la nube");
+      }
+    }
+  };
+
   const handleExecute = (parsedResult, contextText) => {
     if (parsedResult?.type === 'ROUTE' && parsedResult.targetComponent) {
       // Navegar a la herramienta con los datos prellenados
@@ -278,8 +310,10 @@ export default function KuepaCommandPalette() {
                             type="password"
                             value={apiKey}
                             onChange={(e) => setApiKey(e.target.value)}
-                            placeholder="AIzaSy..."
-                            style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: 'var(--on-surface)', padding: '10px', fontSize: '13px', fontFamily: "'Space Grotesk', monospace" }}
+                            onBlur={handleApiKeyBlur}
+                            disabled={isFetchingKey}
+                            placeholder={isFetchingKey ? "Cargando desde DB..." : "AIzaSy..."}
+                            style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: 'var(--on-surface)', padding: '10px', fontSize: '13px', fontFamily: "'Space Grotesk', monospace", opacity: isFetchingKey ? 0.5 : 1 }}
                           />
                         </div>
                         {apiKey && <span style={{ fontSize: '12px', color: 'var(--primary)', fontWeight: 600 }}>Integrado ✨</span>}

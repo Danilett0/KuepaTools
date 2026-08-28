@@ -8,6 +8,8 @@ import { useEffect } from "react";
 import Sidebar from "./Components/Sidebar.jsx";
 import AppRouter from "./Components/AppRouter.jsx";
 import KuepaCommandPalette from "./Components/ui/KuepaCommandPalette.jsx";
+import Login from "./Components/Login.jsx";
+import ResetPassword from "./Components/ResetPassword.jsx";
 import { useAppStore } from "./store/useAppStore.js";
 
 const NAV_ITEMS = [
@@ -56,12 +58,60 @@ function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isCommandPaletteOpen, setIsCommandPaletteOpen]);
 
+  useEffect(() => {
+    const cleanup = useAppStore.getState().initializeAuth();
+    return cleanup;
+  }, []);
+
   const handleConfirmClear = () => {
     localStorage.clear();
     setShowClearModal(false);
     toast.success("Storage limpiado. Recargando...", { autoClose: 3000 });
     setTimeout(() => window.location.reload(), 1500);
   };
+
+  const session = useAppStore(state => state.session);
+  const isAuthInitialized = useAppStore(state => state.isAuthInitialized);
+  const isPasswordRecovery = useAppStore(state => state.isPasswordRecovery);
+  const userRole = useAppStore(state => state.userRole);
+
+  if (!isAuthInitialized) {
+    return <div style={{ height: '100vh', width: '100vw', background: 'var(--surface-void)' }} />; // Avoid flashing the login page while fetching session
+  }
+
+  if (isPasswordRecovery) {
+    return (
+      <>
+        <ResetPassword />
+        <ToastContainer
+          theme="dark"
+          toastStyle={{
+            background: "var(--surface-low)",
+            color: "var(--on-surface)",
+            borderRadius: "12px",
+            border: "1px solid var(--glass-border)",
+          }}
+        />
+      </>
+    );
+  }
+
+  if (!session) {
+    return (
+      <>
+        <Login />
+        <ToastContainer
+          theme="dark"
+          toastStyle={{
+            background: "var(--surface-low)",
+            color: "var(--on-surface)",
+            borderRadius: "12px",
+            border: "1px solid var(--glass-border)",
+          }}
+        />
+      </>
+    );
+  }
 
   return (
     <div className="app-wrapper">
@@ -71,7 +121,7 @@ function App() {
       />
 
       <main className="main-content">
-        <KuepaCommandPalette />
+        {userRole === 'admin' && <KuepaCommandPalette />}
         <div
           className="app-container"
           style={activeComponent === "informacion" ? { maxWidth: "100%", height: "100%" } : {}}
@@ -80,13 +130,14 @@ function App() {
         </div>
       </main>
 
-      {/* Floating AI Button */}
-      <button
-        onClick={() => setIsCommandPaletteOpen(true)}
-        style={{
-          position: 'fixed',
-          bottom: '24px',
-          right: '24px',
+      {/* Floating AI Button (Only for admin) */}
+      {userRole === 'admin' && (
+        <button
+          onClick={() => setIsCommandPaletteOpen(true)}
+          style={{
+            position: 'fixed',
+            bottom: '24px',
+            right: '24px',
           width: '56px',
           height: '56px',
           borderRadius: '28px',
@@ -107,6 +158,7 @@ function App() {
       >
         <Bot size={28} />
       </button>
+      )}
 
       <ToastContainer
         theme="dark"
