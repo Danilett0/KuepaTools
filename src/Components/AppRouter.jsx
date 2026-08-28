@@ -9,6 +9,7 @@ const AuditarEstadisticas = lazy(() => import("./AuditarEstadisticas.jsx"));
 const Informacion = lazy(() => import("./Informacion.jsx"));
 const BuscarIdInc = lazy(() => import("./BuscarIdInc.jsx"));
 const ProgramasPorEstudiante = lazy(() => import("./ProgramasPorEstudiante.jsx"));
+const Migrations = lazy(() => import("./Migrations.jsx"));
 
 // Para componentes exportados de forma nombrada:
 const UndoPublicationPage = lazy(() => import("./HerramientasAcademicos.jsx").then(module => ({ default: module.UndoPublicationPage })));
@@ -43,6 +44,8 @@ export default function AppRouter() {
         return <BuscarIdInc key="buscar-id" />;
       case "programas-estudiante":
         return <ProgramasPorEstudiante key="programas-estudiante" />;
+      case "migraciones":
+        return <Migrations key="migraciones" />;
       case "herramientas-undo":
         return <UndoPublicationPage key="herramientas-undo" />;
       case "herramientas-final":

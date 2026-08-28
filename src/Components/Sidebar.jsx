@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, Info, LogOut } from "lucide-react";
+import { ChevronDown, ChevronRight, Info, LogOut, Database } from "lucide-react";
 import { motion } from "framer-motion";
 import ClearStorageModal from "./ui/ClearStorageModal.jsx";
 import { useAppStore } from "../store/useAppStore.js";
@@ -22,6 +22,7 @@ export default function Sidebar({
   const setExpandedMenu = useAppStore(state => state.setExpandedMenu);
   const setShowClearModal = useAppStore(state => state.setShowClearModal);
   const logout = useAppStore(state => state.logout);
+  const userRole = useAppStore(state => state.userRole);
 
   const handleLogoClick = () => {
     setShowClearModal(true);
@@ -160,6 +161,36 @@ export default function Sidebar({
         </div>
 
         <div style={{ marginTop: 'auto', paddingTop: '20px', borderTop: '1px solid var(--glass-border)' }}>
+          {userRole === 'admin' && (
+            <div
+              className={`sidebar-item ${activeComponent === 'migraciones' ? 'active' : ''}`}
+              style={{ position: 'relative' }}
+              onClick={() => { setActiveComponent('migraciones'); setExpandedMenu(null); }}
+            >
+              {activeComponent === 'migraciones' && (
+                <motion.div
+                  layoutId="sidebar-active-indicator"
+                  className="sidebar-active-bg"
+                  initial={false}
+                  transition={{ type: "spring", stiffness: 350, damping: 30 }}
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    background: "var(--surface-overlay)",
+                    borderLeft: "3px solid var(--primary)",
+                    boxShadow: "inset 0 0 20px rgba(18, 163, 131, 0.05)",
+                    borderRadius: "12px",
+                    zIndex: 0
+                  }}
+                />
+              )}
+              <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', gap: '16px', width: '100%' }}>
+                <Database size={20} />
+                <span style={{ flex: 1 }}>Migraciones DB</span>
+              </div>
+            </div>
+          )}
+
           <div
             className={`sidebar-item ${activeComponent === 'informacion' ? 'active' : ''}`}
             style={{ position: 'relative' }}
