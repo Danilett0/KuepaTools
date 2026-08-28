@@ -1,5 +1,5 @@
 import React, { useState, useRef } from "react";
-import { Database, Upload, Play, AlertCircle, CheckCircle2, Loader2, FileJson } from "lucide-react";
+import { Database, Upload, Play, AlertCircle, CheckCircle2, Loader2, FileJson, Copy } from "lucide-react";
 import { toast } from "react-toastify";
 import { supabase } from "../services/supabaseClient";
 
@@ -191,8 +191,28 @@ export default function Migrations() {
     }
   };
 
+  const getMongoQuery = () => {
+    if (selectedType === "users") {
+      return {
+        filter: `{deleted:false, alliance_id:{$in:[ObjectId('6303ed663138387a1669d82a'), ObjectId('602169e217b5c8a27f9e9c06')]}}`,
+        project: `{incremental_user_code:1, "programs.structure":1, "profile.email":1, "profile.phone":1, "profile.full_name":1, alliance_id:1, "programs.business_statuses.business_status":1, created_at:1}`
+      };
+    } else if (selectedType === "structures") {
+      return {
+        filter: `{structure_category_id: {$in: [ObjectId("602ab2860d179ecd25c3a7bb"),ObjectId("6303ed683138387a1669d84b"),ObjectId("602ab2860d179ecd25c3a7ba"),ObjectId("6303ed683138387a1669d84a")]}}`,
+        project: `{ "config.users.user": 1, name: 1, "config.pensum_level": 1, alliance_id: 1, parent: 1 }`
+      };
+    } else if (selectedType === "pensum_levels") {
+      return {
+        filter: `{ deleted: false }`,
+        project: `{ name: 1, alliance_id: 1 }`
+      };
+    }
+    return null;
+  };
+
   return (
-    <div className="animate-fade-in" style={{ padding: "24px", maxWidth: "800px", margin: "0 auto", overflow: "auto" }}>
+    <div className="animate-fade-in" style={{ padding: "24px", width: "100%", maxWidth: "800px", margin: "0 auto", overflow: "auto" }}>
       <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "24px" }}>
         <div style={{
           width: "48px", height: "48px", borderRadius: "12px",
@@ -211,7 +231,7 @@ export default function Migrations() {
         </div>
       </div>
 
-      <div style={{ background: "var(--surface-low)", border: "1px solid var(--glass-border)", borderRadius: "16px", padding: "24px" }}>
+      <div style={{ background: "var(--surface-low)", border: "1px solid var(--glass-border)", borderRadius: "16px", padding: "24px", minHeight: "600px", display: "flex", flexDirection: "column" }}>
         
         {/* Selector de Tipo */}
         <div style={{ marginBottom: "24px" }}>
@@ -285,16 +305,79 @@ export default function Migrations() {
         </div>
 
         {/* Acciones e Información de Progreso */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-          <div style={{ display: "flex", alignItems: "flex-start", gap: "12px", padding: "16px", background: "rgba(255, 171, 0, 0.1)", borderRadius: "8px", border: "1px solid rgba(255, 171, 0, 0.2)" }}>
-            <AlertCircle size={20} style={{ color: "#ffab00", flexShrink: 0 }} />
-            <div>
-              <p style={{ margin: 0, fontSize: "13px", color: "var(--on-surface)", lineHeight: "1.5" }}>
-                <strong>Importante:</strong> Esta acción modificará la base de datos de producción directamente en lotes de 500 registros. 
-                El proceso de transformación y limpieza se aplicará automáticamente según el tipo de migración seleccionado.
-              </p>
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px", marginTop: "auto" }}>
+          {getMongoQuery() && (
+            <div style={{ display: "flex", alignItems: "flex-start", gap: "12px", padding: "16px", background: "rgba(255, 171, 0, 0.1)", borderRadius: "8px", border: "1px solid rgba(255, 171, 0, 0.2)" }}>
+              <AlertCircle size={20} style={{ color: "#ffab00", flexShrink: 0, marginTop: "2px" }} />
+              <div style={{ flex: 1 }}>
+                <p style={{ margin: 0, fontSize: "13px", color: "var(--on-surface)", lineHeight: "1.5", fontWeight: 600 }}>
+                  Para obtener estos datos debes ejecutar esta consulta en Mongo Compass:
+                </p>
+                <div style={{ marginTop: "12px", display: "flex", flexDirection: "column", gap: "8px" }}>
+                  <div>
+                    <span style={{ fontSize: "12px", color: "var(--on-surface-variant)", fontWeight: 700 }}>FILTER</span>
+                    <div style={{ position: "relative", marginTop: "4px" }}>
+                      <pre style={{ 
+                        margin: 0, padding: "12px", background: "rgba(0,0,0,0.3)", borderRadius: "6px", 
+                        fontSize: "12px", fontFamily: "'Space Grotesk', monospace", color: "var(--on-surface-variant)",
+                        whiteSpace: "pre-wrap", wordBreak: "break-all", paddingRight: "40px"
+                      }}>
+                        {getMongoQuery().filter}
+                      </pre>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(getMongoQuery().filter);
+                          toast.success("Filter copiado al portapapeles");
+                        }}
+                        title="Copiar Filter"
+                        style={{
+                          position: "absolute", top: "8px", right: "8px",
+                          background: "var(--surface-void)", border: "1px solid var(--glass-border)",
+                          color: "var(--on-surface)", padding: "4px", borderRadius: "4px",
+                          cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                          transition: "all 0.2s ease"
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--primary)"; e.currentTarget.style.color = "var(--primary)"; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--glass-border)"; e.currentTarget.style.color = "var(--on-surface)"; }}
+                      >
+                        <Copy size={14} />
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: "12px", color: "var(--on-surface-variant)", fontWeight: 700 }}>PROJECT</span>
+                    <div style={{ position: "relative", marginTop: "4px" }}>
+                      <pre style={{ 
+                        margin: 0, padding: "12px", background: "rgba(0,0,0,0.3)", borderRadius: "6px", 
+                        fontSize: "12px", fontFamily: "'Space Grotesk', monospace", color: "var(--on-surface-variant)",
+                        whiteSpace: "pre-wrap", wordBreak: "break-all", paddingRight: "40px"
+                      }}>
+                        {getMongoQuery().project}
+                      </pre>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(getMongoQuery().project);
+                          toast.success("Project copiado al portapapeles");
+                        }}
+                        title="Copiar Project"
+                        style={{
+                          position: "absolute", top: "8px", right: "8px",
+                          background: "var(--surface-void)", border: "1px solid var(--glass-border)",
+                          color: "var(--on-surface)", padding: "4px", borderRadius: "4px",
+                          cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                          transition: "all 0.2s ease"
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--primary)"; e.currentTarget.style.color = "var(--primary)"; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--glass-border)"; e.currentTarget.style.color = "var(--on-surface)"; }}
+                      >
+                        <Copy size={14} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
+          )}
 
           {isProcessing || progress.status ? (
             <div style={{ background: "var(--surface-void)", padding: "16px", borderRadius: "12px", border: "1px solid var(--glass-border)" }}>
