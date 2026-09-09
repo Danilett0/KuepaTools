@@ -1,5 +1,5 @@
 import React, { useState, useRef } from "react";
-import { Database, Upload, Play, AlertCircle, CheckCircle2, Loader2, FileJson, Copy } from "lucide-react";
+import { Database, Upload, Play, AlertCircle, CheckCircle2, Loader2, FileJson, Copy, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "react-toastify";
 import { supabase } from "../services/supabaseClient";
 
@@ -7,6 +7,9 @@ const MIGRATION_TYPES = [
   { id: "users", label: "Usuarios", table: "users" },
   { id: "structures", label: "Estructuras", table: "structures" },
   { id: "pensum_levels", label: "Niveles de Pensum", table: "pensum_levels" },
+  { id: "alliances", label: "Alianzas", table: "alianzas" },
+  { id: "estados", label: "Estados", table: "estados" },
+  { id: "programas", label: "Programas", table: "programas" },
 ];
 
 export default function Migrations() {
@@ -14,6 +17,7 @@ export default function Migrations() {
   const [file, setFile] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState({ current: 0, total: 0, status: "" });
+  const [isQueryExpanded, setIsQueryExpanded] = useState(false);
   const fileInputRef = useRef(null);
 
   const handleFileChange = (e) => {
@@ -127,6 +131,68 @@ export default function Migrations() {
     });
   };
 
+  const migrateAlliances = async (data) => {
+    const transformed = data.map(doc => ({
+      mongo_id: doc._id?.$oid || doc._id,
+      name: doc.name || 'Sin nombre'
+    }));
+
+    const validData = transformed.filter(a => a.mongo_id);
+    
+    if (validData.length === 0) {
+      throw new Error("No se encontraron alianzas válidas (falta mongo_id).");
+    }
+
+    setProgress({ current: 0, total: validData.length, status: "Upserting alianzas..." });
+
+    await processInBatches(validData, 500, async (batch) => {
+      const { error } = await supabase.from('alianzas').upsert(batch, { onConflict: 'mongo_id', ignoreDuplicates: false });
+      if (error) throw error;
+    });
+  };
+
+  const migrateEstados = async (data) => {
+    const transformed = data.map(doc => ({
+      mongo_id: doc._id?.$oid || doc._id,
+      name: doc.name || 'Sin nombre',
+      alliance_id: doc.alliance?.$oid || doc.alliance || null
+    }));
+
+    const validData = transformed.filter(a => a.mongo_id);
+    
+    if (validData.length === 0) {
+      throw new Error("No se encontraron estados válidos (falta mongo_id).");
+    }
+
+    setProgress({ current: 0, total: validData.length, status: "Upserting estados..." });
+
+    await processInBatches(validData, 500, async (batch) => {
+      const { error } = await supabase.from('estados').upsert(batch, { onConflict: 'mongo_id', ignoreDuplicates: false });
+      if (error) throw error;
+    });
+  };
+
+  const migrateProgramas = async (data) => {
+    const transformed = data.map(doc => ({
+      mongo_id: doc._id?.$oid || doc._id,
+      name: doc.name || 'Sin nombre',
+      alliance_id: doc.alliance_id?.$oid || doc.alliance_id || null
+    }));
+
+    const validData = transformed.filter(a => a.mongo_id);
+    
+    if (validData.length === 0) {
+      throw new Error("No se encontraron programas válidos (falta mongo_id).");
+    }
+
+    setProgress({ current: 0, total: validData.length, status: "Upserting programas..." });
+
+    await processInBatches(validData, 500, async (batch) => {
+      const { error } = await supabase.from('programas').upsert(batch, { onConflict: 'mongo_id', ignoreDuplicates: false });
+      if (error) throw error;
+    });
+  };
+
   const handleMigrate = async () => {
     if (!file) return;
 
@@ -175,6 +241,39 @@ export default function Migrations() {
           throw new Error("❌ Rechazado: El archivo no tiene el formato válido para Niveles de Pensum (falta el campo 'name').");
         }
         await migratePensumLevels(jsonData);
+      } else if (selectedType === "alliances") {
+        if (hasUserFields) {
+          throw new Error("❌ Rechazado: Intentas subir un archivo de Usuarios en la sección de Alianzas.");
+        }
+        if (hasStructureFields) {
+          throw new Error("❌ Rechazado: Intentas subir un archivo de Estructuras en la sección de Alianzas.");
+        }
+        if (!hasName) {
+          throw new Error("❌ Rechazado: El archivo no tiene el formato válido para Alianzas (falta el campo 'name').");
+        }
+        await migrateAlliances(jsonData);
+      } else if (selectedType === "estados") {
+        if (hasUserFields) {
+          throw new Error("❌ Rechazado: Intentas subir un archivo de Usuarios en la sección de Estados.");
+        }
+        if (hasStructureFields) {
+          throw new Error("❌ Rechazado: Intentas subir un archivo de Estructuras en la sección de Estados.");
+        }
+        if (!hasName) {
+          throw new Error("❌ Rechazado: El archivo no tiene el formato válido para Estados (falta el campo 'name').");
+        }
+        await migrateEstados(jsonData);
+      } else if (selectedType === "programas") {
+        if (hasUserFields) {
+          throw new Error("❌ Rechazado: Intentas subir un archivo de Usuarios en la sección de Programas.");
+        }
+        if (hasStructureFields) {
+          throw new Error("❌ Rechazado: Intentas subir un archivo de Estructuras en la sección de Programas.");
+        }
+        if (!hasName) {
+          throw new Error("❌ Rechazado: El archivo no tiene el formato válido para Programas (falta el campo 'name').");
+        }
+        await migrateProgramas(jsonData);
       }
 
       toast.success("¡Migración completada con éxito!");
@@ -207,6 +306,21 @@ export default function Migrations() {
         filter: `{ deleted: false }`,
         project: `{ name: 1, alliance_id: 1 }`
       };
+    } else if (selectedType === "alliances") {
+      return {
+        filter: `{ deleted: false }`,
+        project: `{ _id: 1, name: 1 }`
+      };
+    } else if (selectedType === "estados") {
+      return {
+        filter: `{ deleted: false }`,
+        project: `{ name: 1, alliance_id: 1 }`
+      };
+    } else if (selectedType === "programas") {
+      return {
+        filter: `{structure_category_id:{$in:[ObjectId('602ab2860d179ecd25c3a7b8'), ObjectId('6303ed683138387a1669d848')]} , deleted:false}`,
+        project: `{_id:1, name:1, alliance_id:1}`
+      };
     }
     return null;
   };
@@ -231,7 +345,7 @@ export default function Migrations() {
         </div>
       </div>
 
-      <div style={{ background: "var(--surface-low)", border: "1px solid var(--glass-border)", borderRadius: "16px", padding: "24px", minHeight: "600px", display: "flex", flexDirection: "column" }}>
+      <div style={{ background: "var(--surface-low)", border: "1px solid var(--glass-border)", borderRadius: "16px", padding: "24px", display: "flex", flexDirection: "column" }}>
         
         {/* Selector de Tipo */}
         <div style={{ marginBottom: "24px" }}>
@@ -305,15 +419,21 @@ export default function Migrations() {
         </div>
 
         {/* Acciones e Información de Progreso */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "16px", marginTop: "auto" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           {getMongoQuery() && (
-            <div style={{ display: "flex", alignItems: "flex-start", gap: "12px", padding: "16px", background: "rgba(255, 171, 0, 0.1)", borderRadius: "8px", border: "1px solid rgba(255, 171, 0, 0.2)" }}>
-              <AlertCircle size={20} style={{ color: "#ffab00", flexShrink: 0, marginTop: "2px" }} />
-              <div style={{ flex: 1 }}>
-                <p style={{ margin: 0, fontSize: "13px", color: "var(--on-surface)", lineHeight: "1.5", fontWeight: 600 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px", padding: "16px", background: "rgba(255, 171, 0, 0.1)", borderRadius: "8px", border: "1px solid rgba(255, 171, 0, 0.2)", transition: "all 0.3s ease" }}>
+              <div 
+                onClick={() => setIsQueryExpanded(!isQueryExpanded)}
+                style={{ display: "flex", alignItems: "center", gap: "12px", cursor: "pointer", userSelect: "none" }}
+              >
+                <AlertCircle size={20} style={{ color: "#ffab00", flexShrink: 0 }} />
+                <p style={{ margin: 0, fontSize: "13px", color: "var(--on-surface)", lineHeight: "1.5", fontWeight: 600, flex: 1 }}>
                   Para obtener estos datos debes ejecutar esta consulta en Mongo Compass:
                 </p>
-                <div style={{ marginTop: "12px", display: "flex", flexDirection: "column", gap: "8px" }}>
+                {isQueryExpanded ? <ChevronUp size={20} style={{ color: "var(--on-surface-variant)" }} /> : <ChevronDown size={20} style={{ color: "var(--on-surface-variant)" }} />}
+              </div>
+              {isQueryExpanded && (
+                <div className="animate-fade-in" style={{ marginLeft: "32px", display: "flex", flexDirection: "column", gap: "8px" }}>
                   <div>
                     <span style={{ fontSize: "12px", color: "var(--on-surface-variant)", fontWeight: 700 }}>FILTER</span>
                     <div style={{ position: "relative", marginTop: "4px" }}>
@@ -375,7 +495,7 @@ export default function Migrations() {
                     </div>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
           )}
 

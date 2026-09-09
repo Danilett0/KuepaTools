@@ -2,13 +2,13 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { useLocalStorage } from "../hooks/useLocalStorage";
 import "../Styles/styles.css";
 import CommandsDisplay from "./CommandsDisplay";
-import { ChevronDown, RefreshCw } from "lucide-react";
+import { ChevronDown, RefreshCw, Search } from "lucide-react";
 import AllianceSwitcher from "./ui/AllianceSwitcher";
 import { findUser, findUsersByIncList } from "../services/usuariosService";
 import { useCatalogos } from "../hooks/useCatalogos";
 import ClearButton from "./ui/ClearButton";
 import IncAutocomplete from "./ui/IncAutocomplete";
-import { ALLIANCE_IDS, STATE_OPTIONS_BY_ALIANZA } from "../utils/constants";
+import { ALLIANCE_IDS } from "../utils/constants";
 import { useAppStore } from "../store/useAppStore";
 
 // ─── Datos de alianzas y estados ────────────────────────────────────────────
@@ -23,15 +23,11 @@ const ALLIANCE_MONGO_MAP = {
   kuepa: ALLIANCE_IDS.kuepa,
 };
 
-const stateOptionsByAlianza = {
-  nueva_america: STATE_OPTIONS_BY_ALIANZA.na,
-  kuepa: STATE_OPTIONS_BY_ALIANZA.kuepa,
-};
-
 // ─── Dropdown personalizado reutilizable ─────────────────────────────────────
 
 function CustomDropdown({ label, value, options, onChange, disabled, placeholder }) {
   const [open, setOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
   const ref = useRef(null);
   const selected = options.find((o) => o.value === value);
 
@@ -42,6 +38,14 @@ function CustomDropdown({ label, value, options, onChange, disabled, placeholder
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
+
+  useEffect(() => {
+    if (!open) setSearchTerm("");
+  }, [open]);
+
+  const filteredOptions = options.filter(opt => 
+    opt.label.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <div ref={ref} style={{ position: "relative" }}>
@@ -88,36 +92,56 @@ function CustomDropdown({ label, value, options, onChange, disabled, placeholder
             boxShadow: "0 8px 32px rgba(0, 0, 0, 0.3)",
             zIndex: 200,
             overflow: "hidden",
-            maxHeight: "240px",
-            overflowY: "auto",
+            maxHeight: "300px",
+            display: "flex",
+            flexDirection: "column",
           }}
         >
-          {options.map((opt) => (
-            <div
-              key={opt.value}
-              onClick={() => {
-                onChange(opt.value);
-                setOpen(false);
-              }}
+          <div style={{ padding: "8px", borderBottom: "1px solid var(--glass-border)", display: "flex", alignItems: "center", gap: "8px" }}>
+            <Search size={16} color="var(--on-surface-variant)" style={{ marginLeft: "8px" }} />
+            <input 
+              type="text"
+              autoFocus
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Buscar..."
               style={{
-                padding: "13px 16px",
-                cursor: "pointer",
-                background: value === opt.value ? "var(--primary-container)" : "transparent",
-                color: value === opt.value ? "#fff" : "var(--on-surface)",
-                fontFamily: "'Space Grotesk', sans-serif",
-                fontSize: "14px",
-                transition: "background 0.2s ease",
+                flex: 1, background: "transparent", border: "none", outline: "none", color: "var(--on-surface)", fontSize: "14px", fontFamily: "'Space Grotesk', sans-serif"
               }}
-              onMouseEnter={(e) => {
-                if (value !== opt.value) e.currentTarget.style.background = "rgba(255,255,255,0.05)";
-              }}
-              onMouseLeave={(e) => {
-                if (value !== opt.value) e.currentTarget.style.background = "transparent";
-              }}
-            >
-              {opt.label}
-            </div>
-          ))}
+            />
+          </div>
+          <div style={{ overflowY: "auto", flex: 1 }}>
+            {filteredOptions.length > 0 ? filteredOptions.map((opt) => (
+              <div
+                key={opt.value}
+                onClick={() => {
+                  onChange(opt.value);
+                  setOpen(false);
+                }}
+                style={{
+                  padding: "13px 16px",
+                  cursor: "pointer",
+                  background: value === opt.value ? "var(--primary-container)" : "transparent",
+                  color: value === opt.value ? "#fff" : "var(--on-surface)",
+                  fontFamily: "'Space Grotesk', sans-serif",
+                  fontSize: "14px",
+                  transition: "background 0.2s ease",
+                }}
+                onMouseEnter={(e) => {
+                  if (value !== opt.value) e.currentTarget.style.background = "rgba(255,255,255,0.05)";
+                }}
+                onMouseLeave={(e) => {
+                  if (value !== opt.value) e.currentTarget.style.background = "transparent";
+                }}
+              >
+                {opt.label}
+              </div>
+            )) : (
+              <div style={{ padding: "13px 16px", color: "var(--on-surface-variant)", fontSize: "14px", textAlign: "center", fontFamily: "'Space Grotesk', sans-serif" }}>
+                Sin resultados
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -151,6 +175,24 @@ function CambiosEstadoBemo() {
   const setAiPrefilledData = useAppStore(state => state.setAiPrefilledData);
 
   const singleAlianzaKey = singleAlliance === "na" ? "nueva_america" : "kuepa";
+
+  // ── Datos externos ───────────────────────────────────────────────────────
+  const { programas: programasData, estados: estadosData } = useCatalogos();
+
+  const stateOptionsByAlianza = useMemo(() => {
+    if (!estadosData) return { nueva_america: [], kuepa: [] };
+    
+    const sortByLabel = (a, b) => a.label.localeCompare(b.label);
+    
+    const naStates = estadosData.filter(e => e.alliance_id?.$oid === ALLIANCE_MONGO_MAP.na).map(e => ({ value: e._id.$oid, label: e.name })).sort(sortByLabel);
+    const kuepaStates = estadosData.filter(e => e.alliance_id?.$oid === ALLIANCE_MONGO_MAP.kuepa).map(e => ({ value: e._id.$oid, label: e.name })).sort(sortByLabel);
+    
+    return {
+      nueva_america: naStates,
+      kuepa: kuepaStates,
+    };
+  }, [estadosData]);
+
   const singleStateOptions = stateOptionsByAlianza[singleAlianzaKey] || [];
 
   useEffect(() => {
@@ -168,9 +210,6 @@ function CambiosEstadoBemo() {
       setAiPrefilledData(null);
     }
   }, [aiPrefilledData, setMode, setSingleStudentId, singleStateOptions, setSingleState, setAiPrefilledData]);
-
-  // ── Datos externos ───────────────────────────────────────────────────────
-  const { programas: programasData } = useCatalogos();
 
   const programasMap = useMemo(() =>
     programasData ? Object.fromEntries(programasData.map((p) => [p._id.$oid, p])) : {}

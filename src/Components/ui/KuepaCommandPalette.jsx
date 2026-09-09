@@ -8,7 +8,7 @@ import { supabase } from '../../services/supabaseClient';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 import { toast } from 'react-toastify';
 import AllianceSwitcher from './AllianceSwitcher';
-import { ALLIANCE_IDS, STATE_OPTIONS_BY_ALIANZA } from '../../utils/constants';
+import { ALLIANCE_IDS } from '../../utils/constants';
 import { setGlobalSetting, getGlobalSetting } from '../../services/settingsService';
 
 export default function KuepaCommandPalette() {
@@ -112,14 +112,10 @@ export default function KuepaCommandPalette() {
               const { data } = await supabase.from('programas').select('mongo_id, name').eq('alliance_id', ALLIANCE_IDS[aiAlliance]).ilike('name', `%${searchTerm || ''}%`).limit(10);
               if (data && data.length) dbResultsStr = data.map(d => `ID: ${d.mongo_id}, Nombre: ${d.name}`).join(' | ');
             } else if (table === 'estados') {
-              let results = [];
-              for (const [aly, cat] of Object.entries(STATE_OPTIONS_BY_ALIANZA)) {
-                const filtered = cat.filter(e => e.label.toLowerCase().includes((searchTerm || '').toLowerCase()));
-                if (filtered.length) {
-                  results.push(`Alianza ${aly.toUpperCase()}: ` + filtered.map(d => `ID: ${d.value} (${d.label})`).join(', '));
-                }
+              const { data } = await supabase.from('estados').select('mongo_id, name').ilike('name', `%${searchTerm || ''}%`).limit(20);
+              if (data && data.length) {
+                dbResultsStr = data.map(d => `ID: ${d.mongo_id}, Nombre: ${d.name}`).join(' | ');
               }
-              if (results.length) dbResultsStr = results.join(' || ');
             } else if (table === 'grupos_estudiante') {
               const studentIdToQuery = result.query.student_id;
               if (studentIdToQuery) {

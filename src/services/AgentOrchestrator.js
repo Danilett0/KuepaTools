@@ -1,7 +1,7 @@
 import { analyzeIntentWithGemini } from './aiService';
 import { findUser } from './usuariosService';
 import { supabase } from './supabaseClient';
-import { ALLIANCE_IDS, STATE_OPTIONS_BY_ALIANZA } from '../utils/constants';
+import { ALLIANCE_IDS } from '../utils/constants';
 import { generateCommandsFromActions } from '../agent/skills';
 import { hydrateStudents } from './studentHydrator';
 
@@ -114,10 +114,14 @@ export class AgentOrchestrator {
 
     // 3. Resolver Estados Dinámicos
     if (resolvedAction.action_type === 'change_status' && resolvedAction.status_name && !resolvedAction.status_id) {
-      const estadosCatalog = STATE_OPTIONS_BY_ALIANZA[this.alliance] || [];
-      const matchedState = estadosCatalog.find(e => this.normalizeStr(e.label) === this.normalizeStr(resolvedAction.status_name));
+      const { data: estadosData } = await supabase
+        .from('estados')
+        .select('mongo_id, name')
+        .eq('alliance_id', ALLIANCE_IDS[this.alliance]);
+        
+      const matchedState = (estadosData || []).find(e => this.normalizeStr(e.name) === this.normalizeStr(resolvedAction.status_name));
       if (matchedState) {
-        resolvedAction.status_id = matchedState.value;
+        resolvedAction.status_id = matchedState.mongo_id;
       } else {
         throw new Error(`INCOMPLETE:El estado "${resolvedAction.status_name}" no existe en la alianza actual. Por favor verifica el nombre.`);
       }

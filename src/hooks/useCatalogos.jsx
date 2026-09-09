@@ -20,6 +20,7 @@ function normalizeEstado(row) {
   return {
     _id: { $oid: row.mongo_id },
     name: row.name,
+    alliance_id: row.alliance_id ? { $oid: row.alliance_id } : null,
   };
 }
 
@@ -27,7 +28,7 @@ async function fetchCatalogos() {
   const [alianzasRes, programasRes, estadosRes] = await Promise.all([
     supabase.from('alianzas').select('mongo_id, name'),
     supabase.from('programas').select('mongo_id, name, alliance_id'),
-    supabase.from('estados').select('mongo_id, name'),
+    supabase.from('estados').select('mongo_id, name, alliance_id'),
   ]);
 
   if (alianzasRes.error) throw new Error(alianzasRes.error.message);
