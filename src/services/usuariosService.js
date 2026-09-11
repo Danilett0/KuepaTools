@@ -4,7 +4,7 @@
  * No React state, no module-level cache, no bulk loading.
  */
 
-import { supabase } from './supabaseClient';
+import { supabase } from './supabaseClient.js';
 
 const USER_FIELDS = 'mongo_id, alliance_id, incremental_user_code, full_name, email, phone, programs';
 

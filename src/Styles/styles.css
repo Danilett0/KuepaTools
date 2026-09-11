@@ -413,3 +413,17 @@ h1, h2, h3, h4, h5, h6 {
   color: #fff;
   border-color: #ff4757;
 }
+
+/* ─── Topbar Búsqueda y Acciones Rápidas (Estudiante 360) ─── */
+.estudiante360-topbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  gap: 16px;
+  align-items: stretch;
+}
+
+@media (max-width: 960px) {
+  .estudiante360-topbar {
+    grid-template-columns: 1fr;
+  }
+}

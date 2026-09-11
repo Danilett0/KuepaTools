@@ -24,6 +24,7 @@ export default function IncAutocomplete({
   onChange,
   onSelect,
   onBlur,
+  onKeyDown,
   placeholder = "Ej: 292828",
   style,
   inputStyle,
@@ -145,6 +146,7 @@ export default function IncAutocomplete({
           }}
           onFocus={() => setShowSuggestions(true)}
           onBlur={onBlur}
+          onKeyDown={onKeyDown}
           placeholder={placeholder}
           style={{
             fontSize: "13px",

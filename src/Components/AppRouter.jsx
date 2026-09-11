@@ -10,12 +10,14 @@ const Informacion = lazy(() => import("./Informacion.jsx"));
 const BuscarIdInc = lazy(() => import("./BuscarIdInc.jsx"));
 const ProgramasPorEstudiante = lazy(() => import("./ProgramasPorEstudiante.jsx"));
 const Migrations = lazy(() => import("./Migrations.jsx"));
+const Estudiante360 = lazy(() => import("./Estudiante360/Estudiante360.jsx"));
 
 // Para componentes exportados de forma nombrada:
 const UndoPublicationPage = lazy(() => import("./HerramientasAcademicos.jsx").then(module => ({ default: module.UndoPublicationPage })));
 const FinalUserPage = lazy(() => import("./HerramientasAcademicos.jsx").then(module => ({ default: module.FinalUserPage })));
 const ExtractGroupsPage = lazy(() => import("./HerramientasAcademicos.jsx").then(module => ({ default: module.ExtractGroupsPage })));
 const StudentGroupsPage = lazy(() => import("./HerramientasAcademicos.jsx").then(module => ({ default: module.StudentGroupsPage })));
+const AuditGroupStudentsPage = lazy(() => import("./HerramientasAcademicos.jsx").then(module => ({ default: module.AuditGroupStudentsPage })));
 
 /**
  * AppRouter
@@ -26,6 +28,8 @@ export default function AppRouter() {
   
   const renderComponent = () => {
     switch (activeComponent) {
+      case "estudiante-360":
+        return <Estudiante360 key="estudiante-360" />;
       case "inscripciones-estudiante":
         return <Inscripciones key="inscripciones-estudiante" formType="estudiante" />;
       case "inscripciones-grupo":
@@ -54,8 +58,10 @@ export default function AppRouter() {
         return <ExtractGroupsPage key="herramientas-extraer" />;
       case "herramientas-estudiante":
         return <StudentGroupsPage key="herramientas-estudiante" />;
+      case "herramientas-auditar-grupo":
+        return <AuditGroupStudentsPage key="herramientas-auditar-grupo" />;
       default:
-        return <Inscripciones key="default" formType="estudiante" />;
+        return <Estudiante360 key="estudiante-360" />;
     }
   };
 

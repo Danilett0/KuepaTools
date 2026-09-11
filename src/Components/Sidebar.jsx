@@ -25,19 +25,33 @@ export default function Sidebar({
   const userRole = useAppStore(state => state.userRole);
 
   const handleLogoClick = () => {
-    setShowClearModal(true);
+    setActiveComponent('estudiante-360');
+    setExpandedMenu(null);
   };
+
+  const is360Active = activeComponent === 'estudiante-360';
 
   return (
     <>
       <aside className="sidebar">
         {/* ── Logo ─────────────────────────────────────────────────── */}
-        <div className="sidebar-title">
+        <div
+          className="sidebar-title"
+          onClick={handleLogoClick}
+          style={{
+            cursor: 'pointer',
+            borderRadius: '12px',
+            padding: '8px 12px',
+            margin: '0 -12px 16px -12px',
+            background: is360Active ? 'rgba(18, 163, 131, 0.1)' : 'transparent',
+            border: is360Active ? '1px solid rgba(18, 163, 131, 0.3)' : '1px solid transparent',
+            transition: 'all 0.2s',
+          }}
+          title="Centro de Operaciones: Estudiante 360°"
+        >
           <svg
             width="60" height="60" viewBox="4 2 32 37" fill="none" xmlns="http://www.w3.org/2000/svg"
-            style={{ flexShrink: 0, cursor: 'pointer' }}
-            onClick={handleLogoClick}
-            title="Clic para limpiar el storage"
+            style={{ flexShrink: 0 }}
           >
             <defs>
               <linearGradient id="shieldGrad" x1="4" y1="2" x2="36" y2="39" gradientUnits="userSpaceOnUse">

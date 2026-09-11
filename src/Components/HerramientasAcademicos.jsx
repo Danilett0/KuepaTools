@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocalStorage } from "../hooks/useLocalStorage";
-import { Copy, Terminal, User, List, Search, FileSpreadsheet } from "lucide-react";
+import { Copy, Terminal, User, List, Search, FileSpreadsheet, ShieldAlert, Users, Check, AlertCircle } from "lucide-react";
 import { toast } from "react-toastify";
 import * as XLSX from "xlsx";
 import AllianceSwitcher from "./ui/AllianceSwitcher";
@@ -10,6 +10,7 @@ import { ALLIANCE_IDS } from "../utils/constants";
 import { useAppStore } from "../store/useAppStore";
 import { supabase } from "../services/supabaseClient";
 import { useUsuariosCompletos } from "../hooks/useUsuariosCompletos";
+import { generateAuditGroupSubjectCommand, fetchGroupStructure, fetchStudentsInfo } from "../services/groupAuditService";
 
 // ── Utilidad: extrae el ID del grupo académico ──────────────────────────────
 function extractGroupId(input) {
@@ -888,6 +889,390 @@ function StudentGroupsCard() {
   );
 }
 
+// ── Card 5: Auditar Estudiantes de Grupo ────────────────────────────────────
+function AuditGroupStudentsCard() {
+  const [groupIdInput, setGroupIdInput] = useLocalStorage("herr_audit_group_input", "");
+  const [groupData, setGroupData] = useState(null);
+  const [studentIds, setStudentIds] = useState([]);
+  const [studentsInfo, setStudentsInfo] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [manualText, setManualText] = useState("");
+  const [isManualMode, setIsManualMode] = useState(false);
+  const fileInputRef = useRef(null);
+
+  const resolvedGroupId = extractGroupId(groupIdInput);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function loadGroup() {
+      if (!resolvedGroupId) {
+        setGroupData(null);
+        setStudentIds([]);
+        setStudentsInfo([]);
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const structure = await fetchGroupStructure(resolvedGroupId);
+        if (isCancelled) return;
+
+        if (structure) {
+          setGroupData(structure);
+          const ids = structure.studentIds || [];
+          setStudentIds(ids);
+
+          if (ids.length > 0) {
+            const info = await fetchStudentsInfo(ids);
+            if (!isCancelled) setStudentsInfo(info);
+          } else {
+            setStudentsInfo([]);
+          }
+        } else {
+          setGroupData(null);
+          setStudentIds([]);
+          setStudentsInfo([]);
+        }
+      } catch (err) {
+        if (!isCancelled) {
+          console.error("Error al consultar estructura del grupo:", err);
+          toast.error("Error al consultar el grupo en la base de datos");
+        }
+      } finally {
+        if (!isCancelled) setLoading(false);
+      }
+    }
+
+    const timer = setTimeout(loadGroup, 350);
+    return () => {
+      isCancelled = true;
+      clearTimeout(timer);
+    };
+  }, [resolvedGroupId]);
+
+  const activeStudentIds = isManualMode
+    ? Array.from(new Set(manualText.match(/\b([a-f0-9]{24})\b/ig) || []))
+    : studentIds;
+
+  let command = "";
+  if (resolvedGroupId && activeStudentIds.length > 0) {
+    try {
+      command = generateAuditGroupSubjectCommand(resolvedGroupId, activeStudentIds);
+    } catch {
+      command = "";
+    }
+  }
+
+  const handleClear = () => {
+    setGroupIdInput("");
+    setGroupData(null);
+    setStudentIds([]);
+    setStudentsInfo([]);
+    setManualText("");
+    setIsManualMode(false);
+  };
+
+  const handleCopy = () => {
+    if (!command) return;
+    navigator.clipboard.writeText(command);
+    toast.success("Comando copiado al portapapeles");
+  };
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data);
+      let allText = "";
+      workbook.SheetNames.forEach(sheetName => {
+        const sheet = workbook.Sheets[sheetName];
+        const json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+        allText += json.flat().join(" ") + " ";
+      });
+
+      const extracted = Array.from(new Set(allText.match(/\b([a-f0-9]{24})\b/ig) || []));
+      if (extracted.length > 0) {
+        setIsManualMode(true);
+        setManualText(prev => {
+          const prevIds = prev.match(/\b([a-f0-9]{24})\b/ig) || [];
+          return Array.from(new Set([...prevIds, ...extracted])).join("\n");
+        });
+        toast.success(`Se cargaron ${extracted.length} estudiantes desde el archivo`);
+      } else {
+        toast.warning("No se encontraron ObjectIds válidos en el archivo");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Error al leer el archivo Excel");
+    }
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleRemoveStudent = (idToRemove) => {
+    if (isManualMode) {
+      const remaining = activeStudentIds.filter(id => id !== idToRemove);
+      setManualText(remaining.join("\n"));
+    } else {
+      setStudentIds(prev => prev.filter(id => id !== idToRemove));
+    }
+  };
+
+  const infoMap = new Map(studentsInfo.map(s => [s.mongoId, s]));
+
+  return (
+    <div className="inscripciones-content animate-slide-down" style={{ marginBottom: 0 }}>
+      {/* ── Header ──────────────────────────────────────────────────── */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <div style={{
+            width: "32px", height: "32px", borderRadius: "10px",
+            background: "var(--primary-container)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            <ShieldAlert size={16} style={{ color: "#fff" }} />
+          </div>
+          <div>
+            <span style={{ fontSize: "14px", fontWeight: 700, color: "var(--on-surface)", fontFamily: "'Nunito', sans-serif" }}>
+              Auditar Estudiantes de Grupo
+            </span>
+            <span style={{ fontSize: "11px", color: "var(--on-surface-variant)", marginLeft: "8px", fontFamily: "'Space Grotesk', monospace" }}>
+              (audit:subject)
+            </span>
+          </div>
+        </div>
+        <ClearButton onClick={handleClear} />
+      </div>
+
+      {/* ── Divisor ─────────────────────────────────────────────────── */}
+      <div style={{ height: "1px", background: "var(--glass-border)", marginBottom: "20px" }} />
+
+      {/* ── Input Grupo ──────────────────────────────────────────────── */}
+      <div className="input-wrapper" style={{ marginBottom: "20px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <label className="input-label">ID o URL del Grupo con Problemas</label>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <input 
+              type="file" 
+              accept=".xlsx, .xls, .csv" 
+              style={{ display: "none" }} 
+              ref={fileInputRef}
+              onChange={handleFileUpload}
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              title="Cargar Excel con IDs de estudiantes"
+              style={{
+                display: "flex", alignItems: "center", gap: "6px",
+                background: "var(--surface-void)", color: "var(--primary)",
+                border: "1px solid var(--glass-border)", borderRadius: "8px",
+                padding: "4px 10px", fontSize: "11px", fontWeight: 600,
+                cursor: "pointer", transition: "all 0.2s ease"
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--primary)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--glass-border)"; }}
+            >
+              <FileSpreadsheet size={13} /> Subir Excel
+            </button>
+            <button
+              onClick={() => {
+                if (!isManualMode) {
+                  setManualText(studentIds.join("\n"));
+                }
+                setIsManualMode(!isManualMode);
+              }}
+              style={{
+                background: isManualMode ? "rgba(18, 163, 131, 0.15)" : "var(--surface-void)",
+                color: isManualMode ? "var(--primary)" : "var(--on-surface-variant)",
+                border: `1px solid ${isManualMode ? "var(--primary)" : "var(--glass-border)"}`,
+                borderRadius: "8px", padding: "4px 10px", fontSize: "11px", fontWeight: 600,
+                cursor: "pointer", transition: "all 0.2s ease"
+              }}
+            >
+              {isManualMode ? "← Modo Automático" : "Editar Lista Manual"}
+            </button>
+          </div>
+        </div>
+
+        <input
+          className="inscripciones-input"
+          type="text"
+          value={groupIdInput}
+          onChange={(e) => setGroupIdInput(e.target.value)}
+          placeholder="6765d926107fc303893724e9  ó  https://sis.kuepa.com/academic-group/details/…"
+          style={{ fontSize: "13px", fontFamily: "'Space Grotesk', monospace" }}
+        />
+
+        {groupIdInput.trim() && !resolvedGroupId && (
+          <span style={{ fontSize: "11px", color: "#ef4444", marginLeft: "4px", marginTop: "4px", display: "block" }}>
+            No se pudo extraer ningún ObjectId válido de grupo
+          </span>
+        )}
+
+        {resolvedGroupId && (
+          <div style={{ marginTop: "6px", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+            <span style={{ fontSize: "11px", color: "var(--primary)", fontFamily: "'Space Grotesk', monospace" }}>
+              ✓ Grupo: {resolvedGroupId}
+            </span>
+            {groupData && (
+              <span style={{
+                fontSize: "11px", color: "var(--on-surface)",
+                background: "rgba(255, 255, 255, 0.05)", padding: "2px 8px",
+                borderRadius: "6px", border: "1px solid var(--glass-border)"
+              }}>
+                {groupData.name} {groupData.levelName ? `(${groupData.levelName})` : ""}
+              </span>
+            )}
+            {loading && (
+              <span style={{ fontSize: "11px", color: "var(--on-surface-variant)" }}>
+                Consultando estudiantes en Supabase...
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Modo Manual o Listado de Estudiantes ──────────────────────── */}
+      {isManualMode ? (
+        <div className="input-wrapper" style={{ marginBottom: "20px" }}>
+          <label className="input-label">
+            Lista de Estudiantes (un ObjectId por línea)
+          </label>
+          <textarea
+            className="inscripciones-input"
+            value={manualText}
+            onChange={(e) => setManualText(e.target.value)}
+            placeholder="64f1a2b3c4d5e6f7a8b9c0d1&#10;64f1a2b3c4d5e6f7a8b9c0d2..."
+            style={{ minHeight: "100px", resize: "vertical", fontSize: "13px", fontFamily: "'Space Grotesk', monospace" }}
+          />
+        </div>
+      ) : (
+        resolvedGroupId && (
+          <div style={{ marginBottom: "20px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+              <label className="input-label" style={{ marginBottom: 0 }}>
+                Estudiantes asignados al grupo ({activeStudentIds.length})
+              </label>
+            </div>
+
+            {loading ? (
+              <div style={{ padding: "16px", textAlign: "center", color: "var(--on-surface-variant)", fontSize: "13px" }}>
+                Cargando estudiantes del grupo...
+              </div>
+            ) : activeStudentIds.length === 0 ? (
+              <div style={{
+                padding: "16px", borderRadius: "10px",
+                border: "1px dashed var(--glass-border)",
+                textAlign: "center", color: "var(--on-surface-variant)", fontSize: "13px"
+              }}>
+                No se encontraron estudiantes asociados en la base de datos para este grupo.
+                <button
+                  onClick={() => setIsManualMode(true)}
+                  style={{
+                    background: "none", border: "none", color: "var(--primary)",
+                    marginLeft: "8px", fontWeight: 600, cursor: "pointer", textDecoration: "underline"
+                  }}
+                >
+                  Ingresar estudiantes manualmente
+                </button>
+              </div>
+            ) : (
+              <div style={{
+                display: "flex", flexWrap: "wrap", gap: "8px",
+                maxHeight: "160px", overflowY: "auto", padding: "8px",
+                background: "rgba(0, 0, 0, 0.2)", borderRadius: "10px",
+                border: "1px solid var(--glass-border)"
+              }}>
+                {activeStudentIds.map(sId => {
+                  const info = infoMap.get(sId);
+                  return (
+                    <div
+                      key={sId}
+                      style={{
+                        display: "flex", alignItems: "center", gap: "6px",
+                        background: "rgba(255, 255, 255, 0.05)",
+                        border: "1px solid var(--glass-border)",
+                        borderRadius: "8px", padding: "4px 10px",
+                        fontSize: "12px", fontFamily: "'Space Grotesk', monospace",
+                        color: "var(--on-surface)"
+                      }}
+                    >
+                      <span style={{ color: "var(--primary)", fontWeight: 700 }}>
+                        {info?.inc ? `#${info.inc}` : sId.slice(-6)}
+                      </span>
+                      {info?.fullName && (
+                        <span style={{ maxWidth: "160px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {info.fullName}
+                        </span>
+                      )}
+                      <button
+                        onClick={() => handleRemoveStudent(sId)}
+                        title="Quitar estudiante de la auditoría"
+                        style={{
+                          background: "none", border: "none",
+                          color: "var(--on-surface-variant)", cursor: "pointer",
+                          padding: "0 2px", fontSize: "13px", lineHeight: 1
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.color = "#ef4444"; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.color = "var(--on-surface-variant)"; }}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )
+      )}
+
+      {/* ── Comando generado ─────────────────────────────────────────── */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <label className="input-label">
+            Comando generado {activeStudentIds.length > 0 && <span style={{ color: "var(--primary)" }}>({activeStudentIds.length} estudiantes)</span>}
+          </label>
+          {command && (
+            <button
+              onClick={handleCopy}
+              style={{
+                display: "flex", alignItems: "center", gap: "6px",
+                background: "var(--primary-container)", color: "#fff",
+                border: "1px solid var(--primary)", borderRadius: "8px",
+                padding: "5px 12px", fontSize: "12px", fontWeight: 600,
+                fontFamily: "'Space Grotesk', sans-serif", cursor: "pointer",
+                transition: "all 0.2s ease",
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.opacity = "0.85"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.opacity = "1"; }}
+            >
+              <Copy size={13} /> Copiar Comando
+            </button>
+          )}
+        </div>
+        <div className="commands" style={{
+          marginTop: 0, minHeight: "54px", maxHeight: "150px", overflowY: "auto",
+          display: "flex", alignItems: command ? "flex-start" : "center",
+          paddingTop: command ? "12px" : undefined,
+          paddingBottom: command ? "12px" : undefined,
+          opacity: command ? 1 : 0.4,
+        }}>
+          {command ? (
+            <span style={{ letterSpacing: "0.02em", wordBreak: "break-all" }}>{command}</span>
+          ) : (
+            <span style={{ color: "rgba(202,225,215,0.35)", fontStyle: "italic", fontSize: "13px" }}>
+              Ingresa el ID o URL del grupo académico para generar el comando…
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Wrappers de página para cada sub-ruta ──────────────────────────────────
 export function UndoPublicationPage() {
   return (
@@ -921,6 +1306,14 @@ export function StudentGroupsPage() {
   );
 }
 
+export function AuditGroupStudentsPage() {
+  return (
+    <div className="inscripciones-container">
+      <AuditGroupStudentsCard />
+    </div>
+  );
+}
+
 // ── Componente principal (vista completa) ───────────────────────────────────
 function HerramientasAcademicos() {
   return (
@@ -930,6 +1323,7 @@ function HerramientasAcademicos() {
         <FinalUserCard />
         <ExtractGroupsCard />
         <StudentGroupsCard />
+        <AuditGroupStudentsCard />
       </div>
     </div>
   );

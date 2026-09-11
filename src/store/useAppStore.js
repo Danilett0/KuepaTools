@@ -6,7 +6,7 @@ export const useAppStore = create((set) => ({
   isAuthInitialized: false,
   userRole: null,
   isPasswordRecovery: false,
-  activeComponent: 'inscripciones-estudiante',
+  activeComponent: 'estudiante-360',
   expandedMenu: null,
   showClearModal: false,
   isCommandPaletteOpen: false,

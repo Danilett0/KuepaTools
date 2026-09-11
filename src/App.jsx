@@ -37,6 +37,7 @@ const NAV_ITEMS = [
       { id: "herramientas-final", label: "Re-calcular Nota Estudiante" },
       { id: "herramientas-extraer", label: "Extraer Grupos académicos" },
       { id: "herramientas-estudiante", label: "Grupos por estudiante" },
+      { id: "herramientas-auditar-grupo", label: "Auditar Estudiantes de Grupo" },
     ],
   },
 ];
@@ -124,7 +125,7 @@ function App() {
         {userRole === 'admin' && <KuepaCommandPalette />}
         <div
           className="app-container"
-          style={activeComponent === "informacion" ? { maxWidth: "100%", height: "100%" } : {}}
+          style={(activeComponent === "informacion" || activeComponent === "estudiante-360") ? { maxWidth: "100%", height: "100%", width: "100%" } : {}}
         >
           <AppRouter />
         </div>
