@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { UserCheck, Loader2, Sparkles } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 import { useAppStore } from '../../store/useAppStore';
+import { useCatalogos } from '../../hooks/useCatalogos';
 import { ALLIANCE_IDS } from '../../utils/constants';
 import AllianceSwitcher from '../ui/AllianceSwitcher';
 import ClearButton from '../ui/ClearButton';
@@ -11,13 +12,14 @@ import CommandsDisplay from '../CommandsDisplay';
 import FichaPerfil from './FichaPerfil';
 import ProgramasYGrupos from './ProgramasYGrupos';
 import AccionesRapidas from './AccionesRapidas';
+import HubVacio from './HubVacio';
 import { fetchStudent360Data, generate360Commands, formatIdsForClipboard } from '../../services/student360Service';
 
 export default function Estudiante360() {
   const [alianza, setAlianza] = useLocalStorage('estudiante360-alianza', 'na');
   const [studentInput, setStudentInput] = useLocalStorage('estudiante360-input', '');
-  const [studentData, setStudentData] = useState(null);
-  const [selectedProgramId, setSelectedProgramId] = useState('');
+  const [studentData, setStudentData] = useLocalStorage('estudiante360-student-data', null);
+  const [selectedProgramId, setSelectedProgramId] = useLocalStorage('estudiante360-program-id', '');
   const [selectedGroupIds, setSelectedGroupIds] = useState([]);
   const [generatedCommands, setGeneratedCommands] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -26,19 +28,65 @@ export default function Estudiante360() {
   const setAiPrefilledData = useAppStore((state) => state.setAiPrefilledData);
 
   const allianceId = alianza === 'kuepa' ? ALLIANCE_IDS.kuepa : ALLIANCE_IDS.na;
+  const lastLoadedKeyRef = useRef(
+    studentData ? `${(studentInput || '').trim()}:${allianceId}` : ''
+  );
+  const { estados: estadosData } = useCatalogos();
+
+  const statusOptions = useMemo(() => {
+    if (!estadosData) return [];
+    return estadosData
+      .filter((e) => e.alliance_id?.$oid === allianceId)
+      .map((e) => ({ value: e._id.$oid, label: e.name }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [estadosData, allianceId]);
+
+  const enrichedPrograms = useMemo(() => {
+    if (!studentData?.programs) return [];
+    return studentData.programs.map((prog) => {
+      const statusId =
+        prog.raw?.status?.$oid ||
+        (typeof prog.raw?.status === 'string' ? prog.raw.status : '') ||
+        prog.raw?.status_id ||
+        '';
+      const statusName = statusOptions.find((s) => s.value === String(statusId))?.label || '';
+      return {
+        ...prog,
+        statusId,
+        statusName,
+      };
+    });
+  }, [studentData?.programs, statusOptions]);
+
+  const selectedProgram = useMemo(() => {
+    if (enrichedPrograms.length === 0) return null;
+    return enrichedPrograms.find((p) => p.programId === selectedProgramId) || enrichedPrograms[0];
+  }, [enrichedPrograms, selectedProgramId]);
+
+  const selectedProgramName = selectedProgram?.name || '';
+  const currentStatusName = selectedProgram?.statusName || '';
 
   // ── Carga de datos del estudiante ──────────────────────────────────────────
   const loadStudent = useCallback(
-    async (identifier) => {
+    async (identifier, force = false) => {
       const trimmed = (identifier || '').trim();
       if (!trimmed) {
         setStudentData(null);
         setSelectedProgramId('');
         setSelectedGroupIds([]);
+        setGeneratedCommands([]);
+        lastLoadedKeyRef.current = '';
+        return;
+      }
+
+      const requestKey = `${trimmed}:${allianceId}`;
+      if (!force && lastLoadedKeyRef.current === requestKey && studentData) {
         return;
       }
 
       setLoading(true);
+      setGeneratedCommands([]);
+      setSelectedGroupIds([]);
       try {
         const data = await fetchStudent360Data(trimmed, allianceId);
         if (!data) {
@@ -46,12 +94,19 @@ export default function Estudiante360() {
           setStudentData(null);
           setSelectedProgramId('');
           setSelectedGroupIds([]);
+          setGeneratedCommands([]);
+          lastLoadedKeyRef.current = '';
         } else {
+          lastLoadedKeyRef.current = requestKey;
           setStudentData(data);
           setSelectedGroupIds([]);
-          // Auto-seleccionar el primer programa si existe
+          setGeneratedCommands([]);
+          // Auto-seleccionar el programa si sigue existiendo o asignar el primero
           if (data.programs.length > 0) {
-            setSelectedProgramId(data.programs[0].programId);
+            const hasExisting = data.programs.some((p) => p.programId === selectedProgramId);
+            if (!hasExisting) {
+              setSelectedProgramId(data.programs[0].programId);
+            }
           } else {
             setSelectedProgramId('');
           }
@@ -61,26 +116,45 @@ export default function Estudiante360() {
         toast.error(`Error al consultar estudiante: ${err.message}`);
         setStudentData(null);
         setSelectedGroupIds([]);
+        setGeneratedCommands([]);
+        lastLoadedKeyRef.current = '';
       } finally {
         setLoading(false);
       }
     },
-    [allianceId]
+    [allianceId, studentData, selectedProgramId, setStudentData, setSelectedProgramId]
   );
 
-  // Re-cargar si cambia la alianza y hay un input
+  // Sincronizar consulta solo si cambia la alianza o el input y NO coinciden con los datos en caché
   useEffect(() => {
-    if (studentInput.trim()) {
-      loadStudent(studentInput);
+    const trimmed = (studentInput || '').trim();
+    if (!trimmed) {
+      if (studentData) {
+        setStudentData(null);
+        setSelectedProgramId('');
+      }
+      return;
     }
-  }, [alianza, loadStudent]);
+
+    const currentKey = `${trimmed}:${allianceId}`;
+    const matchesCache =
+      studentData &&
+      (String(studentData.student?.inc) === trimmed || studentData.student?.mongoId === trimmed) &&
+      studentData.student?.allianceId === allianceId;
+
+    if (!matchesCache && lastLoadedKeyRef.current !== currentKey) {
+      loadStudent(trimmed);
+    } else if (matchesCache) {
+      lastLoadedKeyRef.current = currentKey;
+    }
+  }, [alianza, studentInput, allianceId, loadStudent, studentData, setStudentData, setSelectedProgramId]);
 
   // Manejar AI Prefill si viene desde la Command Palette
   useEffect(() => {
     if (aiPrefilledData && aiPrefilledData.ids && aiPrefilledData.ids.length > 0) {
       const incomingId = aiPrefilledData.ids[0];
       setStudentInput(incomingId);
-      loadStudent(incomingId);
+      loadStudent(incomingId, true);
       setAiPrefilledData(null);
     }
   }, [aiPrefilledData, loadStudent, setAiPrefilledData, setStudentInput]);
@@ -91,20 +165,31 @@ export default function Estudiante360() {
     setSelectedProgramId('');
     setSelectedGroupIds([]);
     setGeneratedCommands([]);
-  }, [setStudentInput]);
+    lastLoadedKeyRef.current = '';
+  }, [setStudentInput, setStudentData, setSelectedProgramId]);
+
+  // Cambio de programa: limpia automáticamente comandos y selección de materias
+  const handleSelectProgram = useCallback((progId) => {
+    setSelectedProgramId(progId);
+    setGeneratedCommands([]);
+    setSelectedGroupIds([]);
+  }, []);
 
   const handleToggleGroup = useCallback((groupId) => {
     setSelectedGroupIds((prev) =>
       prev.includes(groupId) ? prev.filter((id) => id !== groupId) : [...prev, groupId]
     );
+    setGeneratedCommands([]);
   }, []);
 
   const handleSelectAllGroups = useCallback((groupIdsToSelect) => {
     setSelectedGroupIds(groupIdsToSelect);
+    setGeneratedCommands([]);
   }, []);
 
   const handleClearGroupSelection = useCallback(() => {
     setSelectedGroupIds([]);
+    setGeneratedCommands([]);
   }, []);
 
   // Manejo centralizado de acciones rápidas
@@ -137,11 +222,16 @@ export default function Estudiante360() {
           (selectedGroupIds.length > 0
             ? selectedGroupIds
             : studentData?.groups?.map((g) => g.groupId) || []),
+        statusId: extraParams.statusId,
       };
 
       const cmds = generate360Commands(actionType, params);
       setGeneratedCommands(cmds);
-      toast.success(`${cmds.length} comando${cmds.length !== 1 ? 's' : ''} generado${cmds.length !== 1 ? 's' : ''}`);
+      if (actionType === 'change_program_status' && extraParams.statusName) {
+        toast.success(`Comando generado: Cambiar a ${extraParams.statusName}`);
+      } else {
+        toast.success(`${cmds.length} comando${cmds.length !== 1 ? 's' : ''} generado${cmds.length !== 1 ? 's' : ''}`);
+      }
     } catch (err) {
       console.error(err);
       toast.error(err.message);
@@ -154,23 +244,22 @@ export default function Estudiante360() {
       style={{
         display: 'flex',
         flexDirection: 'column',
-        gap: '24px',
+        gap: '10px',
         width: '100%',
         maxWidth: '1440px',
         margin: '0 auto',
-        minHeight: 'calc(100vh - 80px)',
+        padding: '12px 18px',
         boxSizing: 'border-box',
-        paddingBottom: '60px',
       }}
     >
       {/* ── Header y Barra de Búsqueda ── */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <div
             style={{
-              width: '36px',
-              height: '36px',
-              borderRadius: '10px',
+              width: '28px',
+              height: '28px',
+              borderRadius: '8px',
               background: 'linear-gradient(135deg, var(--primary) 0%, #06a080 100%)',
               display: 'flex',
               alignItems: 'center',
@@ -178,22 +267,22 @@ export default function Estudiante360() {
               color: '#090909',
             }}
           >
-            <UserCheck size={20} />
+            <UserCheck size={16} />
           </div>
-          <div>
-            <h1 style={{ fontSize: '22px', fontWeight: 800, color: 'var(--on-surface)', margin: 0, lineHeight: 1.2 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', flexWrap: 'wrap' }}>
+            <h1 style={{ fontSize: '17px', fontWeight: 800, color: 'var(--on-surface)', margin: 0, lineHeight: 1.2 }}>
               Ficha Técnica Estudiante 360°
             </h1>
-            <span style={{ fontSize: '12px', color: 'var(--on-surface-variant)' }}>
-              Centro de diagnóstico, materias activas y remediación operativa en un clic
+            <span style={{ fontSize: '11px', color: 'var(--on-surface-variant)' }}>
+              Diagnóstico, materias y remediación operativa en un clic
             </span>
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <AllianceSwitcher
             value={alianza}
-            size="md"
+            size="sm"
             onChange={(val) => {
               if (alianza !== val) {
                 setAlianza(val);
@@ -205,9 +294,6 @@ export default function Estudiante360() {
         </div>
       </div>
 
-      <hr className="inscripciones-divider" style={{ width: '100%', margin: 0 }} />
-
-      {/* ── Barra Superior de Búsqueda y Acciones Rápidas ── */}
       {/* ── Barra Superior de Búsqueda y Acciones Rápidas ── */}
       <div className="estudiante360-topbar">
         {/* Input Autocomplete de INC / ID */}
@@ -215,23 +301,23 @@ export default function Estudiante360() {
           style={{
             background: 'var(--surface-low)',
             border: '1px solid var(--glass-border)',
-            borderRadius: '16px',
-            padding: '16px 20px',
+            borderRadius: '12px',
+            padding: '8px 14px',
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'space-between',
-            gap: '10px',
-            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.2)',
+            gap: '6px',
+            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.2)',
             minWidth: 0,
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-            <label className="input-label" style={{ marginBottom: 0, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>
+            <label className="input-label" style={{ marginBottom: 0, fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>
               Buscar Estudiante por Código INC o Mongo ObjectId
             </label>
             {loading && (
-              <span style={{ fontSize: '11px', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }}>
-                <Loader2 size={12} className="animate-spin" />
+              <span style={{ fontSize: '10px', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
+                <Loader2 size={11} className="animate-spin" />
                 <span>Cargando...</span>
               </span>
             )}
@@ -244,6 +330,7 @@ export default function Estudiante360() {
               const trimmed = val.trim();
               if (!trimmed) {
                 setStudentData(null);
+                setSelectedProgramId('');
               } else if (/^[0-9a-fA-F]{24}$/.test(trimmed)) {
                 // Auto-búsqueda inmediata si es un Mongo ObjectId válido
                 loadStudent(trimmed);
@@ -251,17 +338,25 @@ export default function Estudiante360() {
             }}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && studentInput.trim()) {
-                loadStudent(studentInput.trim());
+                loadStudent(studentInput.trim(), true);
               }
             }}
             onSelect={(user) => {
               if (user) {
-                setStudentInput(String(user.incremental_user_code));
-                loadStudent(String(user.incremental_user_code));
+                const code = String(user.incremental_user_code);
+                // Si el estudiante ya está cargado, no repetir la consulta
+                if (
+                  studentData &&
+                  (String(studentData.student?.inc) === code || studentData.student?.mongoId === user._id?.$oid)
+                ) {
+                  return;
+                }
+                setStudentInput(code);
+                loadStudent(code);
               }
             }}
             placeholder="Pega Mongo ObjectId (24 car.) o escribe código INC..."
-            inputStyle={{ height: '42px' }}
+            inputStyle={{ height: '32px', fontSize: '12px' }}
           />
         </div>
 
@@ -269,6 +364,9 @@ export default function Estudiante360() {
         <AccionesRapidas
           hasStudent={Boolean(studentData)}
           hasProgram={Boolean(selectedProgramId)}
+          selectedProgramName={selectedProgramName}
+          currentStatusName={currentStatusName}
+          statusOptions={statusOptions}
           groupsCount={studentData?.groups?.length || 0}
           selectedGroupIds={selectedGroupIds}
           onClearSelection={handleClearGroupSelection}
@@ -278,22 +376,28 @@ export default function Estudiante360() {
 
       {/* ── Estado de Carga ── */}
       {loading && (
-        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '60px', gap: '12px', color: 'var(--primary)' }}>
-          <Loader2 size={28} className="animate-spin" />
-          <span style={{ fontSize: '15px', fontWeight: 600 }}>Extrayendo perfil, programas y asignaturas...</span>
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '40px', gap: '10px', color: 'var(--primary)' }}>
+          <Loader2 size={24} className="animate-spin" />
+          <span style={{ fontSize: '14px', fontWeight: 600 }}>Extrayendo perfil, programas y asignaturas...</span>
         </div>
       )}
 
+      {/* ── Estado Inicial / Sin Estudiante ── */}
+      {!loading && !studentData && <HubVacio />}
+
       {/* ── Vista Detallada 360° ── */}
       {!loading && studentData && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          <FichaPerfil student={studentData.student} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <FichaPerfil
+            student={studentData.student}
+            programs={enrichedPrograms}
+            selectedProgramId={selectedProgramId}
+            currentStatusName={currentStatusName}
+            onSelectProgram={handleSelectProgram}
+          />
 
           <ProgramasYGrupos
-            programs={studentData.programs}
             groups={studentData.groups}
-            selectedProgramId={selectedProgramId}
-            onSelectProgram={setSelectedProgramId}
             selectedGroupIds={selectedGroupIds}
             onToggleGroup={handleToggleGroup}
             onSelectAllGroups={handleSelectAllGroups}

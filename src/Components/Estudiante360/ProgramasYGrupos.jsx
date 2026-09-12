@@ -1,6 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
-  BookOpen,
   GraduationCap,
   Copy,
   Check,
@@ -10,19 +9,21 @@ import {
   CheckSquare,
   Square,
   X,
+  ExternalLink,
+  AlertTriangle,
+  ChevronDown,
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import {
   normalizeText,
   sortAcademicLevels,
   compareAcademicLevels,
+  detectDuplicateGroupIds,
+  buildSisGroupUrl,
 } from '../../services/student360Service';
 
 export default function ProgramasYGrupos({
-  programs,
-  groups,
-  selectedProgramId,
-  onSelectProgram,
+  groups = [],
   selectedGroupIds = [],
   onToggleGroup,
   onSelectAllGroups,
@@ -32,6 +33,20 @@ export default function ProgramasYGrupos({
   const [groupFilter, setGroupFilter] = useState('');
   const [selectedLevel, setSelectedLevel] = useState('ALL');
   const [copiedGroupId, setCopiedGroupId] = useState(null);
+  const [isLevelDropdownOpen, setIsLevelDropdownOpen] = useState(false);
+  const levelDropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (levelDropdownRef.current && !levelDropdownRef.current.contains(event.target)) {
+        setIsLevelDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const duplicateGroupIds = useMemo(() => detectDuplicateGroupIds(groups), [groups]);
 
   const copyGroupId = (id) => {
     navigator.clipboard.writeText(id).then(() => {
@@ -56,7 +71,9 @@ export default function ProgramasYGrupos({
 
   const filteredGroups = useMemo(() => {
     let list = groups;
-    if (selectedLevel !== 'ALL') {
+    if (selectedLevel === 'DUPLICATES') {
+      list = list.filter((g) => duplicateGroupIds.has(g.groupId));
+    } else if (selectedLevel !== 'ALL') {
       list = list.filter((g) => (g.levelName || 'Sin nivel') === selectedLevel);
     }
     const term = normalizeText(groupFilter);
@@ -75,213 +92,282 @@ export default function ProgramasYGrupos({
       if (lvlComp !== 0) return lvlComp;
       return (a.name || '').localeCompare(b.name || '');
     });
-  }, [groups, groupFilter, selectedLevel]);
+  }, [groups, groupFilter, selectedLevel, duplicateGroupIds]);
 
   const areAllFilteredSelected =
     filteredGroups.length > 0 &&
     filteredGroups.every((g) => selectedGroupIds.includes(g.groupId));
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      {/* ── Sección Superior Horizontal: Programas Académicos ── */}
-      <div
-        style={{
-          background: 'var(--surface-low)',
-          border: '1px solid var(--glass-border)',
-          borderRadius: '16px',
-          padding: '16px 20px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '12px',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <BookOpen size={18} color="var(--primary)" />
-            <span style={{ fontWeight: 700, fontSize: '15px', color: 'var(--on-surface)' }}>
-              Programas Inscritos ({programs.length})
-            </span>
-          </div>
-          <span style={{ fontSize: '12px', color: 'var(--on-surface-variant)' }}>
-            Selecciona un programa para contextualizar la remediación operativa
-          </span>
-        </div>
-
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: programs.length === 1 ? '1fr' : 'repeat(auto-fit, minmax(340px, 1fr))',
-            gap: '12px',
-          }}
-        >
-          {programs.length === 0 ? (
-            <div style={{ padding: '16px', textAlign: 'center', color: 'var(--on-surface-variant)', fontSize: '13px' }}>
-              No se registran programas asociados.
+    <div
+      style={{
+        background: 'var(--surface-low)',
+        border: '1px solid var(--glass-border)',
+        borderRadius: '12px',
+        padding: '14px 18px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '10px',
+      }}
+    >
+        {/* Cabecera: Título, Dropdown de Niveles, Alerta de Duplicados y Buscador */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <GraduationCap size={18} color="var(--primary)" />
+              <span style={{ fontWeight: 700, fontSize: '15.5px', color: 'var(--on-surface)', whiteSpace: 'nowrap' }}>
+                Grupos y Asignaturas ({filteredGroups.length}{filteredGroups.length !== groups.length ? ` de ${groups.length}` : ''})
+              </span>
             </div>
-          ) : (
-            programs.map((prog) => {
-              const isSelected = prog.programId === selectedProgramId;
-              return (
-                <div
-                  key={prog.programId}
-                  onClick={() => onSelectProgram(prog.programId)}
+
+            {/* Dropdown de Cuatrimestre / Nivel */}
+            {levels.list.length > 0 && (
+              <div ref={levelDropdownRef} style={{ position: 'relative', flexShrink: 0 }}>
+                <button
+                  type="button"
+                  onClick={() => setIsLevelDropdownOpen(!isLevelDropdownOpen)}
                   style={{
-                    padding: '14px 18px',
-                    borderRadius: '12px',
-                    border: `1px solid ${isSelected ? 'var(--primary)' : 'var(--glass-border)'}`,
-                    background: isSelected ? 'rgba(18, 163, 131, 0.12)' : 'rgba(0, 0, 0, 0.3)',
-                    boxShadow: isSelected ? '0 0 16px rgba(18, 163, 131, 0.2)' : 'none',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                    display: 'flex',
+                    display: 'inline-flex',
                     alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: '16px',
+                    gap: '6px',
+                    height: '30px',
+                    padding: '0 10px',
+                    borderRadius: '6px',
+                    border: `1px solid ${isLevelDropdownOpen || (selectedLevel !== 'ALL' && selectedLevel !== 'DUPLICATES') ? 'var(--primary)' : 'var(--glass-border)'}`,
+                    background: isLevelDropdownOpen || (selectedLevel !== 'ALL' && selectedLevel !== 'DUPLICATES') ? 'rgba(18, 163, 131, 0.15)' : 'rgba(255, 255, 255, 0.04)',
+                    color: selectedLevel !== 'ALL' && selectedLevel !== 'DUPLICATES' ? 'var(--primary)' : 'var(--on-surface)',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                    fontSize: '11.5px',
+                    fontWeight: 700,
+                    maxWidth: '240px',
                   }}
+                  title={`Filtro actual: ${selectedLevel === 'ALL' ? 'Todos los niveles' : selectedLevel === 'DUPLICATES' ? 'Solo materias duplicadas' : selectedLevel}`}
                   onMouseEnter={(e) => {
-                    if (!isSelected) {
-                      e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)';
-                      e.currentTarget.style.background = 'rgba(255,255,255,0.02)';
-                    }
+                    if (!isLevelDropdownOpen && selectedLevel === 'ALL') e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.2)';
                   }}
                   onMouseLeave={(e) => {
-                    if (!isSelected) {
-                      e.currentTarget.style.borderColor = 'var(--glass-border)';
-                      e.currentTarget.style.background = 'rgba(0, 0, 0, 0.3)';
-                    }
+                    if (!isLevelDropdownOpen && selectedLevel === 'ALL') e.currentTarget.style.borderColor = 'var(--glass-border)';
                   }}
                 >
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <Filter size={12} color={selectedLevel !== 'ALL' && selectedLevel !== 'DUPLICATES' ? 'var(--primary)' : 'var(--on-surface-variant)'} style={{ flexShrink: 0 }} />
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {selectedLevel === 'ALL'
+                      ? 'Todos los niveles'
+                      : selectedLevel === 'DUPLICATES'
+                      ? 'Solo duplicadas'
+                      : selectedLevel}
+                  </span>
+                  {selectedLevel !== 'ALL' && selectedLevel !== 'DUPLICATES' && (
+                    <span
+                      style={{
+                        fontSize: '9.5px',
+                        background: 'rgba(18, 163, 131, 0.2)',
+                        color: 'var(--primary)',
+                        padding: '1px 5px',
+                        borderRadius: '4px',
+                        fontWeight: 800,
+                        flexShrink: 0,
+                      }}
+                    >
+                      {levels.counts[selectedLevel] || 0}
+                    </span>
+                  )}
+                  <ChevronDown
+                    size={12}
+                    color="var(--on-surface-variant)"
+                    style={{
+                      transform: isLevelDropdownOpen ? 'rotate(180deg)' : 'none',
+                      transition: 'transform 0.2s ease',
+                      flexShrink: 0,
+                    }}
+                  />
+                </button>
+
+                {/* Menú Desplegable */}
+                {isLevelDropdownOpen && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 'calc(100% + 6px)',
+                      left: 0,
+                      minWidth: '220px',
+                      maxHeight: '320px',
+                      overflowY: 'auto',
+                      background: '#12161a',
+                      border: '1px solid var(--glass-border)',
+                      borderRadius: '8px',
+                      boxShadow: '0 12px 28px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.05)',
+                      zIndex: 100,
+                      padding: '6px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '2px',
+                    }}
+                  >
+                    {/* Opción: Todos los niveles */}
+                    <div
+                      onClick={() => {
+                        setSelectedLevel('ALL');
+                        setIsLevelDropdownOpen(false);
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '7px 10px',
+                        borderRadius: '6px',
+                        background: selectedLevel === 'ALL' ? 'rgba(18, 163, 131, 0.15)' : 'transparent',
+                        color: selectedLevel === 'ALL' ? 'var(--primary)' : '#e2e8f0',
+                        cursor: 'pointer',
+                        fontSize: '11.5px',
+                        fontWeight: selectedLevel === 'ALL' ? 700 : 500,
+                        transition: 'all 0.12s ease',
+                      }}
+                      onMouseEnter={(e) => {
+                        if (selectedLevel !== 'ALL') e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                      }}
+                      onMouseLeave={(e) => {
+                        if (selectedLevel !== 'ALL') e.currentTarget.style.background = 'transparent';
+                      }}
+                    >
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        {selectedLevel === 'ALL' && <Check size={12} color="var(--primary)" />}
+                        Todos los niveles
+                      </span>
                       <span
                         style={{
+                          fontSize: '10px',
+                          background: 'rgba(255, 255, 255, 0.08)',
+                          padding: '1px 6px',
+                          borderRadius: '4px',
+                          color: 'var(--on-surface-variant)',
                           fontWeight: 700,
-                          fontSize: '14px',
-                          color: isSelected ? 'var(--primary)' : 'var(--on-surface)',
-                          lineHeight: '1.3',
                         }}
                       >
-                        {prog.name}
+                        {groups.length}
                       </span>
-                      {isSelected ? (
-                        <span
+                    </div>
+
+                    {levels.list.length > 0 && (
+                      <div style={{ height: '1px', background: 'var(--glass-border)', margin: '3px 4px' }} />
+                    )}
+
+                    {levels.list.map((lvl) => {
+                      const isSelected = selectedLevel === lvl;
+                      const count = levels.counts[lvl] || 0;
+                      return (
+                        <div
+                          key={lvl}
+                          onClick={() => {
+                            setSelectedLevel(lvl);
+                            setIsLevelDropdownOpen(false);
+                          }}
                           style={{
-                            background: 'var(--primary)',
-                            color: '#090909',
-                            fontSize: '10px',
-                            fontWeight: 800,
-                            padding: '2px 8px',
-                            borderRadius: '6px',
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.05em',
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '4px',
-                            flexShrink: 0,
+                            justifyContent: 'space-between',
+                            padding: '7px 10px',
+                            borderRadius: '6px',
+                            background: isSelected ? 'rgba(18, 163, 131, 0.15)' : 'transparent',
+                            color: isSelected ? 'var(--primary)' : '#e2e8f0',
+                            cursor: 'pointer',
+                            fontSize: '11.5px',
+                            fontWeight: isSelected ? 700 : 500,
+                            transition: 'all 0.12s ease',
+                          }}
+                          onMouseEnter={(e) => {
+                            if (!isSelected) e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                          }}
+                          onMouseLeave={(e) => {
+                            if (!isSelected) e.currentTarget.style.background = 'transparent';
                           }}
                         >
-                          <CheckCircle2 size={11} />
-                          Activo
-                        </span>
-                      ) : (
-                        <span
-                          style={{
-                            fontSize: '11px',
-                            color: 'var(--on-surface-variant)',
-                            opacity: 0.7,
-                            flexShrink: 0,
-                          }}
-                        >
-                          Clic para seleccionar
-                        </span>
-                      )}
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span
-                        style={{
-                          fontSize: '11px',
-                          color: '#cbd5e1',
-                          fontFamily: "'Space Grotesk', monospace",
-                          background: 'rgba(255, 255, 255, 0.05)',
-                          padding: '2px 8px',
-                          borderRadius: '6px',
-                          border: '1px solid var(--glass-border)',
-                        }}
-                      >
-                        ID: {prog.programId}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigator.clipboard.writeText(prog.programId);
-                          toast.success('ID de programa copiado');
-                        }}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          color: 'var(--on-surface-variant)',
-                          cursor: 'pointer',
-                          padding: '2px',
-                          display: 'flex',
-                          alignItems: 'center',
-                        }}
-                        title="Copiar ID del programa"
-                      >
-                        <Copy size={12} />
-                      </button>
-                    </div>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            {isSelected && <Check size={12} color="var(--primary)" />}
+                            {lvl}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: '10px',
+                              background: isSelected ? 'rgba(18, 163, 131, 0.2)' : 'rgba(255, 255, 255, 0.08)',
+                              padding: '1px 6px',
+                              borderRadius: '4px',
+                              color: isSelected ? 'var(--primary)' : 'var(--on-surface-variant)',
+                              fontWeight: isSelected ? 700 : 500,
+                            }}
+                          >
+                            {count}
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-      </div>
+                )}
+              </div>
+            )}
 
-      {/* ── Sección de Asignaturas con Selección Rápida en Lote ── */}
-      <div
-        style={{
-          background: 'var(--surface-low)',
-          border: '1px solid var(--glass-border)',
-          borderRadius: '16px',
-          padding: '20px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '14px',
-        }}
-      >
-        {/* Cabecera: Título, Seleccionar Todos y Filtro */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <GraduationCap size={18} color="var(--primary)" />
-            <span style={{ fontWeight: 700, fontSize: '16px', color: 'var(--on-surface)' }}>
-              Grupos y Asignaturas ({filteredGroups.length}{filteredGroups.length !== groups.length ? ` de ${groups.length}` : ''})
-            </span>
+            {/* Mensaje de materias duplicadas al lado del dropdown */}
+            {duplicateGroupIds.size > 0 && (
+              <button
+                type="button"
+                onClick={() => setSelectedLevel((prev) => (prev === 'DUPLICATES' ? 'ALL' : 'DUPLICATES'))}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  height: '30px',
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  color: '#f87171',
+                  background: selectedLevel === 'DUPLICATES' ? 'rgba(239, 68, 68, 0.25)' : 'rgba(239, 68, 68, 0.1)',
+                  border: `1px solid ${selectedLevel === 'DUPLICATES' ? '#f87171' : 'rgba(239, 68, 68, 0.35)'}`,
+                  padding: '0 10px',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0,
+                  boxShadow: selectedLevel === 'DUPLICATES' ? '0 0 10px rgba(239, 68, 68, 0.3)' : 'none',
+                }}
+                title={
+                  selectedLevel === 'DUPLICATES'
+                    ? 'Mostrando solo materias duplicadas. Clic para ver todas las materias.'
+                    : 'Clic para filtrar y ver solo las materias con inscripción duplicada'
+                }
+              >
+                <AlertTriangle size={12} color="#f87171" style={{ flexShrink: 0 }} />
+                <span>
+                  {duplicateGroupIds.size} materia{duplicateGroupIds.size !== 1 ? 's' : ''} duplicada{duplicateGroupIds.size !== 1 ? 's' : ''}
+                </span>
+                {selectedLevel === 'DUPLICATES' && (
+                  <X size={11} color="#f87171" style={{ marginLeft: '2px' }} />
+                )}
+              </button>
+            )}
           </div>
 
-          <div style={{ position: 'relative', width: '280px' }}>
+          <div style={{ position: 'relative', width: '260px', maxWidth: '100%' }}>
             <input
               type="text"
               value={groupFilter}
               onChange={(e) => setGroupFilter(e.target.value)}
-              placeholder="Filtrar por materia o nivel..."
+              placeholder="Buscar materia o código..."
               className="inscripciones-input"
               style={{
-                height: '38px',
-                fontSize: '13px',
-                padding: '0 32px 0 12px',
+                height: '34px',
+                fontSize: '12px',
+                padding: '0 32px 0 10px',
                 background: 'rgba(0, 0, 0, 0.3)',
                 borderColor: groupFilter.trim() ? 'var(--primary)' : 'var(--glass-border)',
                 width: '100%',
               }}
             />
             <Search
-              size={14}
+              size={13}
               style={{
                 position: 'absolute',
-                right: '12px',
+                right: '10px',
                 top: '50%',
                 transform: 'translateY(-50%)',
                 color: 'var(--on-surface-variant)',
@@ -290,57 +376,6 @@ export default function ProgramasYGrupos({
             />
           </div>
         </div>
-
-        {/* Chips de filtro por Cuatrimestre / Nivel */}
-        {levels.list.length > 1 && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '11px', color: 'var(--on-surface-variant)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <Filter size={12} /> Nivel:
-            </span>
-            <button
-              type="button"
-              onClick={() => setSelectedLevel('ALL')}
-              style={{
-                background: selectedLevel === 'ALL' ? 'var(--primary)' : 'rgba(255, 255, 255, 0.05)',
-                color: selectedLevel === 'ALL' ? '#090909' : 'var(--on-surface-variant)',
-                border: `1px solid ${selectedLevel === 'ALL' ? 'var(--primary)' : 'var(--glass-border)'}`,
-                padding: '4px 10px',
-                borderRadius: '8px',
-                fontSize: '11px',
-                fontWeight: 700,
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-              }}
-              title={`Todas las materias (${groups.length})`}
-            >
-              Todos
-            </button>
-            {levels.list.map((lvl) => {
-              const isSelected = selectedLevel === lvl;
-              return (
-                <button
-                  key={lvl}
-                  type="button"
-                  onClick={() => setSelectedLevel(lvl)}
-                  style={{
-                    background: isSelected ? 'var(--primary)' : 'rgba(255, 255, 255, 0.05)',
-                    color: isSelected ? '#090909' : 'var(--on-surface-variant)',
-                    border: `1px solid ${isSelected ? 'var(--primary)' : 'var(--glass-border)'}`,
-                    padding: '4px 10px',
-                    borderRadius: '8px',
-                    fontSize: '11px',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease',
-                  }}
-                  title={`${lvl} (${levels.counts[lvl]} materias)`}
-                >
-                  {lvl}
-                </button>
-              );
-            })}
-          </div>
-        )}
 
         {/* Barra de Control y Selección de Asignaturas */}
         <div
@@ -430,18 +465,8 @@ export default function ProgramasYGrupos({
           </div>
         </div>
 
-        {/* ── Grid Ultracompacto de Asignaturas con Checkboxes ── */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(440px, 1fr))',
-            gap: '8px',
-            overflowY: 'auto',
-            maxHeight: '560px',
-            paddingRight: '6px',
-            paddingBottom: '16px',
-          }}
-        >
+        {/* ── Grid de Asignaturas en 2 Columnas con Checkboxes ── */}
+        <div className="estudiante360-groups-grid">
           {filteredGroups.length === 0 ? (
             <div style={{ gridColumn: '1 / -1', padding: '36px', textAlign: 'center', color: 'var(--on-surface-variant)', fontSize: '13px' }}>
               {groups.length === 0
@@ -451,44 +476,60 @@ export default function ProgramasYGrupos({
           ) : (
             filteredGroups.map((g) => {
               const isChecked = selectedGroupIds.includes(g.groupId);
+              const isDuplicate = duplicateGroupIds.has(g.groupId);
+
               return (
                 <div
                   key={g.groupId}
                   onClick={() => onToggleGroup(g.groupId)}
                   style={{
-                    padding: '9px 14px',
+                    padding: '8px 12px',
                     borderRadius: '10px',
-                    border: `1px solid ${isChecked ? 'var(--primary)' : 'var(--glass-border)'}`,
-                    background: isChecked ? 'rgba(18, 163, 131, 0.12)' : 'rgba(0, 0, 0, 0.3)',
-                    boxShadow: isChecked ? '0 0 12px rgba(18, 163, 131, 0.18)' : 'none',
+                    border: `1px solid ${
+                      isChecked
+                        ? 'var(--primary)'
+                        : isDuplicate
+                        ? 'rgba(239, 68, 68, 0.45)'
+                        : 'var(--glass-border)'
+                    }`,
+                    background: isChecked
+                      ? 'rgba(18, 163, 131, 0.12)'
+                      : isDuplicate
+                      ? 'rgba(239, 68, 68, 0.04)'
+                      : 'rgba(0, 0, 0, 0.3)',
+                    boxShadow: isChecked
+                      ? '0 0 12px rgba(18, 163, 131, 0.18)'
+                      : isDuplicate
+                      ? '0 0 10px rgba(239, 68, 68, 0.1)'
+                      : 'none',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    gap: '12px',
+                    gap: '10px',
                     cursor: 'pointer',
                     transition: 'all 0.15s ease',
                   }}
                   onMouseEnter={(e) => {
                     if (!isChecked) {
-                      e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)';
-                      e.currentTarget.style.background = 'rgba(255,255,255,0.02)';
+                      e.currentTarget.style.borderColor = isDuplicate ? 'rgba(239, 68, 68, 0.7)' : 'rgba(255,255,255,0.2)';
+                      e.currentTarget.style.background = isDuplicate ? 'rgba(239, 68, 68, 0.08)' : 'rgba(255,255,255,0.02)';
                     }
                   }}
                   onMouseLeave={(e) => {
                     if (!isChecked) {
-                      e.currentTarget.style.borderColor = 'var(--glass-border)';
-                      e.currentTarget.style.background = 'rgba(0, 0, 0, 0.3)';
+                      e.currentTarget.style.borderColor = isDuplicate ? 'rgba(239, 68, 68, 0.45)' : 'var(--glass-border)';
+                      e.currentTarget.style.background = isDuplicate ? 'rgba(239, 68, 68, 0.04)' : 'rgba(0, 0, 0, 0.3)';
                     }
                   }}
                 >
-                  {/* Checkbox y Nombre */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
+                  {/* Checkbox y Nombre (con espacio ampliado para evitar cortes) */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1 }}>
                     <div
                       style={{
                         width: '18px',
                         height: '18px',
                         borderRadius: '5px',
-                        border: `1.5px solid ${isChecked ? 'var(--primary)' : 'rgba(255,255,255,0.3)'}`,
+                        border: `1.5px solid ${isChecked ? 'var(--primary)' : isDuplicate ? 'rgba(239, 68, 68, 0.6)' : 'rgba(255,255,255,0.3)'}`,
                         background: isChecked ? 'var(--primary)' : 'transparent',
                         display: 'flex',
                         alignItems: 'center',
@@ -504,12 +545,14 @@ export default function ProgramasYGrupos({
                     <span
                       style={{
                         fontWeight: 700,
-                        fontSize: '13px',
+                        fontSize: '12px',
                         color: isChecked ? 'var(--primary)' : 'var(--on-surface)',
-                        lineHeight: 1.3,
+                        lineHeight: 1.25,
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical',
                         overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
+                        wordBreak: 'break-word',
                       }}
                       title={g.name}
                     >
@@ -517,23 +560,52 @@ export default function ProgramasYGrupos({
                     </span>
                   </div>
 
-                  {/* Nivel / Cuatrimestre alineado a la derecha, ID y botón Copiar ID */}
+                  {/* Badges de Duplicado, Nivel, Group ID y Enlace SIS */}
                   <div
-                    style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      flexShrink: 0,
+                      flexWrap: 'wrap',
+                      justifyContent: 'flex-end',
+                    }}
                     onClick={(e) => e.stopPropagation()}
                   >
+                    {isDuplicate && (
+                      <span
+                        style={{
+                          background: 'rgba(239, 68, 68, 0.15)',
+                          border: '1px solid rgba(239, 68, 68, 0.4)',
+                          color: '#f87171',
+                          padding: '2px 6px',
+                          borderRadius: '5px',
+                          fontSize: '10px',
+                          fontWeight: 800,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '3px',
+                          whiteSpace: 'nowrap',
+                          flexShrink: 0,
+                        }}
+                        title="Asignatura duplicada: el estudiante está inscrito en más de un grupo para esta misma materia"
+                      >
+                        <AlertTriangle size={10} color="#f87171" />
+                        Duplicada
+                      </span>
+                    )}
+
                     <span
                       style={{
                         background: 'rgba(56, 189, 248, 0.12)',
                         border: '1px solid rgba(56, 189, 248, 0.28)',
                         color: '#38bdf8',
-                        padding: '2px 8px',
-                        borderRadius: '6px',
+                        padding: '2px 7px',
+                        borderRadius: '5px',
                         fontSize: '10px',
                         fontWeight: 700,
                         whiteSpace: 'nowrap',
                         textAlign: 'center',
-                        minWidth: '95px',
                         display: 'inline-block',
                       }}
                     >
@@ -548,18 +620,18 @@ export default function ProgramasYGrupos({
                       style={{
                         display: 'inline-flex',
                         alignItems: 'center',
-                        gap: '6px',
+                        gap: '4px',
                         fontSize: '11px',
                         fontFamily: "'Space Grotesk', monospace",
                         color: copiedGroupId === g.groupId ? 'var(--primary)' : '#cbd5e1',
                         background: copiedGroupId === g.groupId ? 'rgba(18, 163, 131, 0.12)' : 'rgba(255, 255, 255, 0.05)',
                         border: `1px solid ${copiedGroupId === g.groupId ? 'var(--primary)' : 'var(--glass-border)'}`,
-                        padding: '3px 8px',
-                        borderRadius: '6px',
+                        padding: '2px 6px',
+                        borderRadius: '5px',
                         cursor: 'pointer',
                         transition: 'all 0.15s ease',
                       }}
-                      title="Clic para copiar ID del grupo"
+                      title={`ID completo: ${g.groupId} (Clic para copiar)`}
                       onMouseEnter={(e) => {
                         if (copiedGroupId !== g.groupId) {
                           e.currentTarget.style.borderColor = 'var(--primary)';
@@ -573,9 +645,48 @@ export default function ProgramasYGrupos({
                         }
                       }}
                     >
-                      <span>{g.groupId}</span>
+                      <span>...{g.groupId ? g.groupId.slice(-6) : ''}</span>
                       {copiedGroupId === g.groupId ? <Check size={11} color="var(--primary)" /> : <Copy size={11} />}
                     </div>
+
+                    {g.groupId && (
+                      <a
+                        href={buildSisGroupUrl(g.groupId)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '3px',
+                          fontSize: '10.5px',
+                          fontWeight: 700,
+                          color: '#94a3b8',
+                          background: 'rgba(255, 255, 255, 0.05)',
+                          border: '1px solid var(--glass-border)',
+                          padding: '2px 6px',
+                          borderRadius: '5px',
+                          textDecoration: 'none',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease',
+                          whiteSpace: 'nowrap',
+                        }}
+                        title={`Abrir grupo ${g.groupId} en SIS`}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.borderColor = 'var(--primary)';
+                          e.currentTarget.style.color = 'var(--primary)';
+                          e.currentTarget.style.background = 'rgba(18, 163, 131, 0.1)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.borderColor = 'var(--glass-border)';
+                          e.currentTarget.style.color = '#94a3b8';
+                          e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                        }}
+                      >
+                        <span>SIS</span>
+                        <ExternalLink size={10} />
+                      </a>
+                    )}
                   </div>
                 </div>
               );
@@ -583,6 +694,5 @@ export default function ProgramasYGrupos({
           )}
         </div>
       </div>
-    </div>
   );
 }

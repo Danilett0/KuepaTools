@@ -64,10 +64,14 @@ export function normalizeStudent360(user, rawStructures = [], programsCatalog = 
     const gId = str.mongo_id || str._id?.$oid || str._id || '';
     if (!gId) continue;
     const levelName = str.parent?.level?.name || 'Nivel General';
+    const parentId = str.parent_id || str.parent?._id?.$oid || str.parent?.mongo_id || '';
+    const subjectName = str.parent?.name || '';
     groups.push({
       groupId: String(gId),
       name: str.name || `Grupo ${gId}`,
       levelName,
+      parentId: String(parentId),
+      subjectName,
       raw: str,
     });
   }
@@ -94,7 +98,7 @@ export function normalizeStudent360(user, rawStructures = [], programsCatalog = 
  * @returns {string[]} Lista de comandos generados
  */
 export function generate360Commands(actionType, params = {}) {
-  const { studentId, programId, groupId, groupIds } = params;
+  const { studentId, programId, groupId, groupIds, statusId } = params;
   const targetGroupIds = Array.isArray(groupIds) && groupIds.length > 0
     ? groupIds.filter(Boolean)
     : (groupId ? [groupId] : []);
@@ -152,6 +156,15 @@ export function generate360Commands(actionType, params = {}) {
       return targetGroupIds.map((gId) => `magik run:prod pull:user:from:group["${gId}","${studentId}"]`);
     }
 
+    case 'change_program_status':
+    case 'change_status': {
+      const targetStatusId = statusId || params.statusId;
+      if (!studentId || !programId || !targetStatusId) {
+        throw new Error('studentId, programId y statusId son requeridos para cambiar el estado del programa.');
+      }
+      return [`magik run:prod status:change["${programId}","${targetStatusId}","${studentId}"]`];
+    }
+
     case 'clean_cache_lms':
       return ['magik run:prod cache:clean:sislms ["*"]'];
 
@@ -163,43 +176,65 @@ export function generate360Commands(actionType, params = {}) {
   }
 }
 
+const inFlightStudentRequests = new Map();
+
 /**
  * Consulta y orquesta la extracción integral 360° de un estudiante.
+ * Deduplica llamadas en curso para prevenir peticiones HTTP redundantes.
  *
  * @param {string} identifier - INC numérico o Mongo ObjectID
  * @param {string} allianceId - ID de la alianza en MongoDB
  * @returns {Promise<object|null>}
  */
 export async function fetchStudent360Data(identifier, allianceId) {
-  const user = await findUser(identifier, allianceId);
-  if (!user) return null;
+  const trimmed = (identifier || '').trim();
+  if (!trimmed) return null;
 
-  const studentId = user._id?.$oid;
-  if (!studentId) return null;
+  const key = `${trimmed}:${allianceId || ''}`;
+  if (inFlightStudentRequests.has(key)) {
+    return inFlightStudentRequests.get(key);
+  }
 
-  // Consultas paralelas en Supabase
-  const [structuresRes, programsRes] = await Promise.all([
-    supabase
-      .from('structures')
-      .select(`
-        mongo_id,
-        name,
-        parent:parent_id (
-          pensum_level_id,
-          level:pensum_level_id ( name )
-        )
-      `)
-      .contains('users', [studentId]),
-    supabase
-      .from('programas')
-      .select('mongo_id, name')
-      .eq('alliance_id', allianceId),
-  ]);
+  const fetchPromise = (async () => {
+    const user = await findUser(trimmed, allianceId);
+    if (!user) return null;
 
-  const rawStructures = structuresRes.data || [];
-  const rawPrograms = programsRes.data || [];
+    const studentId = user._id?.$oid || (typeof user._id === 'string' ? user._id : '') || user.mongo_id || '';
+    if (!studentId) return null;
 
-  return normalizeStudent360(user, rawStructures, rawPrograms);
+    // Consultas paralelas en Supabase
+    const [structuresRes, programsRes] = await Promise.all([
+      supabase
+        .from('structures')
+        .select(`
+          mongo_id,
+          name,
+          parent_id,
+          parent:parent_id (
+            name,
+            pensum_level_id,
+            level:pensum_level_id ( name )
+          )
+        `)
+        .contains('users', [studentId]),
+      supabase
+        .from('programas')
+        .select('mongo_id, name')
+        .eq('alliance_id', allianceId),
+    ]);
+
+    const rawStructures = structuresRes.data || [];
+    const rawPrograms = programsRes.data || [];
+
+    return normalizeStudent360(user, rawStructures, rawPrograms);
+  })();
+
+  inFlightStudentRequests.set(key, fetchPromise);
+  try {
+    return await fetchPromise;
+  } finally {
+    inFlightStudentRequests.delete(key);
+  }
 }
 
 /**
@@ -330,7 +365,7 @@ export function sortAcademicLevels(levels = []) {
  * @param {string} allianceName
  * @returns {string}
  */
-export function formatStudentTicketSummary(student, allianceName = '') {
+export function formatStudentTicketSummary(student, allianceName = '', programName = '') {
   if (!student) return '';
   const fullName = student.fullName || 'N/A';
   const alliance = allianceName || (student.allianceId ? 'Kuepa' : 'N/A');
@@ -340,15 +375,149 @@ export function formatStudentTicketSummary(student, allianceName = '') {
   const phone = student.phone || 'N/A';
   const sisUrl = student.mongoId ? `https://sis.kuepa.com/students/details/${student.mongoId}` : 'N/A';
 
-  return [
+  const lines = [
     `👤 Nombre: ${fullName}`,
     `🏛️ Alianza: ${alliance}`,
     `🆔 INC: ${inc}`,
     `🔑 Mongo ObjectId: ${mongoId}`,
-    `✉️ Correo: ${email}`,
-    `📞 Teléfono: ${phone}`,
-    `🔗 Perfil SIS: ${sisUrl}`,
-  ].join('\n');
+    ...(programName ? [`🎓 Programa: ${programName}`] : [])
+  ];
+
+  return lines.join('\n');
+}
+
+/**
+ * Genera la URL canónica hacia la vista de grupo académico en SIS.
+ *
+ * @param {string} groupId - Mongo ObjectId del grupo académico
+ * @param {string} [tab='sylabus'] - Pestaña activa por defecto ('sylabus')
+ * @returns {string}
+ */
+export function buildSisGroupUrl(groupId, tab = 'sylabus') {
+  if (!groupId) return '';
+  const cleanId = String(groupId).trim();
+  return cleanId ? `https://sis.kuepa.com/academic-group/details/${cleanId}?tab=${tab}` : '';
+}
+
+/**
+ * Retorna la paleta de colores coherente con el Design System para un estado académico.
+ *
+ * @param {string} statusName - Nombre del estado (ej: Activo, Retirado, Graduado, Suspendido)
+ * @returns {{ dot: string, text: string, bg: string, border: string }}
+ */
+export function getStatusTheme(statusName = '') {
+  const norm = normalizeText(statusName);
+  if (norm.includes('activo') || norm.includes('al dia')) {
+    return {
+      dot: '#10b981',
+      text: '#10b981',
+      bg: 'rgba(16, 185, 129, 0.15)',
+      border: 'rgba(16, 185, 129, 0.35)',
+    };
+  }
+  if (norm.includes('graduado') || norm.includes('egresado') || norm.includes('finalizado')) {
+    return {
+      dot: '#38bdf8',
+      text: '#38bdf8',
+      bg: 'rgba(56, 189, 248, 0.15)',
+      border: 'rgba(56, 189, 248, 0.35)',
+    };
+  }
+  if (
+    norm.includes('retirado') ||
+    norm.includes('desertor') ||
+    norm.includes('inactivo') ||
+    norm.includes('baja') ||
+    norm.includes('expulsado') ||
+    norm.includes('abandono')
+  ) {
+    return {
+      dot: '#ef4444',
+      text: '#ef4444',
+      bg: 'rgba(239, 68, 68, 0.15)',
+      border: 'rgba(239, 68, 68, 0.35)',
+    };
+  }
+  if (
+    norm.includes('suspendido') ||
+    norm.includes('aplazado') ||
+    norm.includes('moroso') ||
+    norm.includes('alerta') ||
+    norm.includes('deuda')
+  ) {
+    return {
+      dot: '#f59e0b',
+      text: '#fbbf24',
+      bg: 'rgba(245, 158, 11, 0.15)',
+      border: 'rgba(245, 158, 11, 0.35)',
+    };
+  }
+  return {
+    dot: '#a855f7',
+    text: '#c084fc',
+    bg: 'rgba(168, 85, 247, 0.15)',
+    border: 'rgba(168, 85, 247, 0.35)',
+  };
+}
+
+/**
+ * Normaliza y extrae el nombre base de una asignatura eliminando sufijos de grupo.
+ *
+ * @param {string} name
+ * @returns {string}
+ */
+export function extractBaseSubjectName(name = '') {
+  let norm = normalizeText(name);
+  if (!norm) return '';
+
+  norm = norm
+    .replace(/\s*\|\s*.*$/i, '')
+    .replace(/[-–—]\s*(carril|grupo|mp|gpo|a\.?c|sec|aula|cohorte|\d+(\.\d+)?v?)\b.*$/i, '')
+    .replace(/[-–—]\s*(ene|feb|mar|abr|may|mayo|jun|jul|ago|sep|oct|nov|dic)\b.*$/i, '')
+    .replace(/\s+(ene|feb|mar|abr|may|mayo|jun|jul|ago|sep|oct|nov|dic)\s+(tg\s+)?(cp|cont|adm|sis)?\b.*$/i, '')
+    .replace(/\s+\d{3,5}v?\b.*$/i, '')
+    .replace(/[-–—]\s*\d+v?\s*$/i, '')
+    .replace(/\s+-\s*$/i, '')
+    .replace(/[._\-–—]+$/, '')
+    .trim();
+
+  return norm;
+}
+
+/**
+ * Detecta asignaturas duplicadas donde un estudiante está inscrito en más de un grupo
+ * de la misma materia académica basándose en el nombre base normalizado de la asignatura.
+ *
+ * @param {Array<object>} groups
+ * @returns {Set<string>} Conjunto de groupIds duplicados
+ */
+export function detectDuplicateGroupIds(groups = []) {
+  if (!Array.isArray(groups) || groups.length <= 1) return new Set();
+
+  const keyMap = new Map();
+
+  for (const g of groups) {
+    const rawName = g.name || '';
+    const base = extractBaseSubjectName(rawName) || normalizeText(rawName);
+    if (!base) continue;
+
+    const key = `base:${base}`;
+    if (!keyMap.has(key)) {
+      keyMap.set(key, []);
+    }
+    if (g.groupId) {
+      keyMap.get(key).push(g.groupId);
+    }
+  }
+
+  const duplicateSet = new Set();
+  for (const [, ids] of keyMap.entries()) {
+    if (ids.length > 1) {
+      ids.forEach((id) => duplicateSet.add(id));
+    }
+  }
+
+  return duplicateSet;
 }
 
 

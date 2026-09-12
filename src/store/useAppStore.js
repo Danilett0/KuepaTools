@@ -13,19 +13,42 @@ export const useAppStore = create((set) => ({
   aiPrefilledData: null,
   
   initializeAuth: () => {
+    let currentUserId = null;
+    let inFlightRolePromise = null;
+
     const fetchRole = async (session) => {
-      if (!session) {
+      if (!session?.user?.id) {
         set({ userRole: null });
+        currentUserId = null;
         return;
       }
-      const { data } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', session.user.id)
-        .single();
-      
-      const role = data?.role || 'user';
-      set({ userRole: role });
+      if (currentUserId === session.user.id && useAppStore.getState().userRole) {
+        return;
+      }
+      if (inFlightRolePromise) {
+        return inFlightRolePromise;
+      }
+
+      currentUserId = session.user.id;
+      inFlightRolePromise = (async () => {
+        try {
+          const { data } = await supabase
+            .from('user_roles')
+            .select('role')
+            .eq('user_id', session.user.id)
+            .single();
+
+          const role = data?.role || 'user';
+          set({ userRole: role });
+        } catch (err) {
+          console.error('Error fetching user role:', err);
+          set({ userRole: 'user' });
+        } finally {
+          inFlightRolePromise = null;
+        }
+      })();
+
+      return inFlightRolePromise;
     };
 
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -35,7 +58,9 @@ export const useAppStore = create((set) => ({
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       set({ session });
-      fetchRole(session);
+      if (event !== 'INITIAL_SESSION') {
+        fetchRole(session);
+      }
 
       if (event === 'PASSWORD_RECOVERY') {
         set({ isPasswordRecovery: true });

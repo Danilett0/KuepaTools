@@ -8,6 +8,10 @@ import {
   sortAcademicLevels,
   compareAcademicLevels,
   formatStudentTicketSummary,
+  getStatusTheme,
+  extractBaseSubjectName,
+  detectDuplicateGroupIds,
+  buildSisGroupUrl,
 } from '../src/services/student360Service.js';
 
 describe('generate360Commands', () => {
@@ -114,6 +118,17 @@ describe('generate360Commands', () => {
     ]);
   });
 
+  test('debe generar comando status:change para cambiar estado en un programa', () => {
+    const cmds = generate360Commands('change_program_status', {
+      studentId: '64f1a2b3c4d5e6f7a8b9c0d1',
+      programId: '5d8bb638c4b9a9058b730032',
+      statusId: '5e4ee3511f5d762ca1387d89',
+    });
+
+    assert.equal(cmds.length, 1);
+    assert.equal(cmds[0], 'magik run:prod status:change["5d8bb638c4b9a9058b730032","5e4ee3511f5d762ca1387d89","64f1a2b3c4d5e6f7a8b9c0d1"]');
+  });
+
   test('debe generar comandos de caché sin parámetros', () => {
     const lms = generate360Commands('clean_cache_lms');
     assert.deepEqual(lms, ['magik run:prod cache:clean:sislms ["*"]']);
@@ -127,6 +142,7 @@ describe('generate360Commands', () => {
     assert.throws(() => generate360Commands('recalculate_grade', { studentId: '123' }), /groupId son requeridos/);
     assert.throws(() => generate360Commands('audit_group', { studentId: '123' }), /groupId son requeridos/);
     assert.throws(() => generate360Commands('remove_user', { studentId: '123' }), /groupId son requeridos/);
+    assert.throws(() => generate360Commands('change_program_status', { studentId: '123', programId: 'p1' }), /statusId son requeridos/);
     assert.deepEqual(generate360Commands('recalculate_all_grades', { studentId: '123', groupIds: [] }), []);
     assert.deepEqual(generate360Commands('recalculate_all_grades', { studentId: '123', groupIds: null }), []);
   });
@@ -195,8 +211,15 @@ describe('normalizeStudent360', () => {
 
     const userProgramasUndefined = { ...mockUser, programs: null };
     const resProgUndefined = normalizeStudent360(userProgramasUndefined, null, null);
-    assert.deepEqual(resProgUndefined.programs, []);
-    assert.deepEqual(resProgUndefined.groups, []);
+    const userConIdPlano = {
+      _id: '64f1a2b3c4d5e6f7a8b9c0d9',
+      alliance_id: '6303ed663138387a1669d82a',
+      incremental_user_code: 99999,
+      profile: { full_name: 'Ana Gómez' },
+    };
+    const resPlano = normalizeStudent360(userConIdPlano, [], []);
+    assert.equal(resPlano.student.mongoId, '64f1a2b3c4d5e6f7a8b9c0d9');
+    assert.equal(resPlano.student.fullName, 'Ana Gómez');
   });
 });
 
@@ -311,10 +334,7 @@ describe('formatStudentTicketSummary', () => {
       '👤 Nombre: Leidy Yuliana Ocampo Cuervo',
       '🏛️ Alianza: Nueva América',
       '🆔 INC: 19999',
-      '🔑 Mongo ObjectId: 67b338a6357fb57f91e0b332',
-      '✉️ Correo: ly.ocampoc@lanuevaamerica.edu.co',
-      '📞 Teléfono: 3157146557',
-      '🔗 Perfil SIS: https://sis.kuepa.com/students/details/67b338a6357fb57f91e0b332',
+      '🔑 Mongo ObjectId: 67b338a6357fb57f91e0b332'
     ].join('\n');
 
     assert.equal(res, expected);
@@ -329,9 +349,162 @@ describe('formatStudentTicketSummary', () => {
     const vacio = formatStudentTicketSummary({});
     assert.equal(vacio.includes('👤 Nombre: N/A'), true);
     assert.equal(vacio.includes('🆔 INC: N/A'), true);
-    assert.equal(vacio.includes('🔗 Perfil SIS: N/A'), true);
+    assert.equal(vacio.includes('🔑 Mongo ObjectId: N/A'), true);
   });
 });
 
+describe('getStatusTheme', () => {
+  test('debe retornar tokens esmeralda para Activo y Al Día', () => {
+    const themeActivo = getStatusTheme('Activo');
+    assert.equal(themeActivo.dot, '#10b981');
+    assert.equal(themeActivo.text, '#10b981');
 
+    const themeAlDia = getStatusTheme('Al día');
+    assert.equal(themeAlDia.dot, '#10b981');
+  });
+
+  test('debe retornar tokens rojos para Retirado, Desertor, Baja', () => {
+    const themeRetirado = getStatusTheme('Retirado');
+    assert.equal(themeRetirado.dot, '#ef4444');
+    assert.equal(themeRetirado.text, '#ef4444');
+
+    const themeDesertor = getStatusTheme('Desertor');
+    assert.equal(themeDesertor.dot, '#ef4444');
+  });
+
+  test('debe retornar tokens ámbar para Suspendido, Aplazado, Moroso', () => {
+    const themeSuspendido = getStatusTheme('Suspendido');
+    assert.equal(themeSuspendido.dot, '#f59e0b');
+    assert.equal(themeSuspendido.text, '#fbbf24');
+  });
+
+  test('debe retornar tokens celestes para Graduado, Egresado, Finalizado', () => {
+    const themeGraduado = getStatusTheme('Graduado');
+    assert.equal(themeGraduado.dot, '#38bdf8');
+    assert.equal(themeGraduado.text, '#38bdf8');
+  });
+
+  test('debe retornar fallback púrpura para estados desconocidos o vacíos', () => {
+    const themeOtro = getStatusTheme('Otro Estado');
+    assert.equal(themeOtro.dot, '#a855f7');
+
+    const themeVacio = getStatusTheme('');
+    assert.equal(themeVacio.dot, '#a855f7');
+  });
+});
+
+describe('extractBaseSubjectName', () => {
+  test('elimina sufijos comunes de grupos como Carril, MP, Grupo', () => {
+    assert.equal(
+      extractBaseSubjectName('Semana de Inducción-Carril 1.0'),
+      'semana de induccion'
+    );
+    assert.equal(
+      extractBaseSubjectName('Semana de Inducción-Carril 1'),
+      'semana de induccion'
+    );
+    assert.equal(
+      extractBaseSubjectName('Fundamentos de Administración-MP-2023-1'),
+      'fundamentos de administracion'
+    );
+    assert.equal(
+      extractBaseSubjectName('Inglés A1 - Grupo 2'),
+      'ingles a1'
+    );
+    assert.equal(
+      extractBaseSubjectName('Requisitos de grado-1V'),
+      'requisitos de grado'
+    );
+    assert.equal(
+      extractBaseSubjectName('Requisitos de grado-1V - Grupo 1'),
+      'requisitos de grado'
+    );
+    assert.equal(
+      extractBaseSubjectName('Habilidades Comunicativas - Grupo 3'),
+      'habilidades comunicativas'
+    );
+  });
+
+  test('mantiene nombres planos intactos y normalizados', () => {
+    assert.equal(extractBaseSubjectName('Matemáticas Básicas'), 'matematicas basicas');
+    assert.equal(extractBaseSubjectName(''), '');
+    assert.equal(extractBaseSubjectName(null), '');
+  });
+});
+
+describe('detectDuplicateGroupIds', () => {
+  test('no marca como duplicados grupos de diferentes asignaturas aunque compartan cohorte o nivel', () => {
+    const groups = [
+      { groupId: 'g1', name: 'Habilidades Comunicativas - Grupo 3', parentId: 'cohort-1' },
+      { groupId: 'g2', name: 'Fundamentos de Matemáticas - Grupo 3', parentId: 'cohort-1' },
+      { groupId: 'g3', name: 'Procesos Contables - Grupo 3', parentId: 'cohort-1' },
+    ];
+
+    const duplicates = detectDuplicateGroupIds(groups);
+    assert.equal(duplicates.size, 0);
+  });
+
+  test('detecta duplicados por coincidencia de asignatura base (ej. Requisitos de grado, Inducción, etc.)', () => {
+    const groups = [
+      { groupId: 'g1', name: 'Requisitos de grado-1V' },
+      { groupId: 'g2', name: 'Requisitos de grado-1V - Grupo 1' },
+      { groupId: 'g3', name: 'Habilidades Comunicativas - Grupo 3' },
+    ];
+
+    const duplicates = detectDuplicateGroupIds(groups);
+    assert.equal(duplicates.size, 2);
+    assert.equal(duplicates.has('g1'), true);
+    assert.equal(duplicates.has('g2'), true);
+    assert.equal(duplicates.has('g3'), false);
+  });
+
+  test('detecta duplicados en variantes de carril o sufijos de grupo', () => {
+    const groups = [
+      { groupId: 'g1', name: 'Semana de Inducción-Carril 1' },
+      { groupId: 'g2', name: 'Semana de Inducción-Carril 1.0' },
+      { groupId: 'g3', name: 'Fundamentos de Administración' },
+    ];
+
+    const duplicates = detectDuplicateGroupIds(groups);
+    assert.equal(duplicates.size, 2);
+    assert.equal(duplicates.has('g1'), true);
+    assert.equal(duplicates.has('g2'), true);
+    assert.equal(duplicates.has('g3'), false);
+  });
+
+  test('no detecta duplicados cuando todas las asignaturas son distintas', () => {
+    const groups = [
+      { groupId: 'g1', name: 'Matemáticas I' },
+      { groupId: 'g2', name: 'Inglés I' },
+      { groupId: 'g3', name: 'Programación I' },
+    ];
+
+    const duplicates = detectDuplicateGroupIds(groups);
+    assert.equal(duplicates.size, 0);
+  });
+
+  test('casos límite: arreglo vacío, nulo o de un solo elemento', () => {
+    assert.equal(detectDuplicateGroupIds([]).size, 0);
+    assert.equal(detectDuplicateGroupIds(null).size, 0);
+    assert.equal(detectDuplicateGroupIds([{ groupId: 'g1', name: 'Materia 1' }]).size, 0);
+  });
+});
+
+describe('buildSisGroupUrl', () => {
+  test('genera la URL canónica con tab=sylabus por defecto', () => {
+    const url = buildSisGroupUrl('67b4bfd1ab883005748e1a2b');
+    assert.equal(url, 'https://sis.kuepa.com/academic-group/details/67b4bfd1ab883005748e1a2b?tab=sylabus');
+  });
+
+  test('permite especificar un tab personalizado si es requerido', () => {
+    const url = buildSisGroupUrl('67b4bfd1ab883005748e1a2b', 'students');
+    assert.equal(url, 'https://sis.kuepa.com/academic-group/details/67b4bfd1ab883005748e1a2b?tab=students');
+  });
+
+  test('casos límite: id vacío, nulo o undefined retorna string vacío', () => {
+    assert.equal(buildSisGroupUrl(''), '');
+    assert.equal(buildSisGroupUrl(null), '');
+    assert.equal(buildSisGroupUrl(undefined), '');
+  });
+});
 

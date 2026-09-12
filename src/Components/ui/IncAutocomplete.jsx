@@ -37,6 +37,8 @@ export default function IncAutocomplete({
   const containerRef = useRef(null);
   const debounceRef = useRef(null);
   const abortRef = useRef(null);
+  const isFirstMount = useRef(true);
+  const prevValRef = useRef(value);
 
   // ── Cerrar sugerencias al hacer click fuera ───────────────────────────────
   useEffect(() => {
@@ -51,7 +53,19 @@ export default function IncAutocomplete({
 
   // ── Búsqueda con debounce al cambiar el valor ─────────────────────────────
   useEffect(() => {
-    const val = value.trim();
+    // Si es el montaje inicial y ya existe un valor preexistente, no ejecutar autocompletado en background
+    if (isFirstMount.current) {
+      isFirstMount.current = false;
+      prevValRef.current = value;
+      return;
+    }
+
+    if (prevValRef.current === value) {
+      return;
+    }
+    prevValRef.current = value;
+
+    const val = (value || '').trim();
 
     // Reset state on every change
     setNotFound(false);

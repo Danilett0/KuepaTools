@@ -1,11 +1,16 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { toast } from "react-toastify";
 import { Copy, Check, X, ChevronDown, ChevronRight } from "lucide-react";
 
-function CommandsDisplay({ commands, onClear }) {
+function CommandsDisplay({ commands, onClear, defaultExpanded = false }) {
   const [copiedIndex, setCopiedIndex] = useState(null);
   const [copiedAll, setCopiedAll] = useState(false);
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+
+  // Asegurar que el listado no se despliegue automáticamente al generar cualquier comando
+  useEffect(() => {
+    setIsExpanded(defaultExpanded);
+  }, [commands, defaultExpanded]);
 
   if (!commands || commands.length === 0) return null;
 
@@ -67,11 +72,15 @@ function CommandsDisplay({ commands, onClear }) {
             cursor: "pointer",
             userSelect: "none"
           }}
+          title={isExpanded ? "Clic para contraer listado" : "Clic para ver listado de comandos"}
         >
           {isExpanded ? <ChevronDown size={20} color="var(--primary)" /> : <ChevronRight size={20} color="var(--primary)" />}
           <span style={{ fontWeight: 700, fontSize: "14px" }}>
             📋 {commands.length} comando{commands.length !== 1 ? "s" : ""}{" "}
             generado{commands.length !== 1 ? "s" : ""}{actionSuffixNode}
+          </span>
+          <span style={{ fontSize: "11px", color: "var(--on-surface-variant)", opacity: 0.8, fontWeight: 500 }}>
+            {isExpanded ? "• Clic para ocultar" : "• Clic para ver"}
           </span>
         </div>
         <div style={{ display: "flex", gap: "12px" }}>

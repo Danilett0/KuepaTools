@@ -55,6 +55,8 @@ export async function searchByIncPrefix(prefix, alianzaId, limit = 6) {
   return data.map(normalizeUser);
 }
 
+const inFlightUsers = new Map();
+
 /**
  * Exact lookup: finds a single user by incremental_user_code OR mongo_id,
  * within the given alliance.
@@ -66,28 +68,42 @@ export async function searchByIncPrefix(prefix, alianzaId, limit = 6) {
  * @returns {Promise<object|null>}
  */
 export async function findUser(value, alianzaId) {
-  const trimmed = value.trim();
+  const trimmed = (value || '').trim();
   if (!trimmed) return null;
 
-  const incNum = Number(trimmed);
-  const isInc  = !isNaN(incNum) && trimmed.length <= 7;
-
-  let query = supabase.from('users').select(USER_FIELDS).limit(1);
-
-  if (alianzaId) {
-    query = query.eq('alliance_id', alianzaId);
+  const key = `${trimmed}:${alianzaId || ''}`;
+  if (inFlightUsers.has(key)) {
+    return inFlightUsers.get(key);
   }
 
-  if (isInc) {
-    query = query.eq('incremental_user_code', incNum);
-  } else {
-    // mongo_id / _id lookup
-    query = query.eq('mongo_id', trimmed);
-  }
+  const promise = (async () => {
+    const incNum = Number(trimmed);
+    const isInc  = !isNaN(incNum) && trimmed.length <= 7;
 
-  const { data, error } = await query;
-  if (error) throw new Error(error.message);
-  return data.length ? normalizeUser(data[0]) : null;
+    let query = supabase.from('users').select(USER_FIELDS).limit(1);
+
+    if (alianzaId) {
+      query = query.eq('alliance_id', alianzaId);
+    }
+
+    if (isInc) {
+      query = query.eq('incremental_user_code', incNum);
+    } else {
+      // mongo_id / _id lookup
+      query = query.eq('mongo_id', trimmed);
+    }
+
+    const { data, error } = await query;
+    if (error) throw new Error(error.message);
+    return data.length ? normalizeUser(data[0]) : null;
+  })();
+
+  inFlightUsers.set(key, promise);
+  try {
+    return await promise;
+  } finally {
+    inFlightUsers.delete(key);
+  }
 }
 
 /**
