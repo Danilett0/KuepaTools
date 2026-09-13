@@ -9,7 +9,7 @@
  * SIN tener que preguntar al usuario, reduciendo fricciones.
  */
 
-import { findUser } from './usuariosService';
+import { findUser, findUsersByIncList, findUsersByMongoIds } from './usuariosService';
 import { supabase } from './supabaseClient';
 import { ALLIANCE_IDS } from '../utils/constants';
 
@@ -50,8 +50,11 @@ function extractObjectIDs(text) {
   return [...new Set(matches)];
 }
 
+const programNamesCache = new Map();
+
 /**
- * Dado un array de program structure IDs, busca sus nombres en el catálogo de Supabase.
+ * Dado un array de program structure IDs, busca sus nombres en el catálogo de Supabase
+ * usando una caché en memoria para evitar re-consultar programas conocidos.
  * 
  * @param {string[]} programIds - Array de ObjectIDs de programas (structure)
  * @param {string} allianceId - ObjectID de la alianza
@@ -59,19 +62,41 @@ function extractObjectIDs(text) {
  */
 async function resolveProgramNames(programIds, allianceId) {
   if (!programIds.length) return {};
-  
+
+  const resultMap = {};
+  const missingIds = [];
+
+  for (const pid of programIds) {
+    const cacheKey = `${allianceId}:${pid}`;
+    if (programNamesCache.has(cacheKey)) {
+      resultMap[pid] = programNamesCache.get(cacheKey);
+    } else {
+      missingIds.push(pid);
+    }
+  }
+
+  if (missingIds.length === 0) {
+    return resultMap;
+  }
+
   try {
     const { data } = await supabase
       .from('programas')
       .select('mongo_id, name')
       .eq('alliance_id', allianceId)
-      .in('mongo_id', programIds);
-    
-    if (!data) return {};
-    return Object.fromEntries(data.map(p => [p.mongo_id, p.name]));
+      .in('mongo_id', missingIds);
+
+    if (data) {
+      for (const p of data) {
+        const cacheKey = `${allianceId}:${p.mongo_id}`;
+        programNamesCache.set(cacheKey, p.name);
+        resultMap[p.mongo_id] = p.name;
+      }
+    }
+    return resultMap;
   } catch (err) {
     console.error('Error resolviendo nombres de programas:', err);
-    return {};
+    return resultMap;
   }
 }
 
@@ -92,13 +117,14 @@ async function resolveProgramNames(programIds, allianceId) {
  * @property {Array} programs - Programas con id y nombre resuelto
  * @property {number} programCount - Cantidad de programas
  * @property {Object|null} autoProgram - Programa auto-resuelto si tiene exactamente 1
+ * @property {Object} rawUser - Objeto de usuario completo normalizado
  */
 export async function hydrateStudents(text, allianceKey, onStateChange) {
   const allianceId = ALLIANCE_IDS[allianceKey];
   const detectedINCs = extractINCs(text);
   const detectedObjectIDs = extractObjectIDs(text);
   
-  if (detectedINCs.length === 0) {
+  if (detectedINCs.length === 0 && detectedObjectIDs.length === 0) {
     return {
       students: [],
       objectIds: detectedObjectIDs,
@@ -109,34 +135,51 @@ export async function hydrateStudents(text, allianceKey, onStateChange) {
   if (onStateChange) onStateChange('resolving_students');
   
   const hydratedStudents = [];
-  
-  // Recopilar todos los program IDs para resolver nombres en batch
   const allProgramIds = [];
   
-  // Buscar cada INC en la BD
-  for (const inc of detectedINCs) {
+  // 1. Batch lookup para INCs en 1 sola consulta
+  const incNumbers = [...new Set(detectedINCs.map(n => parseInt(n, 10)).filter(n => !isNaN(n)))];
+  let usersByInc = [];
+  if (incNumbers.length > 0) {
     try {
-      const user = await findUser(inc, allianceId);
-      
-      if (user && user._id && user._id.$oid) {
-        const studentPrograms = (user.programs || []).map(p => {
-          const pid = p.structure?.$oid || p.structure;
-          if (pid) allProgramIds.push(pid);
-          return { id: pid };
-        }).filter(p => p.id);
-        
-        hydratedStudents.push({
-          inc,
-          objectId: user._id.$oid,
-          name: user.profile?.full_name || 'Sin nombre',
-          email: user.profile?.email || '',
-          programs: studentPrograms,
-          programCount: studentPrograms.length,
-          autoProgram: studentPrograms.length === 1 ? studentPrograms[0] : null
-        });
-      }
+      usersByInc = await findUsersByIncList(incNumbers, allianceId);
     } catch (err) {
-      console.warn(`No se pudo hidratar INC ${inc}:`, err.message);
+      console.warn('Error hidratando lista de INCs:', err.message);
+    }
+  }
+
+  // 2. Batch lookup para ObjectIDs que no hayan sido resueltos aún por INC
+  const resolvedOids = new Set(usersByInc.map(u => u._id?.$oid).filter(Boolean));
+  const remainingOids = detectedObjectIDs.filter(oid => !resolvedOids.has(oid));
+  let usersByOid = [];
+  if (remainingOids.length > 0) {
+    try {
+      usersByOid = await findUsersByMongoIds(remainingOids, allianceId);
+    } catch (err) {
+      console.warn('Error hidratando ObjectIDs:', err.message);
+    }
+  }
+
+  const allFoundUsers = [...usersByInc, ...usersByOid];
+
+  for (const user of allFoundUsers) {
+    if (user && user._id && user._id.$oid) {
+      const studentPrograms = (user.programs || []).map(p => {
+        const pid = p.structure?.$oid || p.structure;
+        if (pid) allProgramIds.push(pid);
+        return { id: pid };
+      }).filter(p => p.id);
+
+      hydratedStudents.push({
+        inc: user.incremental_user_code ? String(user.incremental_user_code) : '',
+        objectId: user._id.$oid,
+        name: user.profile?.full_name || 'Sin nombre',
+        email: user.profile?.email || '',
+        programs: studentPrograms,
+        programCount: studentPrograms.length,
+        autoProgram: studentPrograms.length === 1 ? studentPrograms[0] : null,
+        rawUser: user
+      });
     }
   }
   

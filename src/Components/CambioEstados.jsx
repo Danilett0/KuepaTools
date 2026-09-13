@@ -4,7 +4,7 @@ import "../Styles/styles.css";
 import CommandsDisplay from "./CommandsDisplay";
 import { ChevronDown, RefreshCw, Search, User, Users, CheckCircle2, AlertTriangle, Minus } from "lucide-react";
 import AllianceSwitcher from "./ui/AllianceSwitcher";
-import { findUser, findUsersByIncList } from "../services/usuariosService";
+import { useUsuariosCompletos } from "../hooks/useUsuariosCompletos";
 import { useCatalogos } from "../hooks/useCatalogos";
 import IncAutocomplete from "./ui/IncAutocomplete";
 import { ALLIANCE_IDS } from "../utils/constants";
@@ -156,6 +156,7 @@ function parseIds(text) {
 // ─── Componente principal ────────────────────────────────────────────────────
 
 function CambiosEstadoBemo() {
+  const { findUser, findUsersByIncList } = useUsuariosCompletos();
   const [mode, setMode] = useLocalStorage("cambioEstados-mode", "varios");
 
   // Modo "varios"

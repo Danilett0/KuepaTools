@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { listUsuariosPaginados } from '../services/usuariosService';
 import { toast } from 'react-toastify';
+import { ALLIANCE_IDS } from '../utils/constants';
 
 export const useUsuariosSearch = (pageSize = 10) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -23,8 +24,8 @@ export const useUsuariosSearch = (pageSize = 10) => {
   }, [usuariosFiltro]);
 
   const allianceId = usuariosFiltro === 'nueva-america'
-    ? '6303ed663138387a1669d82a'
-    : '602169e217b5c8a27f9e9c06';
+    ? ALLIANCE_IDS.na
+    : ALLIANCE_IDS.kuepa;
 
   const { data, isFetching, error } = useQuery({
     queryKey: ['usuarios', allianceId, debouncedSearchTerm, usuariosPagina, pageSize],

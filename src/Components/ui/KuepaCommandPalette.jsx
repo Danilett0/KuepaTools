@@ -1,26 +1,61 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Command, ArrowRight, Bot, Zap, Settings, Loader2, Key, Trash2, Edit2 } from 'lucide-react';
+import { Search, Command, ArrowRight, Bot, Zap, Settings, Loader2, Key, Trash2, Edit2, RefreshCw, Check, X, Copy, Sparkles, Cpu } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
-import { analyzeIntentWithGemini } from '../../services/aiService';
-import { findUser } from '../../services/usuariosService';
 import { supabase } from '../../services/supabaseClient';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 import { toast } from 'react-toastify';
 import AllianceSwitcher from './AllianceSwitcher';
 import { ALLIANCE_IDS } from '../../utils/constants';
 import { setGlobalSetting, getGlobalSetting } from '../../services/settingsService';
+import { AVAILABLE_AI_MODELS, DEFAULT_AI_MODEL } from '../../services/aiService';
+import AiAssistantHero from './AiAssistantHero';
+
+const renderCommandSyntax = (cmd, isCopied) => {
+  if (isCopied) {
+    return <span style={{ color: '#86efac', fontWeight: 500 }}>{cmd}</span>;
+  }
+  const regex = /^(\S+(?:\s+\S+)?)\s+([^\[\s]+)(\[.*\])?(.*)$/;
+  const match = cmd.match(regex);
+  if (match) {
+    const [, runner, action, args, rest] = match;
+    return (
+      <span>
+        <span style={{ color: '#c084fc', fontWeight: 600 }}>{runner} </span>
+        <span style={{ color: '#34d399', fontWeight: 600 }}>{action}</span>
+        {args && <span style={{ color: '#38bdf8' }}>{args}</span>}
+        {rest && <span style={{ color: '#94a3b8' }}>{rest}</span>}
+      </span>
+    );
+  }
+  return <span style={{ color: '#38bdf8' }}>{cmd}</span>;
+};
 
 export default function KuepaCommandPalette() {
   const { isCommandPaletteOpen, setIsCommandPaletteOpen, setActiveComponent, setAiPrefilledData, setExpandedMenu } = useAppStore();
   const [inputValue, setInputValue] = useState('');
   const [chatHistory, setChatHistory] = useState([]);
   const [analyzingState, setAnalyzingState] = useState(null);
+  const [editingIndex, setEditingIndex] = useState(null);
+  const [editingText, setEditingText] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const [apiKey, setApiKey] = useLocalStorage('gemini_api_key', '');
   const [isFetchingKey, setIsFetchingKey] = useState(false);
   const [aiAlliance, setAiAlliance] = useLocalStorage('ai_alliance', 'na');
+  const [copiedCommandKeys, setCopiedCommandKeys] = useState({});
+  const [aiModel, setAiModel] = useLocalStorage('gemini_model', DEFAULT_AI_MODEL);
+
+  const currentModelObj = AVAILABLE_AI_MODELS.find(m => m.id === aiModel) || AVAILABLE_AI_MODELS[0];
+
+  // Auto-migrate from deprecated gemini-2.5-flash-lite if present in localStorage
+  useEffect(() => {
+    if (aiModel === 'gemini-2.5-flash-lite' || !AVAILABLE_AI_MODELS.some(m => m.id === aiModel)) {
+      setAiModel(DEFAULT_AI_MODEL);
+    }
+  }, [aiModel, setAiModel]);
+
   const inputRef = useRef(null);
+  const editInputRef = useRef(null);
   const messagesEndRef = useRef(null);
 
   const scrollToBottom = () => {
@@ -66,34 +101,30 @@ export default function KuepaCommandPalette() {
     }
   }, [inputValue]);
 
-  // Analyze intent manually when Enter is pressed
-  const handleAnalyze = async (overrideText = null) => {
-    const textToAnalyze = overrideText !== null ? overrideText : inputValue;
-    const minLength = chatHistory.length > 0 ? 1 : 3; // Permitir respuestas cortas ("1", "2") cuando hay conversación activa
-    if (textToAnalyze.trim().length < minLength || !apiKey || analyzingState) return;
-    
-    const newUserMessage = { id: Date.now().toString(), role: 'user', text: textToAnalyze };
-    const updatedHistory = [...chatHistory, newUserMessage];
-    setChatHistory(updatedHistory);
-    
-    if (overrideText === null) {
-      setInputValue('');
+  // Auto-resize and focus edit textarea
+  useEffect(() => {
+    if (editingIndex !== null && editInputRef.current) {
+      editInputRef.current.style.height = 'auto';
+      editInputRef.current.style.height = `${editInputRef.current.scrollHeight}px`;
+      editInputRef.current.focus();
+      const len = editInputRef.current.value.length;
+      editInputRef.current.setSelectionRange(len, len);
     }
-    
+  }, [editingIndex]);
+
+  // Execute Orchestrator Pipeline with given conversation history
+  const runAgentPipeline = async (historyToProcess) => {
     try {
       const { AgentOrchestrator } = await import('../../services/AgentOrchestrator');
       const cleanApiKey = apiKey.replace(/['"]/g, '').trim();
-      const orchestrator = new AgentOrchestrator(cleanApiKey, aiAlliance);
+      const orchestrator = new AgentOrchestrator(cleanApiKey, aiAlliance, { model: aiModel });
 
       // Loop for QUERY resolutions
-      let currentHistory = [...updatedHistory];
+      let currentHistory = [...historyToProcess];
       let isFinalResult = false;
       let finalResult = null;
 
       while (!isFinalResult) {
-        // En lugar de llamar a Gemini directo, llamamos a nuestro Orquestador
-        // NOTA: Para el loop interno de queries, le pasamos solo el último mensaje como userText,
-        // pero la magia real ya está encapsulada.
         const lastMsgText = currentHistory[currentHistory.length - 1].text;
         const historyForOrchestrator = currentHistory.slice(0, -1);
         
@@ -117,8 +148,15 @@ export default function KuepaCommandPalette() {
                 dbResultsStr = data.map(d => `ID: ${d.mongo_id}, Nombre: ${d.name}`).join(' | ');
               }
             } else if (table === 'grupos_estudiante') {
-              const studentIdToQuery = result.query.student_id;
+              let studentIdToQuery = result.query.student_id;
               if (studentIdToQuery) {
+                if (/^\d+$/.test(studentIdToQuery) && studentIdToQuery.length < 24) {
+                  const resolvedUser = await orchestrator.getUser(studentIdToQuery);
+                  if (resolvedUser?._id?.$oid) {
+                    studentIdToQuery = resolvedUser._id.$oid;
+                  }
+                }
+
                 const { data } = await supabase
                   .from('structures')
                   .select('mongo_id, name, parent:parent_id(level:pensum_level_id(name))')
@@ -157,7 +195,6 @@ export default function KuepaCommandPalette() {
             { id: Date.now().toString(), role: 'ai', text: `*(Consulté la base de datos buscando ${searchTerm}...)*`, isHidden: true }, 
             { id: (Date.now()+1).toString(), role: 'user', text: systemMsgText, isHidden: true }
           ];
-          // Volver a loopear para que el orquestador resuelva con el nuevo contexto
         } else {
           isFinalResult = true;
           finalResult = result;
@@ -186,21 +223,91 @@ export default function KuepaCommandPalette() {
     }
   };
 
-  // Close on Escape
+  // Analyze intent manually when Enter is pressed
+  const handleAnalyze = async (overrideText = null) => {
+    const textToAnalyze = overrideText !== null ? overrideText : inputValue;
+    const minLength = chatHistory.length > 0 ? 1 : 3; // Permitir respuestas cortas ("1", "2") cuando hay conversación activa
+    if (textToAnalyze.trim().length < minLength || !apiKey || analyzingState) return;
+    
+    const newUserMessage = { id: Date.now().toString(), role: 'user', text: textToAnalyze };
+    const updatedHistory = [...chatHistory, newUserMessage];
+    setChatHistory(updatedHistory);
+    
+    if (overrideText === null) {
+      setInputValue('');
+    }
+    
+    await runAgentPipeline(updatedHistory);
+  };
+
+  // Handlers for editing past messages
+  const handleStartEdit = (index, text) => {
+    setEditingIndex(index);
+    setEditingText(text);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingIndex(null);
+    setEditingText('');
+  };
+
+  const handleSaveEdit = async (targetIndex, newText) => {
+    const trimmed = newText.trim();
+    const minLength = targetIndex > 0 ? 1 : 3;
+    if (trimmed.length < minLength || !apiKey || analyzingState) return;
+
+    // Truncar historial descartando cualquier respuesta previa posterior a este mensaje
+    const baseHistory = chatHistory.slice(0, targetIndex);
+    const updatedUserMessage = {
+      id: chatHistory[targetIndex]?.id || Date.now().toString(),
+      role: 'user',
+      text: trimmed
+    };
+    const updatedHistory = [...baseHistory, updatedUserMessage];
+
+    setEditingIndex(null);
+    setEditingText('');
+    setChatHistory(updatedHistory);
+
+    await runAgentPipeline(updatedHistory);
+  };
+
+  // Close on Escape (or cancel edit if editing)
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape' && isCommandPaletteOpen) {
+        if (editingIndex !== null) {
+          setEditingIndex(null);
+          setEditingText('');
+          return;
+        }
         setIsCommandPaletteOpen(false);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isCommandPaletteOpen, setIsCommandPaletteOpen]);
+  }, [isCommandPaletteOpen, setIsCommandPaletteOpen, editingIndex]);
 
-  const handleCopyCommands = (commands) => {
+  const handleCopyCommands = (commands, batchIndex) => {
     const textToCopy = commands.join('\n');
     navigator.clipboard.writeText(textToCopy).then(() => {
+      if (batchIndex !== undefined) {
+        setCopiedCommandKeys(prev => {
+          const next = { ...prev };
+          commands.forEach((_, i) => {
+            next[`${batchIndex}-${i}`] = true;
+          });
+          return next;
+        });
+      }
       toast.success(commands.length > 1 ? "Comandos copiados al portapapeles ✨" : "Comando copiado al portapapeles ✨");
+    });
+  };
+
+  const handleCopySingleCommand = (cmd, key) => {
+    navigator.clipboard.writeText(cmd).then(() => {
+      setCopiedCommandKeys(prev => ({ ...prev, [key]: true }));
+      toast.success("Comando copiado al portapapeles ✨");
     });
   };
 
@@ -275,13 +382,13 @@ export default function KuepaCommandPalette() {
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
               style={{
                 width: '100%',
-                maxWidth: '760px',
-                height: (chatHistory.length > 0 || analyzingState) ? '80vh' : 'auto',
-                maxHeight: '800px',
-                backgroundColor: 'var(--surface-void)',
+                maxWidth: '940px',
+                height: (chatHistory.length > 0 || analyzingState) ? '85vh' : 'auto',
+                maxHeight: '880px',
+                background: 'radial-gradient(ellipse 80% 50% at 50% -10%, rgba(18, 163, 131, 0.15), transparent 70%), var(--surface-void)',
                 borderRadius: '20px',
-                border: '1px solid var(--glass-border)',
-                boxShadow: '0 24px 64px rgba(0,0,0,0.5), inset 0 1px 1px rgba(255,255,255,0.1)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                boxShadow: '0 32px 80px rgba(0,0,0,0.65), 0 0 0 1px rgba(255,255,255,0.06), inset 0 1px 1px rgba(255,255,255,0.15)',
                 pointerEvents: 'auto',
                 overflow: 'hidden',
                 display: 'flex',
@@ -297,24 +404,68 @@ export default function KuepaCommandPalette() {
                     exit={{ height: 0, opacity: 0 }}
                     style={{ overflow: 'hidden', borderBottom: '1px solid var(--glass-border)' }}
                   >
-                    <div style={{ padding: '16px 24px', display: 'flex', flexDirection: 'column', gap: '8px', background: 'rgba(0,0,0,0.2)' }}>
-                      <label style={{ fontSize: '12px', color: 'var(--on-surface-variant)', fontWeight: 600 }}>Gemini API Key (Google AI Studio)</label>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', background: 'var(--surface-void)', border: '1px solid var(--glass-border)', borderRadius: '8px', padding: '0 12px', flex: 1 }}>
-                          <Key size={14} color="var(--on-surface-variant)" />
-                          <input
-                            type="password"
-                            value={apiKey}
-                            onChange={(e) => setApiKey(e.target.value)}
-                            onBlur={handleApiKeyBlur}
-                            disabled={isFetchingKey}
-                            placeholder={isFetchingKey ? "Cargando desde DB..." : "AIzaSy..."}
-                            style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: 'var(--on-surface)', padding: '10px', fontSize: '13px', fontFamily: "'Space Grotesk', monospace", opacity: isFetchingKey ? 0.5 : 1 }}
-                          />
+                    <div style={{ padding: '16px 24px', display: 'flex', flexDirection: 'column', gap: '14px', background: 'rgba(0,0,0,0.2)' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <label style={{ fontSize: '12px', color: 'var(--on-surface-variant)', fontWeight: 600 }}>Gemini API Key (Google AI Studio)</label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', background: 'var(--surface-void)', border: '1px solid var(--glass-border)', borderRadius: '8px', padding: '0 12px', flex: 1 }}>
+                            <Key size={14} color="var(--on-surface-variant)" />
+                            <input
+                              type="password"
+                              value={apiKey}
+                              onChange={(e) => setApiKey(e.target.value)}
+                              onBlur={handleApiKeyBlur}
+                              disabled={isFetchingKey}
+                              placeholder={isFetchingKey ? "Cargando desde DB..." : "AIzaSy..."}
+                              style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: 'var(--on-surface)', padding: '10px', fontSize: '13px', fontFamily: "'Space Grotesk', monospace", opacity: isFetchingKey ? 0.5 : 1 }}
+                            />
+                          </div>
+                          {apiKey && <span style={{ fontSize: '12px', color: 'var(--primary)', fontWeight: 600 }}>Integrado ✨</span>}
                         </div>
-                        {apiKey && <span style={{ fontSize: '12px', color: 'var(--primary)', fontWeight: 600 }}>Integrado ✨</span>}
+                        <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Al ingresar tu clave, la paleta usará IA real para comprender lenguaje natural avanzado.</span>
                       </div>
-                      <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Al ingresar tu clave, la paleta usará IA real para comprender lenguaje natural avanzado.</span>
+
+                      {/* Model Selector */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', paddingTop: '4px', borderTop: '1px solid var(--glass-border)' }}>
+                        <label style={{ fontSize: '12px', color: 'var(--on-surface-variant)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <Cpu size={14} /> Modelo de Inteligencia Artificial
+                        </label>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '8px' }}>
+                          {AVAILABLE_AI_MODELS.map((m) => {
+                            const isSelected = aiModel === m.id;
+                            return (
+                              <div
+                                key={m.id}
+                                onClick={() => {
+                                  setAiModel(m.id);
+                                  toast.info(`Modelo activo: ${m.label}`);
+                                }}
+                                style={{
+                                  padding: '10px 12px',
+                                  borderRadius: '10px',
+                                  background: isSelected ? 'rgba(18, 163, 131, 0.15)' : 'var(--surface-void)',
+                                  border: isSelected ? '1.5px solid var(--primary)' : '1px solid var(--glass-border)',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: '2px',
+                                  transition: 'all 0.2s'
+                                }}
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                  <span style={{ fontSize: '12.5px', fontWeight: 700, color: isSelected ? 'var(--primary)' : 'var(--on-surface)' }}>
+                                    {m.label}
+                                  </span>
+                                  {isSelected && <Check size={14} color="var(--primary)" strokeWidth={2.5} />}
+                                </div>
+                                <span style={{ fontSize: '11px', color: 'var(--on-surface-variant)' }}>
+                                  {m.tag}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
                     </div>
                   </motion.div>
                 )}
@@ -322,11 +473,39 @@ export default function KuepaCommandPalette() {
 
               {/* Chat Header */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 24px', borderBottom: '1px solid var(--glass-border)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <AllianceSwitcher value={aiAlliance} onChange={setAiAlliance} size="sm" />
+                  
+                  {/* Active Model Badge */}
+                  <div
+                    onClick={() => setShowSettings(!showSettings)}
+                    title={`Modelo activo: ${currentModelObj.label} (${currentModelObj.tag}). Clic para configurar.`}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      background: 'rgba(18, 163, 131, 0.12)',
+                      border: '1px solid rgba(18, 163, 131, 0.3)',
+                      color: 'var(--primary)',
+                      padding: '4px 10px',
+                      borderRadius: '16px',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      userSelect: 'none'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(18, 163, 131, 0.22)'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(18, 163, 131, 0.12)'}
+                  >
+                    <Zap size={11} fill="var(--primary)" />
+                    <span>{currentModelObj.shortName}</span>
+                  </div>
+
                   <button
                     onClick={() => setShowSettings(!showSettings)}
                     style={{ background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: showSettings ? 'var(--primary)' : 'var(--on-surface-variant)', transition: 'color 0.2s' }}
+                    title="Configuración de IA"
                   >
                     <Settings size={18} />
                   </button>
@@ -337,7 +516,10 @@ export default function KuepaCommandPalette() {
                       <button
                         onClick={() => {
                           setChatHistory([]);
+                          setEditingIndex(null);
+                          setEditingText('');
                           setInputValue('');
+                          setCopiedCommandKeys({});
                           inputRef.current?.focus();
                         }}
                         style={{
@@ -366,6 +548,11 @@ export default function KuepaCommandPalette() {
                 </div>
               </div>
 
+              {/* Futuristic AI Assistant Animated Hero */}
+              {chatHistory.length === 0 && !analyzingState && (
+                <AiAssistantHero />
+              )}
+
               {/* Chat History Area (Scrollable) */}
               {(chatHistory.length > 0 || analyzingState) && (
               <div style={{ padding: '24px', flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '20px', background: 'rgba(0,0,0,0.2)' }}>
@@ -384,44 +571,224 @@ export default function KuepaCommandPalette() {
                     return chatHistory.map((msg, index) => {
                     if (msg.isHidden) return null;
                     if (msg.role === 'user') {
+                      const isBeingEdited = editingIndex === index;
+
                       return (
-                        <div key={msg.id || index} style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                          <div style={{ background: 'var(--surface-low)', padding: '12px 16px', borderRadius: '16px 16px 0 16px', maxWidth: '85%', border: '1px solid var(--glass-border)', position: 'relative' }} className="user-message">
-                            <div style={{ color: 'var(--on-surface)', fontSize: '15px', fontFamily: "'Space Grotesk', sans-serif", whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>
-                              {msg.text}
-                            </div>
-                            <button
-                              onClick={() => {
-                                setInputValue(msg.text);
-                                inputRef.current?.focus();
-                              }}
+                        <div key={msg.id || index} style={{ display: 'flex', justifyContent: 'flex-end', width: '100%' }}>
+                          {isBeingEdited ? (
+                            <div
                               style={{
-                                position: 'absolute',
-                                top: '-10px',
-                                right: '-10px',
-                                background: 'var(--primary)',
-                                color: '#000',
-                                border: 'none',
-                                borderRadius: '50%',
-                                width: '28px',
-                                height: '28px',
+                                background: 'var(--surface-low)',
+                                padding: '16px',
+                                borderRadius: '16px 16px 4px 16px',
+                                width: '100%',
+                                maxWidth: '85%',
+                                border: '1.5px solid var(--primary)',
+                                boxShadow: '0 8px 32px rgba(0,0,0,0.5), 0 0 16px rgba(18, 163, 131, 0.2)',
                                 display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                cursor: 'pointer',
-                                opacity: 0,
-                                transition: 'opacity 0.2s',
-                                boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
+                                flexDirection: 'column',
+                                gap: '12px',
+                                position: 'relative'
                               }}
-                              className="edit-btn"
-                              title="Editar mensaje"
                             >
-                              <Edit2 size={14} />
-                            </button>
-                            <style>{`
-                              .user-message:hover .edit-btn { opacity: 1 !important; }
-                            `}</style>
-                          </div>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--primary)', letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: "'Space Grotesk', sans-serif" }}>
+                                  Editando Mensaje
+                                </span>
+                                <span style={{ fontSize: '11px', color: 'var(--on-surface-variant)', opacity: 0.8 }}>
+                                  Enter para enviar · Shift+Enter nueva línea
+                                </span>
+                              </div>
+                              <textarea
+                                ref={editInputRef}
+                                value={editingText}
+                                onChange={(e) => {
+                                  setEditingText(e.target.value);
+                                  e.target.style.height = 'auto';
+                                  e.target.style.height = `${e.target.scrollHeight}px`;
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' && !e.shiftKey) {
+                                    e.preventDefault();
+                                    handleSaveEdit(index, editingText);
+                                  } else if (e.key === 'Escape') {
+                                    e.preventDefault();
+                                    handleCancelEdit();
+                                  }
+                                }}
+                                rows={Math.min(16, Math.max(2, editingText.split('\n').length))}
+                                style={{
+                                  width: '100%',
+                                  background: 'rgba(0, 0, 0, 0.35)',
+                                  border: '1px solid var(--glass-border)',
+                                  borderRadius: '10px',
+                                  padding: '12px 14px',
+                                  color: 'var(--on-surface)',
+                                  fontSize: '15px',
+                                  fontFamily: "'Space Grotesk', sans-serif",
+                                  lineHeight: '1.5',
+                                  maxHeight: '340px',
+                                  resize: 'none',
+                                  outline: 'none',
+                                  boxShadow: 'inset 0 2px 6px rgba(0,0,0,0.3)',
+                                  scrollbarWidth: 'none'
+                                }}
+                              />
+                              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                                <button
+                                  type="button"
+                                  onClick={handleCancelEdit}
+                                  style={{
+                                    padding: '7px 14px',
+                                    borderRadius: '8px',
+                                    background: 'transparent',
+                                    border: '1px solid var(--glass-border)',
+                                    color: 'var(--on-surface-variant)',
+                                    fontSize: '13px',
+                                    fontWeight: 600,
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '5px'
+                                  }}
+                                  onMouseEnter={(e) => e.currentTarget.style.color = 'var(--on-surface)'}
+                                  onMouseLeave={(e) => e.currentTarget.style.color = 'var(--on-surface-variant)'}
+                                >
+                                  <X size={14} /> Cancelar
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleSaveEdit(index, editingText)}
+                                  disabled={!editingText.trim() || analyzingState}
+                                  style={{
+                                    padding: '7px 16px',
+                                    borderRadius: '8px',
+                                    background: (!editingText.trim() || analyzingState) ? 'var(--surface-low)' : 'var(--primary)',
+                                    color: (!editingText.trim() || analyzingState) ? 'var(--on-surface-variant)' : '#000',
+                                    border: 'none',
+                                    fontSize: '13px',
+                                    fontWeight: 700,
+                                    cursor: (!editingText.trim() || analyzingState) ? 'not-allowed' : 'pointer',
+                                    transition: 'all 0.2s',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '6px'
+                                  }}
+                                >
+                                  <Check size={14} strokeWidth={2.5} /> Guardar y reenviar
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div 
+                              className="user-message-card"
+                              style={{ 
+                                background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.65) 0%, rgba(15, 23, 42, 0.8) 100%)',
+                                backdropFilter: 'blur(16px)',
+                                WebkitBackdropFilter: 'blur(16px)',
+                                padding: '14px 18px', 
+                                borderRadius: '18px 18px 4px 18px', 
+                                maxWidth: '85%', 
+                                border: '1px solid rgba(255, 255, 255, 0.1)',
+                                boxShadow: '0 8px 28px -6px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.08)',
+                                position: 'relative',
+                                transition: 'all 0.2s ease'
+                              }}
+                            >
+                              {/* Header micro-bar */}
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', gap: '16px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'rgba(255,255,255,0.45)' }} />
+                                  <span style={{ 
+                                    fontSize: '11px', 
+                                    fontWeight: 700, 
+                                    letterSpacing: '0.08em', 
+                                    textTransform: 'uppercase', 
+                                    color: 'rgba(255, 255, 255, 0.5)', 
+                                    fontFamily: "'Space Grotesk', sans-serif" 
+                                  }}>
+                                    Tú
+                                  </span>
+                                </div>
+                                
+                                {/* Micro action toolbar */}
+                                <div className="user-msg-actions" style={{ display: 'flex', alignItems: 'center', gap: '4px', opacity: 0, transition: 'opacity 0.2s ease' }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(msg.text);
+                                      toast.success('Mensaje copiado al portapapeles');
+                                    }}
+                                    style={{
+                                      background: 'rgba(255, 255, 255, 0.08)',
+                                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                                      color: 'rgba(255, 255, 255, 0.7)',
+                                      borderRadius: '6px',
+                                      width: '24px',
+                                      height: '24px',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      cursor: 'pointer',
+                                      transition: 'all 0.15s'
+                                    }}
+                                    title="Copiar texto"
+                                    onMouseEnter={(e) => {
+                                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.18)';
+                                      e.currentTarget.style.color = '#fff';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+                                      e.currentTarget.style.color = 'rgba(255, 255, 255, 0.7)';
+                                    }}
+                                  >
+                                    <Copy size={12} />
+                                  </button>
+                                  {!analyzingState && editingIndex === null && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleStartEdit(index, msg.text)}
+                                      style={{
+                                        background: 'rgba(255, 255, 255, 0.08)',
+                                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                                        color: 'rgba(255, 255, 255, 0.7)',
+                                        borderRadius: '6px',
+                                        width: '24px',
+                                        height: '24px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.15s'
+                                      }}
+                                      title="Editar y reenviar"
+                                      onMouseEnter={(e) => {
+                                        e.currentTarget.style.background = 'rgba(18, 163, 131, 0.25)';
+                                        e.currentTarget.style.color = 'var(--primary)';
+                                        e.currentTarget.style.borderColor = 'rgba(18, 163, 131, 0.4)';
+                                      }}
+                                      onMouseLeave={(e) => {
+                                        e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+                                        e.currentTarget.style.color = 'rgba(255, 255, 255, 0.7)';
+                                        e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+                                      }}
+                                    >
+                                      <Edit2 size={12} />
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div style={{ color: '#f8fafc', fontSize: '14.5px', fontFamily: "'Space Grotesk', sans-serif", whiteSpace: 'pre-wrap', lineHeight: '1.6', letterSpacing: '0.01em' }}>
+                                {msg.text}
+                              </div>
+                              <style>{`
+                                .user-message-card:hover .user-msg-actions { opacity: 1 !important; }
+                                .user-message-card:hover { border-color: rgba(255, 255, 255, 0.18) !important; }
+                              `}</style>
+                            </div>
+                          )}
                         </div>
                       );
                     } else if (msg.role === 'ai') {
@@ -461,12 +828,25 @@ export default function KuepaCommandPalette() {
                               <div style={{ flex: 1, height: '1px', background: 'linear-gradient(90deg, transparent, var(--primary), transparent)' }} />
                             </div>
                           )}
-                        <div style={{ display: 'flex', justifyContent: 'flex-start', maxWidth: '90%' }}>
-                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', width: '100%' }}>
-                            <div style={{ marginTop: '4px', background: 'rgba(18, 163, 131, 0.1)', borderRadius: '50%', padding: '6px' }}>
-                              <Bot size={20} color="var(--primary)" />
+                        <div style={{ display: 'flex', justifyContent: 'flex-start', width: '100%', maxWidth: '95%' }}>
+                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px', width: '100%' }}>
+                            {/* Quantum AI Badge */}
+                            <div style={{
+                              marginTop: '2px',
+                              width: '32px',
+                              height: '32px',
+                              borderRadius: '10px',
+                              background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.25) 0%, rgba(6, 78, 59, 0.5) 100%)',
+                              border: '1px solid rgba(52, 211, 153, 0.4)',
+                              boxShadow: '0 0 16px rgba(16, 185, 129, 0.25)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0
+                            }}>
+                              <Sparkles size={16} color="#34d399" />
                             </div>
-                            <div style={{ flex: 1 }}>
+                            <div style={{ flex: 1, minWidth: 0 }}>
                               {parsedResult?.type === 'INCOMPLETE' ? (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#eab308' }}>
@@ -479,37 +859,160 @@ export default function KuepaCommandPalette() {
                                   </div>
                                 </div>
                               ) : isCommandBlock ? (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
-                                    <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--primary)' }}>
-                                      {parsedResult.commands.length} Comando(s) Generado(s)
-                                    </span>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2px', flexWrap: 'wrap', gap: '8px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#10b981', boxShadow: '0 0 8px #10b981' }} />
+                                        <span style={{ fontSize: '13.5px', fontWeight: 700, color: '#f8fafc', letterSpacing: '0.02em', fontFamily: "'Space Grotesk', sans-serif" }}>
+                                          {parsedResult.commands.length} Comando{parsedResult.commands.length > 1 ? 's' : ''} Generado{parsedResult.commands.length > 1 ? 's' : ''}
+                                        </span>
+                                      </div>
+                                      <span style={{ 
+                                        fontSize: '11px', 
+                                        fontWeight: 600,
+                                        color: 'rgba(255,255,255,0.6)', 
+                                        background: 'rgba(255, 255, 255, 0.05)', 
+                                        padding: '3px 9px', 
+                                        borderRadius: '8px', 
+                                        border: '1px solid rgba(255, 255, 255, 0.08)',
+                                        fontFamily: "'Space Grotesk', sans-serif"
+                                      }}>
+                                        CLI Kuepa
+                                      </span>
+                                    </div>
                                     <button 
-                                      onClick={() => handleCopyCommands(parsedResult.commands)}
+                                      type="button"
+                                      onClick={() => handleCopyCommands(parsedResult.commands, index)}
                                       style={{
-                                        background: 'var(--primary)',
-                                        color: '#000',
+                                        background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                        color: '#022c22',
                                         border: 'none',
-                                        padding: '6px 12px',
-                                        borderRadius: '8px',
+                                        padding: '7px 16px',
+                                        borderRadius: '9px',
                                         fontSize: '12px',
                                         fontWeight: 700,
                                         cursor: 'pointer',
                                         display: 'flex',
                                         alignItems: 'center',
-                                        gap: '6px'
+                                        gap: '6px',
+                                        transition: 'all 0.2s',
+                                        boxShadow: '0 2px 10px rgba(16, 185, 129, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.25)'
+                                      }}
+                                      onMouseEnter={(e) => {
+                                        e.currentTarget.style.transform = 'translateY(-1px)';
+                                        e.currentTarget.style.boxShadow = '0 4px 16px rgba(16, 185, 129, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.3)';
+                                      }}
+                                      onMouseLeave={(e) => {
+                                        e.currentTarget.style.transform = 'translateY(0)';
+                                        e.currentTarget.style.boxShadow = '0 2px 10px rgba(16, 185, 129, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.25)';
                                       }}
                                     >
-                                      Copiar {parsedResult.commands.length > 1 ? 'Todos' : ''} <ArrowRight size={14} />
+                                      <Copy size={13} strokeWidth={2.5} />
+                                      Copiar {parsedResult.commands.length > 1 ? `Todos (${parsedResult.commands.length})` : ''}
                                     </button>
                                   </div>
-                                  {parsedResult.commands.map((cmd, i) => (
-                                    <div key={i} style={{ padding: '12px', background: 'var(--surface-void)', borderRadius: '8px', border: '1px solid var(--glass-border)' }}>
-                                      <div style={{ color: 'var(--on-surface)', fontSize: '15px', wordBreak: 'break-all', whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>
-                                        {cmd}
-                                      </div>
-                                    </div>
-                                  ))}
+
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    {parsedResult.commands.map((cmd, i) => {
+                                      const itemKey = `${index}-${i}`;
+                                      const isCopied = Boolean(copiedCommandKeys[itemKey]);
+                                      return (
+                                        <div 
+                                          key={i} 
+                                          style={{ 
+                                            display: 'flex',
+                                            alignItems: 'stretch',
+                                            background: isCopied 
+                                              ? 'linear-gradient(180deg, rgba(34, 197, 94, 0.15) 0%, rgba(20, 83, 45, 0.22) 100%)' 
+                                              : 'linear-gradient(180deg, rgba(14, 20, 32, 0.85) 0%, rgba(8, 12, 20, 0.95) 100%)', 
+                                            borderRadius: '10px', 
+                                            border: isCopied ? '1.5px solid rgba(34, 197, 94, 0.55)' : '1px solid rgba(255, 255, 255, 0.08)',
+                                            boxShadow: isCopied ? '0 0 16px rgba(34, 197, 94, 0.12)' : '0 2px 8px rgba(0, 0, 0, 0.25)',
+                                            overflow: 'hidden',
+                                            transition: 'all 0.25s ease',
+                                            position: 'relative'
+                                          }}
+                                        >
+                                          {/* Number badge */}
+                                          <div style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            padding: '0 12px',
+                                            background: isCopied ? 'rgba(34, 197, 94, 0.2)' : 'rgba(255, 255, 255, 0.03)',
+                                            borderRight: isCopied ? '1px solid rgba(34, 197, 94, 0.35)' : '1px solid rgba(255, 255, 255, 0.06)',
+                                            fontSize: '11px',
+                                            fontWeight: 700,
+                                            color: isCopied ? '#86efac' : 'rgba(255, 255, 255, 0.4)',
+                                            fontFamily: "'Fira Code', 'Consolas', monospace",
+                                            userSelect: 'none',
+                                            transition: 'all 0.25s ease'
+                                          }}>
+                                            #{i + 1}
+                                          </div>
+
+                                          {/* Command Text (Full Width with Syntax Highlighting) */}
+                                          <div style={{ 
+                                            flex: 1,
+                                            padding: '11px 44px 11px 16px',
+                                            color: isCopied ? '#86efac' : '#38bdf8', 
+                                            fontSize: '13px', 
+                                            wordBreak: 'break-all', 
+                                            whiteSpace: 'pre-wrap', 
+                                            fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace",
+                                            lineHeight: '1.55',
+                                            transition: 'color 0.25s ease'
+                                          }}>
+                                            {renderCommandSyntax(cmd, isCopied)}
+                                          </div>
+
+                                          {/* Individual copy button (Fixed Top-Right, Icon Only) */}
+                                          <button
+                                            type="button"
+                                            onClick={() => handleCopySingleCommand(cmd, itemKey)}
+                                            style={{
+                                              position: 'absolute',
+                                              top: '8px',
+                                              right: '8px',
+                                              background: isCopied ? 'rgba(34, 197, 94, 0.28)' : 'rgba(255, 255, 255, 0.06)',
+                                              border: isCopied ? '1px solid rgba(34, 197, 94, 0.6)' : '1px solid rgba(255, 255, 255, 0.1)',
+                                              color: isCopied ? '#86efac' : 'rgba(255, 255, 255, 0.6)',
+                                              borderRadius: '6px',
+                                              width: '28px',
+                                              height: '28px',
+                                              padding: 0,
+                                              cursor: 'pointer',
+                                              display: 'flex',
+                                              alignItems: 'center',
+                                              justifyContent: 'center',
+                                              transition: 'all 0.15s ease',
+                                              zIndex: 2
+                                            }}
+                                            onMouseEnter={(e) => {
+                                              if (!isCopied) {
+                                                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.14)';
+                                                e.currentTarget.style.color = '#fff';
+                                              }
+                                            }}
+                                            onMouseLeave={(e) => {
+                                              if (!isCopied) {
+                                                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)';
+                                                e.currentTarget.style.color = 'rgba(255, 255, 255, 0.6)';
+                                              }
+                                            }}
+                                            title={isCopied ? "Comando ya copiado (clic para volver a copiar)" : "Copiar comando"}
+                                          >
+                                            {isCopied ? (
+                                              <Check size={14} strokeWidth={2.5} />
+                                            ) : (
+                                              <Copy size={13} />
+                                            )}
+                                          </button>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
                                 </div>
                               ) : parsedResult?.type === 'ROUTE' && parsedResult.targetComponent ? (
                                 <div
@@ -564,156 +1067,240 @@ export default function KuepaCommandPalette() {
                 
                 {/* Premium Animated Loader in chat */}
                 <AnimatePresence>
-                  {analyzingState && (
-                    <motion.div 
-                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.2 } }}
-                      style={{ display: 'flex', justifyContent: 'flex-start', margin: '8px 0' }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                        {/* Glowing Orb Icon */}
-                        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                           <motion.div
-                             animate={{ rotate: 360 }}
-                             transition={{ repeat: Infinity, duration: 3, ease: "linear" }}
-                             style={{
-                               position: 'absolute',
-                               inset: '-6px',
-                               borderRadius: '50%',
-                               background: analyzingState === 'ai' 
-                                 ? 'conic-gradient(from 0deg, transparent, transparent, var(--primary))' 
-                                 : analyzingState === 'resolving_students' 
-                                 ? 'conic-gradient(from 0deg, transparent, transparent, #60a5fa)'
-                                 : 'conic-gradient(from 0deg, transparent, transparent, #eab308)',
-                               opacity: 0.8,
-                               filter: 'blur(2px)'
-                             }}
-                           />
-                           <div style={{ position: 'relative', background: 'var(--surface-void)', borderRadius: '50%', padding: '10px', zIndex: 2, display: 'flex', border: '1px solid var(--glass-border)' }}>
-                             {analyzingState === 'ai' ? <Bot size={20} color="var(--primary)" /> : 
-                              analyzingState === 'resolving_students' ? <Search size={20} color="#60a5fa" /> : 
-                              <Zap size={20} color="#eab308" />}
-                           </div>
-                        </div>
-                        
-                        {/* Magic Waveform Bubble */}
-                        <div style={{ 
-                          background: 'linear-gradient(135deg, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.2) 100%)', 
-                          backdropFilter: 'blur(12px)',
-                          padding: '12px 24px', 
-                          borderRadius: '100px', // Totalmente redondo para evitar lo "cuadrado"
-                          border: '1px solid rgba(255,255,255,0.05)',
-                          boxShadow: '0 8px 32px rgba(0,0,0,0.3), inset 0 0 20px rgba(18,163,131,0.05)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '16px'
-                        }}>
-                          {/* AI Magic Waveform (como Siri / Voice AI) */}
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', height: '24px' }}>
-                            {[0, 1, 2, 3, 4, 5, 6].map(i => {
-                              // Generamos un patrón de ola para la animación
-                              const delay = i * 0.15;
-                              const colors = analyzingState === 'ai'
-                                ? ['var(--primary)', '#34d399', 'var(--primary)']
-                                : analyzingState === 'resolving_students'
-                                ? ['#3b82f6', '#93c5fd', '#3b82f6']
-                                : ['#eab308', '#fde047', '#eab308'];
+                  {analyzingState && (() => {
+                    const isRetryState = typeof analyzingState === 'string' && analyzingState.startsWith('ai_retry');
+                    const retryMatch = isRetryState ? analyzingState.match(/ai_retry_(\d+)_(\d+)/) : null;
+                    const retryAttempt = retryMatch ? retryMatch[1] : 1;
+                    const retryMax = retryMatch ? retryMatch[2] : 3;
 
-                              return (
-                                <motion.div
-                                  key={i}
-                                  animate={{ 
-                                    height: ['8px', '24px', '8px'],
-                                    backgroundColor: colors
-                                  }}
-                                  transition={{ 
-                                    repeat: Infinity, 
-                                    duration: 1.2, 
-                                    delay: delay, 
-                                    ease: "easeInOut" 
-                                  }}
-                                  style={{
-                                    width: '4px',
-                                    borderRadius: '4px',
-                                    backgroundColor: colors[0],
-                                    boxShadow: `0 0 10px ${colors[0]}80`
-                                  }}
-                                />
-                              )
-                            })}
+                    return (
+                      <motion.div 
+                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.2 } }}
+                        style={{ display: 'flex', justifyContent: 'flex-start', margin: '8px 0' }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                          {/* Glowing Orb Icon */}
+                          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                             <motion.div
+                               animate={{ rotate: 360 }}
+                               transition={{ repeat: Infinity, duration: 3, ease: "linear" }}
+                               style={{
+                                 position: 'absolute',
+                                 inset: '-6px',
+                                 borderRadius: '50%',
+                                 background: analyzingState === 'ai' 
+                                   ? 'conic-gradient(from 0deg, transparent, transparent, var(--primary))' 
+                                   : analyzingState === 'resolving_students' 
+                                   ? 'conic-gradient(from 0deg, transparent, transparent, #60a5fa)'
+                                   : isRetryState
+                                   ? 'conic-gradient(from 0deg, transparent, transparent, #f59e0b)'
+                                   : 'conic-gradient(from 0deg, transparent, transparent, #eab308)',
+                                 opacity: 0.8,
+                                 filter: 'blur(2px)'
+                               }}
+                             />
+                             <div style={{ position: 'relative', background: 'var(--surface-void)', borderRadius: '50%', padding: '10px', zIndex: 2, display: 'flex', border: '1px solid var(--glass-border)' }}>
+                               {analyzingState === 'ai' ? <Bot size={20} color="var(--primary)" /> : 
+                                analyzingState === 'resolving_students' ? <Search size={20} color="#60a5fa" /> : 
+                                isRetryState ? (
+                                  <motion.div
+                                    animate={{ rotate: 360 }}
+                                    transition={{ repeat: Infinity, duration: 1.5, ease: "linear" }}
+                                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                  >
+                                    <RefreshCw size={20} color="#f59e0b" />
+                                  </motion.div>
+                                ) :
+                                <Zap size={20} color="#eab308" />}
+                             </div>
                           </div>
                           
-                          {/* Texto limpio y moderno */}
-                          <span style={{
-                            color: 'var(--on-surface)',
-                            fontSize: '14px',
-                            fontWeight: 600,
-                            letterSpacing: '0.5px',
-                            fontFamily: "'Space Grotesk', sans-serif",
-                            opacity: 0.9
+                          {/* Magic Waveform Bubble */}
+                          <div style={{ 
+                            background: 'linear-gradient(135deg, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.2) 100%)', 
+                            backdropFilter: 'blur(12px)',
+                            padding: '12px 24px', 
+                            borderRadius: '100px',
+                            border: '1px solid rgba(255,255,255,0.05)',
+                            boxShadow: '0 8px 32px rgba(0,0,0,0.3), inset 0 0 20px rgba(18,163,131,0.05)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '16px'
                           }}>
-                            {analyzingState === 'resolving_students' && "Buscando al estudiante..."}
-                            {analyzingState === 'ai' && "Generando magia..."}
-                            {analyzingState === 'db_processing' && "Cruzando información..."}
-                          </span>
+                            {/* AI Magic Waveform */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', height: '24px' }}>
+                              {[0, 1, 2, 3, 4, 5, 6].map(i => {
+                                const delay = i * 0.15;
+                                const colors = analyzingState === 'ai'
+                                  ? ['var(--primary)', '#34d399', 'var(--primary)']
+                                  : analyzingState === 'resolving_students'
+                                  ? ['#3b82f6', '#93c5fd', '#3b82f6']
+                                  : isRetryState
+                                  ? ['#f59e0b', '#fde68a', '#f59e0b']
+                                  : ['#eab308', '#fde047', '#eab308'];
+
+                                return (
+                                  <motion.div
+                                    key={i}
+                                    animate={{ 
+                                      height: ['8px', '24px', '8px'],
+                                      backgroundColor: colors
+                                    }}
+                                    transition={{ 
+                                      repeat: Infinity, 
+                                      duration: 1.2, 
+                                      delay: delay, 
+                                      ease: "easeInOut" 
+                                    }}
+                                    style={{
+                                      width: '4px',
+                                      borderRadius: '4px',
+                                      backgroundColor: colors[0],
+                                      boxShadow: `0 0 10px ${colors[0]}80`
+                                    }}
+                                  />
+                                );
+                              })}
+                            </div>
+                            
+                            {/* Texto limpio y moderno */}
+                            <span style={{
+                              color: 'var(--on-surface)',
+                              fontSize: '14px',
+                              fontWeight: 600,
+                              letterSpacing: '0.5px',
+                              fontFamily: "'Space Grotesk', sans-serif",
+                              opacity: 0.9
+                            }}>
+                              {analyzingState === 'resolving_students' && "Buscando al estudiante..."}
+                              {analyzingState === 'ai' && "Generando magia..."}
+                              {isRetryState && `Modelo saturado, reintentando (${retryAttempt}/${retryMax})...`}
+                              {analyzingState === 'db_processing' && "Cruzando información..."}
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                    </motion.div>
-                  )}
+                      </motion.div>
+                    );
+                  })()}
                 </AnimatePresence>
                 <div ref={messagesEndRef} />
               </div>
               )}
 
-              {/* Input Area (Bottom) */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px 24px', borderTop: '1px solid var(--glass-border)' }}>
-                <textarea
-                  ref={inputRef}
-                  value={inputValue}
-                  onChange={(e) => setInputValue(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      handleAnalyze();
-                    }
-                  }}
-                  placeholder={apiKey ? "Habla con Kuepa AI (ej: saca al 1234 del grupo...)\nUsa Shift+Enter para salto de línea" : "Configura tu API Key primero..."}
+              {/* Input Area (Bottom - Unified Capsule) */}
+              <div style={{ padding: '16px 24px', borderTop: '1px solid rgba(255, 255, 255, 0.07)', background: 'rgba(5, 8, 15, 0.4)' }}>
+                <div
+                  className="input-capsule"
                   style={{
-                    flex: 1,
-                    background: 'transparent',
-                    border: 'none',
-                    outline: 'none',
-                    color: 'var(--on-surface)',
-                    fontSize: '15px',
-                    fontFamily: "'Space Grotesk', sans-serif",
-                    minHeight: '24px',
-                    maxHeight: '200px',
-                    resize: 'none',
-                    lineHeight: '1.5',
-                  }}
-                  rows={1}
-                />
-                <button
-                  onClick={() => handleAnalyze()}
-                  disabled={!inputValue.trim() || analyzingState || !apiKey}
-                  style={{
-                    background: (!inputValue.trim() || analyzingState || !apiKey) ? 'var(--surface-low)' : 'var(--primary)',
-                    color: (!inputValue.trim() || analyzingState || !apiKey) ? 'var(--on-surface-variant)' : '#000',
-                    border: 'none',
-                    borderRadius: '50%',
-                    width: '48px',
-                    height: '48px',
+                    background: 'linear-gradient(180deg, rgba(16, 24, 39, 0.75) 0%, rgba(9, 14, 24, 0.9) 100%)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    borderRadius: '16px',
+                    padding: '14px 16px 12px 18px',
                     display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: (!inputValue.trim() || analyzingState || !apiKey) ? 'not-allowed' : 'pointer',
-                    transition: 'all 0.2s',
-                    flexShrink: 0
+                    flexDirection: 'column',
+                    gap: '10px',
+                    boxShadow: '0 8px 30px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.06)',
+                    backdropFilter: 'blur(16px)',
+                    WebkitBackdropFilter: 'blur(16px)',
+                    transition: 'border-color 0.25s ease, box-shadow 0.25s ease'
                   }}
                 >
-                  {analyzingState ? <Loader2 size={24} style={{ animation: 'spin 1s linear infinite' }} /> : <ArrowRight size={24} />}
-                </button>
+                  <textarea
+                    ref={inputRef}
+                    value={inputValue}
+                    onChange={(e) => setInputValue(e.target.value)}
+                    disabled={editingIndex !== null}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleAnalyze();
+                      }
+                    }}
+                    placeholder={
+                      editingIndex !== null
+                        ? "Editando mensaje arriba... Presiona Guardar o Cancelar"
+                        : apiKey
+                        ? "Habla con Kuepa AI (ej: saca al 1234 del grupo...)"
+                        : "Configura tu API Key primero..."
+                    }
+                    style={{
+                      width: '100%',
+                      background: 'transparent',
+                      border: 'none',
+                      outline: 'none',
+                      color: 'var(--on-surface)',
+                      fontSize: '15px',
+                      fontFamily: "'Space Grotesk', sans-serif",
+                      minHeight: '26px',
+                      maxHeight: '340px',
+                      resize: 'none',
+                      lineHeight: '1.5',
+                      padding: 0,
+                      opacity: editingIndex !== null ? 0.4 : 1,
+                      scrollbarWidth: 'none',
+                      msOverflowStyle: 'none'
+                    }}
+                    rows={1}
+                  />
+
+                  {/* Capsule Footer Toolbar */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '11px', color: 'rgba(255, 255, 255, 0.45)', fontFamily: "'Space Grotesk', sans-serif", letterSpacing: '0.01em' }}>
+                      Shift + Enter para salto de línea
+                    </span>
+                    <button
+                      onClick={() => handleAnalyze()}
+                      disabled={!inputValue.trim() || analyzingState || !apiKey || editingIndex !== null}
+                      style={{
+                        background: (!inputValue.trim() || analyzingState || !apiKey || editingIndex !== null) 
+                          ? 'rgba(255, 255, 255, 0.05)' 
+                          : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                        color: (!inputValue.trim() || analyzingState || !apiKey || editingIndex !== null) 
+                          ? 'rgba(255, 255, 255, 0.25)' 
+                          : '#022c22',
+                        border: 'none',
+                        borderRadius: '50%',
+                        width: '36px',
+                        height: '36px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: (!inputValue.trim() || analyzingState || !apiKey || editingIndex !== null) ? 'not-allowed' : 'pointer',
+                        transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                        boxShadow: (!inputValue.trim() || analyzingState || !apiKey || editingIndex !== null) 
+                          ? 'none' 
+                          : '0 4px 14px rgba(16, 185, 129, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.3)',
+                        flexShrink: 0
+                      }}
+                      onMouseEnter={(e) => {
+                        if (inputValue.trim() && !analyzingState && apiKey && editingIndex === null) {
+                          e.currentTarget.style.transform = 'scale(1.06)';
+                          e.currentTarget.style.boxShadow = '0 6px 20px rgba(16, 185, 129, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.35)';
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (inputValue.trim() && !analyzingState && apiKey && editingIndex === null) {
+                          e.currentTarget.style.transform = 'scale(1)';
+                          e.currentTarget.style.boxShadow = '0 4px 14px rgba(16, 185, 129, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.3)';
+                        }
+                      }}
+                      title="Enviar mensaje"
+                    >
+                      {analyzingState ? <Loader2 size={17} style={{ animation: 'spin 1s linear infinite' }} /> : <ArrowRight size={17} strokeWidth={2.5} />}
+                    </button>
+                  </div>
+                </div>
+                <style>{`
+                  .input-capsule:focus-within {
+                    border-color: rgba(52, 211, 153, 0.45) !important;
+                    box-shadow: 0 0 24px rgba(16, 185, 129, 0.2), 0 8px 30px rgba(0, 0, 0, 0.35) !important;
+                  }
+                  .input-capsule textarea::-webkit-scrollbar {
+                    display: none;
+                  }
+                `}</style>
               </div>
             </motion.div>
           </div>

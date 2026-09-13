@@ -177,6 +177,22 @@ export function generate360Commands(actionType, params = {}) {
 }
 
 const inFlightStudentRequests = new Map();
+const programsCatalogCache = new Map();
+
+async function getProgramsCatalog(allianceId) {
+  if (allianceId && programsCatalogCache.has(allianceId)) {
+    return programsCatalogCache.get(allianceId);
+  }
+  const { data } = await supabase
+    .from('programas')
+    .select('mongo_id, name')
+    .eq('alliance_id', allianceId);
+  const catalog = data || [];
+  if (allianceId && catalog.length > 0) {
+    programsCatalogCache.set(allianceId, catalog);
+  }
+  return catalog;
+}
 
 /**
  * Consulta y orquesta la extracción integral 360° de un estudiante.
@@ -202,8 +218,8 @@ export async function fetchStudent360Data(identifier, allianceId) {
     const studentId = user._id?.$oid || (typeof user._id === 'string' ? user._id : '') || user.mongo_id || '';
     if (!studentId) return null;
 
-    // Consultas paralelas en Supabase
-    const [structuresRes, programsRes] = await Promise.all([
+    // Consultas paralelas en Supabase (con catálogo de programas en caché)
+    const [structuresRes, rawPrograms] = await Promise.all([
       supabase
         .from('structures')
         .select(`
@@ -217,14 +233,10 @@ export async function fetchStudent360Data(identifier, allianceId) {
           )
         `)
         .contains('users', [studentId]),
-      supabase
-        .from('programas')
-        .select('mongo_id, name')
-        .eq('alliance_id', allianceId),
+      getProgramsCatalog(allianceId),
     ]);
 
     const rawStructures = structuresRes.data || [];
-    const rawPrograms = programsRes.data || [];
 
     return normalizeStudent360(user, rawStructures, rawPrograms);
   })();

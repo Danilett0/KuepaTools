@@ -144,6 +144,33 @@ export async function findUsersByIncList(incList, alianzaId) {
 }
 
 /**
+ * Bulk lookup: resolves a list of mongo_id (ObjectId) strings to users in a single query.
+ *
+ * @param {string[]} mongoIds  - Array of mongo_id strings
+ * @param {string}   alianzaId - MongoDB ObjectId of the alliance
+ * @returns {Promise<Array>}
+ */
+export async function findUsersByMongoIds(mongoIds, alianzaId) {
+  if (!mongoIds || !mongoIds.length) return [];
+
+  const uniqueIds = [...new Set(mongoIds.filter(id => /^[a-f0-9]{24}$/i.test(id)))];
+  if (!uniqueIds.length) return [];
+
+  let query = supabase
+    .from('users')
+    .select(USER_FIELDS)
+    .in('mongo_id', uniqueIds);
+
+  if (alianzaId) {
+    query = query.eq('alliance_id', alianzaId);
+  }
+
+  const { data, error } = await query;
+  if (error) throw new Error(error.message);
+  return data.map(normalizeUser);
+}
+
+/**
  * Paginated listing with optional text filter.
  * Searches full_name, email, and incremental_user_code.
  *

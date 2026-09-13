@@ -1,19 +1,100 @@
 import { analyzeIntentWithGemini } from './aiService';
-import { findUser } from './usuariosService';
+import { findUser, findUsersByIncList, findUsersByMongoIds } from './usuariosService';
 import { supabase } from './supabaseClient';
 import { ALLIANCE_IDS } from '../utils/constants';
 import { generateCommandsFromActions } from '../agent/skills';
 import { hydrateStudents } from './studentHydrator';
 
 export class AgentOrchestrator {
-  constructor(apiKey, alliance) {
+  constructor(apiKey, alliance, options = {}) {
     this.apiKey = apiKey;
     this.alliance = alliance;
+    this.options = options;
+    this.userCache = new Map();
+    this.estadosCache = null;
   }
 
   // Utilidad para normalizar textos sin acentos
   normalizeStr(str) {
     return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  }
+
+  /**
+   * Helper para obtener usuario desde cache local o consultar DB si no existe.
+   */
+  async getUser(identifier) {
+    const trimmed = String(identifier || '').trim();
+    if (!trimmed) return null;
+
+    if (this.userCache.has(trimmed)) {
+      return this.userCache.get(trimmed);
+    }
+
+    const allianceId = ALLIANCE_IDS[this.alliance];
+    const user = await findUser(trimmed, allianceId);
+    if (user) {
+      if (user.incremental_user_code) {
+        this.userCache.set(String(user.incremental_user_code), user);
+      }
+      if (user._id?.$oid) {
+        this.userCache.set(user._id.$oid, user);
+      }
+    }
+    return user;
+  }
+
+  /**
+   * Pre-carga en batch todos los usuarios involucrados en las acciones que aún no estén en cache.
+   */
+  async batchPrefetchUsers(actions) {
+    const allianceId = ALLIANCE_IDS[this.alliance];
+    const uncachedIncs = new Set();
+    const uncachedMongoIds = new Set();
+
+    for (const action of actions) {
+      const sId = String(action.student_id || '').trim();
+      if (!sId || this.userCache.has(sId)) continue;
+
+      const isMongoId = /^[a-f0-9]{24}$/i.test(sId);
+      const isInc = /^\d{1,7}$/.test(sId);
+
+      if (isInc) {
+        uncachedIncs.add(parseInt(sId, 10));
+      } else if (isMongoId) {
+        const needsProgramAutoFill = !action.program_id && 
+          (action.action_type === 'audit_statistics' || action.action_type === 'change_status');
+        if (needsProgramAutoFill) {
+          uncachedMongoIds.add(sId);
+        }
+      }
+    }
+
+    const promises = [];
+    if (uncachedIncs.size > 0) {
+      promises.push(
+        findUsersByIncList([...uncachedIncs], allianceId).then(users => {
+          for (const u of users) {
+            if (u.incremental_user_code) this.userCache.set(String(u.incremental_user_code), u);
+            if (u._id?.$oid) this.userCache.set(u._id.$oid, u);
+          }
+        }).catch(err => console.warn('Error pre-fetching INCs:', err))
+      );
+    }
+
+    if (uncachedMongoIds.size > 0) {
+      promises.push(
+        findUsersByMongoIds([...uncachedMongoIds], allianceId).then(users => {
+          for (const u of users) {
+            if (u.incremental_user_code) this.userCache.set(String(u.incremental_user_code), u);
+            if (u._id?.$oid) this.userCache.set(u._id.$oid, u);
+          }
+        }).catch(err => console.warn('Error pre-fetching MongoIds:', err))
+      );
+    }
+
+    if (promises.length > 0) {
+      await Promise.all(promises);
+    }
   }
 
   /**
@@ -34,6 +115,16 @@ export class AgentOrchestrator {
     try {
       const hydration = await hydrateStudents(textToHydrate, this.alliance, onStateChange);
       
+      // Guardar estudiantes hidratados en el cache local para evitar re-consultas
+      if (hydration.students && hydration.students.length > 0) {
+        for (const s of hydration.students) {
+          if (s.rawUser) {
+            if (s.inc) this.userCache.set(String(s.inc), s.rawUser);
+            if (s.objectId) this.userCache.set(s.objectId, s.rawUser);
+          }
+        }
+      }
+
       if (hydration.enrichedContext) {
         additionalContext += hydration.enrichedContext;
       }
@@ -50,7 +141,7 @@ export class AgentOrchestrator {
       const programId = urlMatch[2];
       
       try {
-        const studentUser = await findUser(studentId, ALLIANCE_IDS[this.alliance]);
+        const studentUser = await this.getUser(studentId);
         let programName = "desconocido";
         
         if (studentUser) {
@@ -78,29 +169,50 @@ export class AgentOrchestrator {
   /**
    * Fase 2: Magic Resolution (Post-LLM)
    * Red de seguridad: traduce INCs, programas faltantes y estados a sus ObjectIDs reales.
-   * Con el INC-First pipeline, esto debería intervenir cada vez menos.
+   * Con el INC-First pipeline y el cache local, esto no genera consultas duplicadas.
    */
   async resolveMagicVariables(action, chatHistory) {
     let resolvedAction = { ...action };
     let studentUser = null;
 
-    // 1. Buscar Usuario y Resolver INC -> ObjectID
+    const isMongoId = (id) => typeof id === 'string' && /^[a-f0-9]{24}$/i.test(id);
+    const isInc = (id) => typeof id === 'string' && /^\d+$/.test(id) && id.length <= 7;
+
+    // 1. Buscar Usuario y Resolver INC -> ObjectID solo si es necesario
     if (resolvedAction.student_id) {
-      try {
-        studentUser = await findUser(resolvedAction.student_id, ALLIANCE_IDS[this.alliance]);
+      const sId = String(resolvedAction.student_id).trim();
+
+      if (isMongoId(sId)) {
+        // Ya es un ObjectID válido de MongoDB.
+        // Solo necesitamos studentUser si la acción requiere autocompletar program_id
+        const needsProgramAutoFill = !resolvedAction.program_id && 
+          (resolvedAction.action_type === 'audit_statistics' || resolvedAction.action_type === 'change_status');
+        if (needsProgramAutoFill) {
+          studentUser = await this.getUser(sId);
+        }
+      } else if (isInc(sId)) {
+        // Es un INC, resolvemos a ObjectID usando cache o DB
+        studentUser = await this.getUser(sId);
         if (studentUser && studentUser._id && studentUser._id.$oid) {
           resolvedAction.student_id = studentUser._id.$oid;
-        } else if (resolvedAction.student_id.length < 24 && /^\d+$/.test(resolvedAction.student_id)) {
-          throw new Error(`INCOMPLETE:El estudiante con INC ${resolvedAction.student_id} no fue encontrado en tu base de datos.`);
+        } else {
+          throw new Error(`INCOMPLETE:El estudiante con INC ${sId} no fue encontrado en tu base de datos.`);
         }
-      } catch (err) {
-        if (err.message.startsWith('INCOMPLETE')) throw err;
-        console.error("Error resolviendo usuario:", err);
+      } else {
+        // Formato no estándar, intentar resolver por si acaso
+        studentUser = await this.getUser(sId);
+        if (studentUser && studentUser._id && studentUser._id.$oid) {
+          resolvedAction.student_id = studentUser._id.$oid;
+        }
       }
     }
 
     // 2. Autocompletar program_id desde los programas del estudiante
     if (!resolvedAction.program_id && (resolvedAction.action_type === 'audit_statistics' || resolvedAction.action_type === 'change_status')) {
+      if (!studentUser && resolvedAction.student_id) {
+        studentUser = await this.getUser(resolvedAction.student_id);
+      }
+
       if (studentUser && studentUser.programs && studentUser.programs.length > 0) {
         if (studentUser.programs.length === 1) {
           resolvedAction.program_id = studentUser.programs[0].structure?.$oid || studentUser.programs[0].structure;
@@ -112,14 +224,17 @@ export class AgentOrchestrator {
       }
     }
 
-    // 3. Resolver Estados Dinámicos
+    // 3. Resolver Estados Dinámicos usando cache local
     if (resolvedAction.action_type === 'change_status' && resolvedAction.status_name && !resolvedAction.status_id) {
-      const { data: estadosData } = await supabase
-        .from('estados')
-        .select('mongo_id, name')
-        .eq('alliance_id', ALLIANCE_IDS[this.alliance]);
+      if (!this.estadosCache) {
+        const { data: estadosData } = await supabase
+          .from('estados')
+          .select('mongo_id, name')
+          .eq('alliance_id', ALLIANCE_IDS[this.alliance]);
+        this.estadosCache = estadosData || [];
+      }
         
-      const matchedState = (estadosData || []).find(e => this.normalizeStr(e.name) === this.normalizeStr(resolvedAction.status_name));
+      const matchedState = this.estadosCache.find(e => this.normalizeStr(e.name) === this.normalizeStr(resolvedAction.status_name));
       if (matchedState) {
         resolvedAction.status_id = matchedState.mongo_id;
       } else {
@@ -166,8 +281,16 @@ export class AgentOrchestrator {
     historyForGemini.push({ role: 'user', text: `${prefix}: ${processedText}` });
 
     try {
-      // 2. Llamar a LLM
-      const geminiResult = await analyzeIntentWithGemini(historyForGemini, this.apiKey);
+      // 2. Llamar a LLM con reintentos automáticos para mitigar errores 503/429
+      const geminiResult = await analyzeIntentWithGemini(historyForGemini, this.apiKey, {
+        maxRetries: 3,
+        model: this.options?.model,
+        onRetry: ({ attempt, maxRetries }) => {
+          if (onThinkingStateChange) {
+            onThinkingStateChange(`ai_retry_${attempt}_${maxRetries}`);
+          }
+        }
+      });
 
       // Si pide clarificación o info
       if (geminiResult && (geminiResult.type === 'INCOMPLETE' || geminiResult.type === 'INFO' || geminiResult.type === 'QUERY' || geminiResult.type === 'ROUTE')) {
@@ -178,6 +301,9 @@ export class AgentOrchestrator {
       if (geminiResult && geminiResult.type === 'ACTIONS' && geminiResult.actions) {
         onThinkingStateChange('db_processing');
         
+        // Pre-cargar en batch cualquier usuario de las acciones que aún no esté en cache
+        await this.batchPrefetchUsers(geminiResult.actions);
+
         let finalActions = [];
         for (const action of geminiResult.actions) {
           const resolvedAction = await this.resolveMagicVariables(action, chatHistory);

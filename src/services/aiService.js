@@ -1,4 +1,15 @@
-const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent";
+export const DEFAULT_AI_MODEL = 'gemini-3.5-flash-lite';
+
+export const AVAILABLE_AI_MODELS = [
+  { id: 'gemini-3.5-flash-lite', label: 'Gemini 3.5 Flash Lite', tag: 'Recomendado Google (Ultrarrápido)', shortName: 'Flash Lite' },
+  { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', tag: 'Equilibrado', shortName: 'Flash' },
+  { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro', tag: 'Máxima Precisión', shortName: 'Pro' }
+];
+
+const getApiUrl = (model = DEFAULT_AI_MODEL) => {
+  const safeModel = (model === 'gemini-2.5-flash-lite' || !model) ? DEFAULT_AI_MODEL : model;
+  return `https://generativelanguage.googleapis.com/v1beta/models/${safeModel}:generateContent`;
+};
 
 const SYSTEM_PROMPT = `
 Eres la IA de control de "KuepaTools", un asistente avanzado.
@@ -65,7 +76,11 @@ Estructura estricta JSON:
 }
 `;
 
-export const analyzeIntentWithGemini = async (chatHistory, apiKey) => {
+const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+export const analyzeIntentWithGemini = async (chatHistory, apiKey, options = {}) => {
+  const { maxRetries = 3, baseDelay = 1500, onRetry = null, model = DEFAULT_AI_MODEL } = options;
+
   if (!apiKey) {
     throw new Error("No API Key provided");
   }
@@ -86,39 +101,84 @@ export const analyzeIntentWithGemini = async (chatHistory, apiKey) => {
     }
   };
 
-  try {
-    const response = await fetch(`${API_URL}?key=${apiKey}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
+  const apiUrl = getApiUrl(model);
+  let lastError = null;
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      if (response.status === 429 || errorData.error?.code === 429) {
-        throw new Error("Límite de peticiones de IA alcanzado (Error 429). Espera unos 50 segundos antes de intentar nuevamente.");
-      }
-      if (response.status === 503 || errorData.error?.code === 503) {
-        throw new Error("El modelo de IA está muy saturado ahora mismo (Error 503). Intenta de nuevo en unos momentos.");
-      }
-      throw new Error(errorData.error?.message || "Error al conectar con Gemini");
-    }
+  for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
+    try {
+      const response = await fetch(`${apiUrl}?key=${apiKey}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
 
-    const data = await response.json();
-    let resultText = data.candidates[0].content.parts[0].text;
-    
-    // Limpiar posibles bloques de markdown y extraer solo el objeto JSON
-    const startIndex = resultText.indexOf('{');
-    const endIndex = resultText.lastIndexOf('}');
-    if (startIndex !== -1 && endIndex !== -1) {
-      resultText = resultText.substring(startIndex, endIndex + 1);
+      if (!response.ok) {
+        let errorData = null;
+        try {
+          errorData = await response.json();
+        } catch {
+          // Non-JSON error response
+        }
+
+        const statusCode = response.status;
+        const errorMessage = errorData?.error?.message || response.statusText || "Error al conectar con Gemini";
+        const isTransient = statusCode === 503 || statusCode === 429 || statusCode === 500 || statusCode === 502 || statusCode === 504;
+
+        if (isTransient && attempt <= maxRetries) {
+          const delay = Math.round(baseDelay * Math.pow(1.8, attempt - 1) + Math.random() * 400);
+          console.warn(`[Gemini API] Error ${statusCode} (Alta demanda/saturación). Reintentando (${attempt}/${maxRetries}) en ${delay}ms...`);
+          if (onRetry) {
+            onRetry({ attempt, maxRetries, delay, status: statusCode });
+          }
+          await wait(delay);
+          continue;
+        }
+
+        if (statusCode === 429 || errorData?.error?.code === 429) {
+          throw new Error("Límite de peticiones de IA alcanzado (Error 429). Espera unos momentos antes de intentar nuevamente.");
+        }
+        if (statusCode === 503 || errorData?.error?.code === 503) {
+          throw new Error("El modelo de IA está muy saturado en este momento (Error 503) tras varios reintentos. Intenta de nuevo en unos instantes.");
+        }
+        throw new Error(errorMessage);
+      }
+
+      const data = await response.json();
+      const resultText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!resultText) {
+        throw new Error("Respuesta vacía o formato inesperado de Gemini API");
+      }
+
+      // Limpiar posibles bloques de markdown y extraer solo el objeto JSON
+      let cleanedText = resultText;
+      const startIndex = cleanedText.indexOf('{');
+      const endIndex = cleanedText.lastIndexOf('}');
+      if (startIndex !== -1 && endIndex !== -1) {
+        cleanedText = cleanedText.substring(startIndex, endIndex + 1);
+      }
+
+      return JSON.parse(cleanedText);
+
+    } catch (error) {
+      lastError = error;
+      const isNetworkError = error instanceof TypeError || error.name === 'AbortError';
+
+      if (isNetworkError && attempt <= maxRetries) {
+        const delay = Math.round(baseDelay * Math.pow(1.8, attempt - 1) + Math.random() * 400);
+        console.warn(`[Gemini API] Fallo de conexión (${error.message}). Reintentando (${attempt}/${maxRetries}) en ${delay}ms...`);
+        if (onRetry) {
+          onRetry({ attempt, maxRetries, delay, status: 'NETWORK_ERROR' });
+        }
+        await wait(delay);
+        continue;
+      }
+
+      console.error("Gemini API Error:", error);
+      throw error;
     }
-    
-    return JSON.parse(resultText);
-  } catch (error) {
-    console.error("Gemini API Error:", error);
-    throw error;
   }
+
+  throw lastError || new Error("Error desconocido al comunicarse con Gemini");
 };

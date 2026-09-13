@@ -9,7 +9,7 @@ import { ALLIANCE_IDS } from '../utils/constants';
 import { useAppStore } from '../store/useAppStore';
 
 export default function ProgramasPorEstudiante() {
-  const { findUsersByIncList, findUser } = useUsuariosCompletos();
+  const { findUsersByIncList, findUsersByMongoIds, findUser } = useUsuariosCompletos();
   const [idsText, setIdsText] = useLocalStorage('programas-est-ids', '');
   const [alianza, setAlianza] = useLocalStorage('programas-est-alianza', 'na');
   const [searchFilter, setSearchFilter] = useLocalStorage('programas-est-filter', '');
@@ -58,10 +58,20 @@ export default function ProgramasPorEstudiante() {
         byInc = Object.fromEntries(found.map(u => [u.incremental_user_code, u]));
       }
 
+      // Collect MongoDB ObjectIDs for bulk lookup
+      const mongoIds = lines.filter(l => /^[a-f0-9]{24}$/i.test(l));
+      let byMongoId = {};
+      if (mongoIds.length > 0) {
+        const foundMongo = await findUsersByMongoIds(mongoIds, allianceId);
+        byMongoId = Object.fromEntries(foundMongo.map(u => [u._id?.$oid || u.mongo_id, u]));
+      }
+
       const resolvedResults = await Promise.all(lines.map(async line => {
         let user = null;
         if (/^\d+$/.test(line) && line.length < 24) {
           user = byInc[Number(line)];
+        } else if (/^[a-f0-9]{24}$/i.test(line)) {
+          user = byMongoId[line];
         }
         if (!user) {
           user = await findUser(line, allianceId);

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useLocalStorage } from "../hooks/useLocalStorage";
-import { findUser } from "../services/usuariosService";
+import { useUsuariosCompletos } from "../hooks/useUsuariosCompletos";
 import { useCatalogos } from "../hooks/useCatalogos";
 import "../Styles/styles.css";
 import { BarChart2 } from "lucide-react";
@@ -11,6 +11,7 @@ import { useAppStore } from "../store/useAppStore";
 import { ALLIANCE_IDS } from "../utils/constants";
 
 function AuditarEstadisticas() {
+  const { findUser } = useUsuariosCompletos();
   const [alliance, setAlliance] = useLocalStorage("auditar-alliance", ALLIANCE_IDS.na);
   const [secondStudentId, setSecondStudentId] = useLocalStorage("auditar-secondStudentId", "");
   const [secondProgramId, setSecondProgramId] = useLocalStorage("auditar-secondProgramId", "");
