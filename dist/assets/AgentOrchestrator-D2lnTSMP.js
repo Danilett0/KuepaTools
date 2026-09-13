@@ -1,4 +1,4 @@
-import{t as e}from"./supabaseClient-D86BU6sx.js";import{t}from"./usuariosService-CQ89zwK9.js";import{t as n}from"./constants-iuLjF5j6.js";var r=`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent`,i=`
+import{t as e}from"./supabaseClient-Ddqhy8qk.js";import{t}from"./usuariosService-DRCT4Dzv.js";import{t as n}from"./constants-iuLjF5j6.js";var r=`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent`,i=`
 Eres la IA de control de "KuepaTools", un asistente avanzado.
 Tu trabajo es interpretar la solicitud del usuario en lenguaje natural y generar la "intención abstracta" de la acción a realizar. 
 Devuelve UNICAMENTE un JSON válido.

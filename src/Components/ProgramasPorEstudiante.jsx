@@ -1,12 +1,11 @@
 import { useState, useMemo, useCallback, Fragment, useEffect, useRef } from 'react';
-import { Search, BookOpen, X, Copy, ArrowRight, Loader2 } from 'lucide-react';
-
+import { Search, BookOpen, X, Copy, Loader2 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { useUsuariosCompletos } from '../hooks/useUsuariosCompletos';
 import { useCatalogos } from '../hooks/useCatalogos';
 import AllianceSwitcher from './ui/AllianceSwitcher';
-import ClearButton from './ui/ClearButton';
+import { ALLIANCE_IDS } from '../utils/constants';
 import { useAppStore } from '../store/useAppStore';
 
 export default function ProgramasPorEstudiante() {
@@ -22,9 +21,7 @@ export default function ProgramasPorEstudiante() {
     programasData ? Object.fromEntries(programasData.map(p => [p._id.$oid, p])) : {}
   , [programasData]);
 
-  const allianceId = alianza === 'kuepa'
-    ? '602169e217b5c8a27f9e9c06'
-    : '6303ed663138387a1669d82a';
+  const allianceId = alianza === 'kuepa' ? ALLIANCE_IDS.kuepa : ALLIANCE_IDS.na;
 
   const aiPrefilledData = useAppStore(state => state.aiPrefilledData);
   const setAiPrefilledData = useAppStore(state => state.setAiPrefilledData);
@@ -61,16 +58,13 @@ export default function ProgramasPorEstudiante() {
         byInc = Object.fromEntries(found.map(u => [u.incremental_user_code, u]));
       }
 
-      // We might have mongo IDs in the lines, which we would need to resolve individually,
-      // but findUser handles both. To be efficient, we resolve INCs in bulk above,
-      // and for the rest (or missing ones) we do findUser.
       const resolvedResults = await Promise.all(lines.map(async line => {
         let user = null;
         if (/^\d+$/.test(line) && line.length < 24) {
           user = byInc[Number(line)];
         }
         if (!user) {
-           user = await findUser(line, allianceId);
+          user = await findUser(line, allianceId);
         }
 
         if (!user) return { input: line, found: false, user: null, programs: [] };
@@ -100,7 +94,7 @@ export default function ProgramasPorEstudiante() {
     } finally {
       setLoading(false);
     }
-  }, [parseLines, allianceId, programasMap]);
+  }, [parseLines, allianceId, programasMap, findUsersByIncList, findUser]);
 
   const debounceRef = useRef(null);
 
@@ -145,258 +139,328 @@ export default function ProgramasPorEstudiante() {
     toast.success(`${ids.length} ID${ids.length !== 1 ? 's' : ''} de programa${ids.length !== 1 ? 's' : ''} copiado${ids.length !== 1 ? 's' : ''}`);
   };
 
-  const handleClear = () => {
+  const handleClear = useCallback(() => {
     setIdsText('');
     setSearchFilter('');
     setResults([]);
-  };
+  }, [setIdsText, setSearchFilter]);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        handleClear();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleClear]);
 
   return (
-    <div className="inscripciones-container">
-      <div className="inscripciones-content" style={{ display: 'flex', flexDirection: 'column' }}>
-        <div className="inscripciones-form-container animate-slide-up" style={{ marginTop: 0 }}>
+    <div
+      className="inscripciones-main animate-slide-down"
+      style={{ padding: '18px 24px', maxWidth: '1100px', margin: '0 auto', width: '100%', boxSizing: 'border-box' }}
+    >
+      {/* ── Header ── */}
+      <div className="inscripciones-header-row">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div className="inscripciones-mode-badge">
+            <BookOpen size={17} />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', flexWrap: 'wrap' }}>
+            <h1 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--on-surface)', margin: 0, lineHeight: 1.2 }}>
+              Programas por Estudiante
+            </h1>
+            <span style={{ fontSize: '11.5px', color: 'var(--on-surface-variant)' }}>
+              Consulta y filtra los programas académicos asignados a una lista de estudiantes
+            </span>
+          </div>
+        </div>
+      </div>
 
-          {/* ── Header ─────────────────────────────────────────── */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div style={{
-                width: "32px", height: "32px", borderRadius: "10px",
-                background: "var(--primary)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-              }}>
-                <BookOpen size={16} style={{ color: "#090909" }} />
+      {/* ── Barra de Pestañas / Controles ── */}
+      <div className="inscripciones-tabs">
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', padding: '7px 14px' }}>
+          <BookOpen size={14} style={{ color: 'var(--primary)' }} />
+          <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--primary)', fontFamily: "'Nunito', sans-serif" }}>
+            Consulta de Programas
+          </span>
+          {loading && (
+            <span style={{ fontSize: '11px', color: '#eab308', marginLeft: '8px', display: 'inline-flex', alignItems: 'center', gap: '5px', fontWeight: 700 }}>
+              <Loader2 size={12} className="animate-spin" />
+              Cargando programas...
+            </span>
+          )}
+        </div>
+
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <AllianceSwitcher
+            value={alianza}
+            onChange={(val) => { setAlianza(val); handleClear(); }}
+          />
+          <button
+            type="button"
+            onClick={handleClear}
+            title="Limpiar (Esc)"
+            style={{
+              background: 'transparent',
+              border: '1px solid var(--glass-border)',
+              color: 'var(--on-surface-variant)',
+              borderRadius: '8px',
+              padding: '7px 14px',
+              fontSize: '11px',
+              cursor: 'pointer',
+              fontFamily: "'Nunito', sans-serif",
+              fontWeight: 700,
+              transition: 'all 0.15s ease',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--on-surface)'; e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--on-surface-variant)'; e.currentTarget.style.background = 'transparent'; }}
+          >
+            Limpiar
+          </button>
+        </div>
+      </div>
+
+      {/* ── Panel Principal ── */}
+      <div className="inscripciones-panel">
+        <div className="inscr-dual-pane" style={{ minHeight: '340px' }}>
+          {/* Panel Izquierdo: Entrada de estudiantes */}
+          <div className="inscr-pane-card" style={{ flex: '0 0 320px' }}>
+            <div className="inscr-pane-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className="inscr-field-label">Estudiantes (INC o ID)</span>
+                {totalEntered > 0 && (
+                  <span className="inscr-count-badge">
+                    {totalStudents}/{totalEntered}
+                  </span>
+                )}
               </div>
-              <span style={{ fontSize: "14px", fontWeight: 700, color: "var(--on-surface)", fontFamily: "'Nunito', sans-serif" }}>
-                Programas Estudiante
-              </span>
-              {loading && (
-                <span style={{ fontSize: '11px', color: '#eab308', fontStyle: 'italic', fontFamily: "'Space Grotesk', sans-serif", marginLeft: "8px", display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <Loader2 size={11} style={{ animation: 'spin 1s linear infinite' }} />
-                  Cargando...
-                </span>
-              )}
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-              <AllianceSwitcher value={alianza} size="md" onChange={(val) => { setAlianza(val); handleClear(); }} />
-              <ClearButton onClick={handleClear} />
-            </div>
+
+            <textarea
+              className="inscr-textarea"
+              value={idsText}
+              onChange={(e) => setIdsText(e.target.value)}
+              onPaste={(e) => {
+                e.preventDefault();
+                const pasted = e.clipboardData.getData('text');
+                const cleaned = pasted
+                  .split(/\r?\n/)
+                  .map(l => l.trim())
+                  .filter(l => l !== '')
+                  .join('\n');
+                const ta = e.target;
+                const start = ta.selectionStart;
+                const end = ta.selectionEnd;
+                const before = idsText.slice(0, start);
+                const after = idsText.slice(end);
+                setIdsText(before + cleaned + after);
+              }}
+              placeholder={'Ejemplo:\n292828\n237575\n67b338a6357fb57f91e0b332'}
+              style={{
+                flex: 1,
+                minHeight: '300px',
+                resize: 'none',
+                fontFamily: "'Space Grotesk', monospace",
+                fontSize: '13px',
+                lineHeight: '1.8',
+              }}
+            />
           </div>
 
-          <div style={{ height: '1px', background: 'var(--glass-border)', marginBottom: '24px' }} />
-
-          {/* ── Cuerpo principal ───────────────────────────────── */}
-          <div style={{ display: 'flex', gap: '16px', height: '380px' }}>
-
-            {/* ── Panel izquierdo: textarea de IDs ────────────── */}
-            <div style={{ flex: '0 0 300px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Search size={14} style={{ color: 'var(--primary)', flexShrink: 0 }} />
-                  <label className="input-label" style={{ marginBottom: 0 }}>
-                    ESTUDIANTES
-                    {totalEntered > 0 && (
-                      <span style={{ marginLeft: '8px', fontWeight: 400, color: 'var(--on-surface-variant)', fontSize: '12px' }}>
-                        {totalStudents}/{totalEntered} {totalStudents === 1 ? 'encontrado' : 'encontrados'}
-                      </span>
-                    )}
-                  </label>
-                </div>
+          {/* Panel Derecho: Programas */}
+          <div className="inscr-pane-card">
+            <div className="inscr-pane-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{
+                  width: '8px',
+                  height: '8px',
+                  borderRadius: '50%',
+                  background: !totalStudents ? 'var(--glass-border)' : filteredResults.length === totalStudents ? '#22c55e' : '#eab308',
+                  transition: 'background 0.3s ease',
+                }} />
+                <span className="inscr-field-label">Programas Asignados</span>
+                {totalStudents > 0 && (
+                  <span className="inscr-count-badge">
+                    {filteredResults.length}/{totalStudents} {searchFilter.trim() ? 'filtrados' : 'estudiantes'} ({visiblePrograms} prog.)
+                  </span>
+                )}
               </div>
-              <textarea
-                className="inscripciones-input"
-                value={idsText}
-                onChange={(e) => setIdsText(e.target.value)}
-                placeholder={"Ejemplo:\n292828\n237575\n297832"}
+
+              <button
+                type="button"
+                onClick={copiarProgramIds}
+                disabled={!visiblePrograms}
                 style={{
-                  height: '340px',
-                  resize: 'none',
-                  fontFamily: "'Space Grotesk', monospace",
-                  fontSize: '14px',
-                  lineHeight: '1.8',
-                  letterSpacing: '0.02em',
-                  overflowY: 'auto',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: visiblePrograms ? 'rgba(18, 163, 131, 0.15)' : 'transparent',
+                  color: visiblePrograms ? 'var(--primary)' : 'var(--on-surface-variant)',
+                  border: `1px solid ${visiblePrograms ? 'rgba(18, 163, 131, 0.35)' : 'var(--glass-border)'}`,
+                  borderRadius: '8px',
+                  padding: '5px 14px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  fontFamily: "'Nunito', sans-serif",
+                  cursor: visiblePrograms ? 'pointer' : 'not-allowed',
+                  transition: 'all 0.2s ease',
                 }}
-              />
+              >
+                <Copy size={12} />
+                <span>Copiar IDs</span>
+              </button>
             </div>
 
-            {/* ── Flecha central ──────────────────────────────── */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, paddingTop: '32px' }}>
-              <div style={{
-                width: '36px', height: '36px', borderRadius: '50%',
-                background: totalStudents > 0 ? 'var(--primary-container)' : 'var(--glass-border)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                transition: 'all 0.3s ease',
-              }}>
-                <ArrowRight size={16} style={{ color: totalStudents > 0 ? '#fff' : 'var(--text-muted)' }} />
-              </div>
-            </div>
-
-            {/* ── Panel derecho: programas agrupados ──────────── */}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '10px', minWidth: 0, overflow: 'hidden' }}>
-
-              {/* Header */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <div style={{
-                    width: '8px', height: '8px', borderRadius: '50%',
-                    background: !totalStudents ? 'var(--glass-border)' : filteredResults.length === totalStudents ? '#22c55e' : '#eab308',
-                    transition: 'background 0.3s ease',
-                  }} />
-                  <label className="input-label" style={{ marginBottom: 0 }}>
-                    PROGRAMAS
-                    {totalStudents > 0 && (
-                      <span style={{ marginLeft: '8px', fontWeight: 400, color: 'var(--on-surface-variant)', fontSize: '12px' }}>
-                        {filteredResults.length}/{totalStudents} {searchFilter.trim() ? 'filtrados' : 'total'}
-                      </span>
-                    )}
-                  </label>
-                </div>
-                <button
-                  onClick={copiarProgramIds}
-                  disabled={!visiblePrograms}
+            {/* Filtro de búsqueda por programa */}
+            {totalPrograms > 0 && (
+              <div style={{ position: 'relative' }}>
+                <Search size={14} style={{
+                  position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)',
+                  color: 'var(--on-surface-variant)', pointerEvents: 'none',
+                }} />
+                <input
+                  type="text"
+                  value={searchFilter}
+                  onChange={(e) => setSearchFilter(e.target.value)}
+                  placeholder="Filtrar por nombre de programa..."
+                  className="inscr-input"
                   style={{
-                    display: 'flex', alignItems: 'center', gap: '6px',
-                    background: visiblePrograms ? 'var(--primary-container)' : 'transparent',
-                    color: visiblePrograms ? '#fff' : 'var(--text-muted)',
-                    border: `1px solid ${visiblePrograms ? 'var(--primary)' : 'var(--glass-border)'}`,
-                    borderRadius: '8px', padding: '5px 12px',
-                    fontSize: '12px', fontWeight: '600',
-                    fontFamily: "'Space Grotesk', sans-serif",
-                    cursor: visiblePrograms ? 'pointer' : 'not-allowed',
-                    transition: 'all 0.2s ease',
+                    height: '36px',
+                    paddingLeft: '34px',
+                    paddingRight: searchFilter ? '34px' : '12px',
+                    fontSize: '12px',
                   }}
-                >
-                  <Copy size={13} /> Copiar IDs
-                </button>
-              </div>
-
-              {/* Search filter */}
-              {totalPrograms > 0 && (
-                <div style={{ position: 'relative' }}>
-                  <Search size={14} style={{
-                    position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)',
-                    color: 'var(--on-surface-variant)', pointerEvents: 'none',
-                  }} />
-                  <input
-                    type="text"
-                    value={searchFilter}
-                    onChange={(e) => setSearchFilter(e.target.value)}
-                    placeholder="Filtrar por nombre de programa..."
-                    className="inscripciones-input"
+                />
+                {searchFilter && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchFilter('')}
                     style={{
-                      height: '38px',
-                      paddingLeft: '34px',
-                      paddingRight: searchFilter ? '34px' : '12px',
-                      fontSize: '13px',
-                      fontFamily: "'Space Grotesk', sans-serif",
+                      position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)',
+                      background: 'none', border: 'none', cursor: 'pointer',
+                      color: 'var(--on-surface-variant)', padding: '4px',
+                      display: 'flex', alignItems: 'center',
                     }}
-                  />
-                  {searchFilter && (
-                    <button
-                      onClick={() => setSearchFilter('')}
-                      style={{
-                        position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)',
-                        background: 'none', border: 'none', cursor: 'pointer',
-                        color: 'var(--on-surface-variant)', padding: '4px',
-                        display: 'flex', alignItems: 'center',
-                      }}
-                    >
-                      <X size={14} />
-                    </button>
-                  )}
-                </div>
-              )}
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+            )}
 
-              {/* Results list */}
-              <div style={{
-                flex: 1,
-                border: '1px solid var(--glass-border)',
-                borderRadius: '12px',
-                background: 'rgba(0,0,0,0.3)',
-                overflowY: 'auto',
-                minHeight: 0,
-              }}>
-                {results.length === 0 ? (
-                  <div style={{
-                    flex: 1, display: 'flex', flexDirection: 'column',
-                    alignItems: 'center', justifyContent: 'center', gap: '12px',
-                    color: 'var(--text-muted)', padding: '24px',
-                  }}>
-                    <BookOpen size={32} style={{ opacity: 0.3 }} />
-                    <span style={{ fontSize: '13px', fontFamily: "'Space Grotesk', sans-serif" }}>
-                      Ingresa IDs de estudiantes para ver sus programas
-                    </span>
-                  </div>
-                ) : (
-                  <div>
-                    {filteredResults.map((result, rIdx) => (
-                      <div
-                        key={rIdx}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: '10px',
-                          padding: '9px 14px',
-                          borderBottom: rIdx < filteredResults.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none',
-                          background: result.found
-                            ? (rIdx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)')
-                            : 'rgba(239,68,68,0.04)',
-                          transition: 'background 0.15s ease',
-                          minWidth: 0,
-                        }}
-                        onMouseEnter={e => e.currentTarget.style.background = result.found ? 'rgba(18,163,131,0.06)' : 'rgba(239,68,68,0.08)'}
-                        onMouseLeave={e => e.currentTarget.style.background = result.found ? (rIdx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)') : 'rgba(239,68,68,0.04)'}
-                      >
-                        {/* ID badge */}
+            {/* Contenedor de Resultados */}
+            <div style={{
+              flex: 1,
+              minHeight: '260px',
+              borderRadius: '10px',
+              border: '1px solid var(--glass-border)',
+              background: 'rgba(0, 0, 0, 0.25)',
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+            }}>
+              {results.length === 0 ? (
+                <div style={{
+                  flex: 1, display: 'flex', flexDirection: 'column',
+                  alignItems: 'center', justifyContent: 'center', gap: '10px',
+                  color: 'var(--on-surface-variant)', padding: '24px',
+                }}>
+                  <BookOpen size={28} style={{ opacity: 0.3 }} />
+                  <span style={{ fontSize: '12px', fontFamily: "'Space Grotesk', sans-serif" }}>
+                    Ingresa IDs de estudiantes para ver sus programas
+                  </span>
+                </div>
+              ) : (
+                <div style={{ overflowY: 'auto', flex: 1, scrollbarWidth: 'thin', scrollbarColor: 'var(--primary) rgba(255, 255, 255, 0.04)' }}>
+                  {filteredResults.map((result, rIdx) => (
+                    <div
+                      key={rIdx}
+                      style={{
+                        display: 'flex', alignItems: 'flex-start', gap: '10px',
+                        padding: '10px 14px',
+                        borderBottom: rIdx < filteredResults.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
+                        background: result.found
+                          ? (rIdx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.015)')
+                          : 'rgba(239,68,68,0.04)',
+                        transition: 'background 0.15s ease',
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = result.found ? 'rgba(18,163,131,0.06)' : 'rgba(239,68,68,0.08)'}
+                      onMouseLeave={e => e.currentTarget.style.background = result.found ? (rIdx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.015)') : 'rgba(239,68,68,0.04)'}
+                    >
+                      {/* Badge del estudiante */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', width: '130px', flexShrink: 0 }}>
                         <span style={{
                           fontSize: '11px', fontFamily: "'Space Grotesk', monospace", fontWeight: 700,
                           color: result.found ? 'var(--primary)' : '#ef4444',
-                          flexShrink: 0, whiteSpace: 'nowrap',
                         }}>
-                          ID {result.found ? result.inc : result.input}
+                          {result.found ? (result.inc ? `INC ${result.inc}` : result.longId?.slice(0, 8) + '...') : result.input}
                         </span>
-
-                        {result.found ? (
-                          <>
-
-
-                            {/* Program names proportionally divided */}
-                            <div style={{
-                              display: 'flex', flex: 1, minWidth: 0, gap: '8px',
-                              alignItems: 'center'
-                            }}>
-                              {result.programs.length > 0 ? (
-                                result.programs.map((p, pIdx) => (
-                                  <Fragment key={pIdx}>
-                                    {pIdx > 0 && <span style={{ color: 'rgba(255,255,255,0.2)' }}>|</span>}
-                                    <span
-                                      style={{
-                                        fontSize: '11px', color: 'var(--on-surface)', fontWeight: 400,
-                                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                                        flex: 1,
-                                        fontFamily: "'Space Grotesk', sans-serif",
-                                      }}
-                                      title={p.name}
-                                    >
-                                      {p.name}
-                                    </span>
-                                  </Fragment>
-                                ))
-                              ) : (
-                                <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontStyle: 'italic', fontFamily: "'Space Grotesk', sans-serif" }}>
-                                  Sin programas que coincidan
-                                </span>
-                              )}
-                            </div>
-                          </>
-                        ) : (
-                          <span style={{ fontSize: '11px', color: '#ef4444', fontStyle: 'italic', fontFamily: "'Space Grotesk', sans-serif" }}>
-                            No encontrado
+                        {result.found && result.name && (
+                          <span style={{
+                            fontSize: '10.5px', color: 'var(--on-surface-variant)',
+                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                          }} title={result.name}>
+                            {result.name}
                           </span>
                         )}
                       </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+
+                      {/* Lista de programas */}
+                      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                        {result.found ? (
+                          result.programs.length > 0 ? (
+                            result.programs.map((p, pIdx) => (
+                              <div
+                                key={pIdx}
+                                style={{
+                                  display: 'inline-flex', alignItems: 'center', gap: '6px',
+                                  padding: '4px 8px', borderRadius: '6px',
+                                  background: 'rgba(255, 255, 255, 0.04)',
+                                  border: '1px solid rgba(255, 255, 255, 0.06)',
+                                  fontSize: '11.5px', color: 'var(--on-surface)',
+                                  fontFamily: "'Space Grotesk', sans-serif",
+                                  maxWidth: '100%',
+                                }}
+                                title={`${p.name} (${p.id})`}
+                              >
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {p.name}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(p.id);
+                                    toast.success(`ID de "${p.name}" copiado`);
+                                  }}
+                                  title={`Copiar ID: ${p.id}`}
+                                  style={{
+                                    background: 'none', border: 'none', cursor: 'pointer',
+                                    color: 'var(--on-surface-variant)', padding: 0,
+                                    display: 'flex', alignItems: 'center', flexShrink: 0,
+                                  }}
+                                  onMouseEnter={e => e.currentTarget.style.color = 'var(--primary)'}
+                                  onMouseLeave={e => e.currentTarget.style.color = 'var(--on-surface-variant)'}
+                                >
+                                  <Copy size={11} />
+                                </button>
+                              </div>
+                            ))
+                          ) : (
+                            <span style={{ fontSize: '11.5px', color: 'var(--on-surface-variant)', fontStyle: 'italic', fontFamily: "'Space Grotesk', sans-serif" }}>
+                              Sin programas registrados
+                            </span>
+                          )
+                        ) : (
+                          <span style={{ fontSize: '11.5px', color: '#ef4444', fontStyle: 'italic', fontFamily: "'Space Grotesk', sans-serif" }}>
+                            Estudiante no encontrado
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>

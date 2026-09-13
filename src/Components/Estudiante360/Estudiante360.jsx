@@ -13,6 +13,7 @@ import FichaPerfil from './FichaPerfil';
 import ProgramasYGrupos from './ProgramasYGrupos';
 import AccionesRapidas from './AccionesRapidas';
 import HubVacio from './HubVacio';
+import Student360Loader from './Student360Loader';
 import { fetchStudent360Data, generate360Commands, formatIdsForClipboard } from '../../services/student360Service';
 
 export default function Estudiante360() {
@@ -49,7 +50,14 @@ export default function Estudiante360() {
         (typeof prog.raw?.status === 'string' ? prog.raw.status : '') ||
         prog.raw?.status_id ||
         '';
-      const statusName = statusOptions.find((s) => s.value === String(statusId))?.label || '';
+      const statusName =
+        statusOptions.find((s) => s.value === String(statusId))?.label ||
+        prog.raw?.status_name ||
+        prog.raw?.statusName ||
+        (typeof prog.raw?.status === 'string' && isNaN(prog.raw.status) && prog.raw.status.length < 25
+          ? prog.raw.status
+          : '') ||
+        '';
       return {
         ...prog,
         statusId,
@@ -125,29 +133,45 @@ export default function Estudiante360() {
     [allianceId, studentData, selectedProgramId, setStudentData, setSelectedProgramId]
   );
 
-  // Sincronizar consulta solo si cambia la alianza o el input y NO coinciden con los datos en caché
+  const isFirstMountRef = useRef(true);
+  const typingDebounceRef = useRef(null);
+
+  // Sincronizar consulta únicamente al montar (restaurar caché) o al cambiar de alianza
   useEffect(() => {
-    const trimmed = (studentInput || '').trim();
-    if (!trimmed) {
-      if (studentData) {
-        setStudentData(null);
-        setSelectedProgramId('');
+    if (isFirstMountRef.current) {
+      isFirstMountRef.current = false;
+      const trimmed = (studentInput || '').trim();
+      if (trimmed) {
+        const currentKey = `${trimmed}:${allianceId}`;
+        const matchesCache =
+          studentData &&
+          (String(studentData.student?.inc) === trimmed || studentData.student?.mongoId === trimmed) &&
+          studentData.student?.allianceId === allianceId;
+
+        if (!matchesCache) {
+          loadStudent(trimmed);
+        } else {
+          lastLoadedKeyRef.current = currentKey;
+        }
       }
       return;
     }
 
-    const currentKey = `${trimmed}:${allianceId}`;
-    const matchesCache =
-      studentData &&
-      (String(studentData.student?.inc) === trimmed || studentData.student?.mongoId === trimmed) &&
-      studentData.student?.allianceId === allianceId;
-
-    if (!matchesCache && lastLoadedKeyRef.current !== currentKey) {
-      loadStudent(trimmed);
-    } else if (matchesCache) {
-      lastLoadedKeyRef.current = currentKey;
+    // Cambio explícito de alianza: recargar datos del estudiante con la nueva alianza
+    const trimmed = (studentInput || '').trim();
+    if (trimmed) {
+      loadStudent(trimmed, true);
     }
-  }, [alianza, studentInput, allianceId, loadStudent, studentData, setStudentData, setSelectedProgramId]);
+  }, [alianza, allianceId]);
+
+  // Limpiar temporizadores de tipeo al desmontar
+  useEffect(() => {
+    return () => {
+      if (typingDebounceRef.current) {
+        clearTimeout(typingDebounceRef.current);
+      }
+    };
+  }, []);
 
   // Manejar AI Prefill si viene desde la Command Palette
   useEffect(() => {
@@ -160,6 +184,10 @@ export default function Estudiante360() {
   }, [aiPrefilledData, loadStudent, setAiPrefilledData, setStudentInput]);
 
   const handleClear = useCallback(() => {
+    if (typingDebounceRef.current) {
+      clearTimeout(typingDebounceRef.current);
+      typingDebounceRef.current = null;
+    }
     setStudentInput('');
     setStudentData(null);
     setSelectedProgramId('');
@@ -167,6 +195,81 @@ export default function Estudiante360() {
     setGeneratedCommands([]);
     lastLoadedKeyRef.current = '';
   }, [setStudentInput, setStudentData, setSelectedProgramId]);
+
+  // Control de entrada de texto con debounce de inactividad (1000ms)
+  const handleInputChange = (val) => {
+    setStudentInput(val);
+    const trimmed = (val || '').trim();
+
+    if (typingDebounceRef.current) {
+      clearTimeout(typingDebounceRef.current);
+      typingDebounceRef.current = null;
+    }
+
+    if (!trimmed) {
+      setStudentData(null);
+      setSelectedProgramId('');
+      setSelectedGroupIds([]);
+      setGeneratedCommands([]);
+      lastLoadedKeyRef.current = '';
+      return;
+    }
+
+    // Si es un Mongo ObjectId completo de 24 caracteres hex
+    if (/^[0-9a-fA-F]{24}$/.test(trimmed)) {
+      typingDebounceRef.current = setTimeout(() => {
+        loadStudent(trimmed);
+      }, 400);
+      return;
+    }
+
+    // Código INC digitado manualmente: esperar 1000ms de inactividad tras la última tecla
+    typingDebounceRef.current = setTimeout(() => {
+      if (trimmed.length >= 2) {
+        const currentKey = `${trimmed}:${allianceId}`;
+        const isAlreadyLoaded =
+          studentData &&
+          (String(studentData.student?.inc) === trimmed || studentData.student?.mongoId === trimmed) &&
+          studentData.student?.allianceId === allianceId;
+
+        if (!isAlreadyLoaded && lastLoadedKeyRef.current !== currentKey) {
+          loadStudent(trimmed);
+        }
+      }
+    }, 1000);
+  };
+
+  const handleInputKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      const trimmed = (studentInput || '').trim();
+      if (trimmed) {
+        if (typingDebounceRef.current) {
+          clearTimeout(typingDebounceRef.current);
+          typingDebounceRef.current = null;
+        }
+        loadStudent(trimmed, true);
+      }
+    }
+  };
+
+  const handleSelectSuggestion = (user) => {
+    if (typingDebounceRef.current) {
+      clearTimeout(typingDebounceRef.current);
+      typingDebounceRef.current = null;
+    }
+    if (user) {
+      const code = String(user.incremental_user_code);
+      if (
+        studentData &&
+        (String(studentData.student?.inc) === code || studentData.student?.mongoId === user._id?.$oid) &&
+        studentData.student?.allianceId === allianceId
+      ) {
+        return;
+      }
+      setStudentInput(code);
+      loadStudent(code, true);
+    }
+  };
 
   // Cambio de programa: limpia automáticamente comandos y selección de materias
   const handleSelectProgram = useCallback((progId) => {
@@ -325,36 +428,11 @@ export default function Estudiante360() {
           <IncAutocomplete
             alianzaId={allianceId}
             value={studentInput}
-            onChange={(val) => {
-              setStudentInput(val);
-              const trimmed = val.trim();
-              if (!trimmed) {
-                setStudentData(null);
-                setSelectedProgramId('');
-              } else if (/^[0-9a-fA-F]{24}$/.test(trimmed)) {
-                // Auto-búsqueda inmediata si es un Mongo ObjectId válido
-                loadStudent(trimmed);
-              }
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && studentInput.trim()) {
-                loadStudent(studentInput.trim(), true);
-              }
-            }}
-            onSelect={(user) => {
-              if (user) {
-                const code = String(user.incremental_user_code);
-                // Si el estudiante ya está cargado, no repetir la consulta
-                if (
-                  studentData &&
-                  (String(studentData.student?.inc) === code || studentData.student?.mongoId === user._id?.$oid)
-                ) {
-                  return;
-                }
-                setStudentInput(code);
-                loadStudent(code);
-              }
-            }}
+            onChange={handleInputChange}
+            onKeyDown={handleInputKeyDown}
+            onSelect={handleSelectSuggestion}
+            autoSelectExact={false}
+            debounceMs={1000}
             placeholder="Pega Mongo ObjectId (24 car.) o escribe código INC..."
             inputStyle={{ height: '32px', fontSize: '12px' }}
           />
@@ -374,36 +452,46 @@ export default function Estudiante360() {
         />
       </div>
 
-      {/* ── Estado de Carga ── */}
-      {loading && (
-        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '40px', gap: '10px', color: 'var(--primary)' }}>
-          <Loader2 size={24} className="animate-spin" />
-          <span style={{ fontSize: '14px', fontWeight: 600 }}>Extrayendo perfil, programas y asignaturas...</span>
-        </div>
-      )}
+      {/* ── Estado de Carga Tecnológico & Animado ── */}
+      {loading && <Student360Loader identifier={studentInput} />}
 
       {/* ── Estado Inicial / Sin Estudiante ── */}
-      {!loading && !studentData && <HubVacio />}
+      {!loading && !studentData && (
+        <HubVacio
+          onSelectExample={(code) => {
+            if (typingDebounceRef.current) {
+              clearTimeout(typingDebounceRef.current);
+              typingDebounceRef.current = null;
+            }
+            setStudentInput(code);
+            loadStudent(code, true);
+          }}
+        />
+      )}
 
       {/* ── Vista Detallada 360° ── */}
       {!loading && studentData && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          <FichaPerfil
-            student={studentData.student}
-            programs={enrichedPrograms}
-            selectedProgramId={selectedProgramId}
-            currentStatusName={currentStatusName}
-            onSelectProgram={handleSelectProgram}
-          />
+        <div className="animate-slide-down" style={{ display: 'flex', flexDirection: 'column', gap: '12px', position: 'relative' }}>
+          <div style={{ position: 'relative', zIndex: 30 }}>
+            <FichaPerfil
+              student={studentData.student}
+              programs={enrichedPrograms}
+              selectedProgramId={selectedProgramId}
+              currentStatusName={currentStatusName}
+              onSelectProgram={handleSelectProgram}
+            />
+          </div>
 
-          <ProgramasYGrupos
-            groups={studentData.groups}
-            selectedGroupIds={selectedGroupIds}
-            onToggleGroup={handleToggleGroup}
-            onSelectAllGroups={handleSelectAllGroups}
-            onDeselectAllGroups={handleClearGroupSelection}
-            onAction={handleAction}
-          />
+          <div style={{ position: 'relative', zIndex: 1 }}>
+            <ProgramasYGrupos
+              groups={studentData.groups}
+              selectedGroupIds={selectedGroupIds}
+              onToggleGroup={handleToggleGroup}
+              onSelectAllGroups={handleSelectAllGroups}
+              onDeselectAllGroups={handleClearGroupSelection}
+              onAction={handleAction}
+            />
+          </div>
         </div>
       )}
 

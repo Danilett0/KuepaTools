@@ -38,12 +38,23 @@ function normalizeUser(row) {
  * @returns {Promise<Array>}
  */
 export async function searchByIncPrefix(prefix, alianzaId, limit = 6) {
-  const str = String(prefix);
+  const str = String(prefix).trim();
+  if (!/^\d+$/.test(str)) return [];
+
+  const num = parseInt(str, 10);
+  const parts = [`incremental_user_code.eq.${num}`];
+  for (let d = str.length + 1; d <= 6; d++) {
+    const mult = Math.pow(10, d - str.length);
+    const min = num * mult;
+    const max = min + mult - 1;
+    parts.push(`and(incremental_user_code.gte.${min},incremental_user_code.lte.${max})`);
+  }
 
   let query = supabase
     .from('users')
     .select(USER_FIELDS)
-    .like('incremental_user_code::text', `${str}%`)
+    .or(parts.join(','))
+    .order('incremental_user_code', { ascending: true })
     .limit(limit);
 
   if (alianzaId) {
@@ -156,15 +167,24 @@ export async function listUsuariosPaginados(alianzaId, searchTerm = '', page = 0
     query = query.eq('alliance_id', alianzaId);
   }
 
-  const term = searchTerm.trim();
-  if (term) {
-    const incNum = Number(term);
-    if (!isNaN(incNum) && term.length <= 7) {
-      // INC prefix search
-      query = query.like('incremental_user_code::text', `${term}%`);
-    } else {
-      // Full-text on name or email using Supabase OR filter
-      query = query.or(`full_name.ilike.%${term}%,email.ilike.%${term}%`);
+  const rawTerm = searchTerm.trim();
+  if (rawTerm) {
+    const term = rawTerm.replace(/[,()]/g, ' ').trim();
+    if (term) {
+      const isMongoId = /^[a-f0-9]{24}$/i.test(term);
+      const isNumericSafe = /^\d{1,9}$/.test(term); // safe for 32-bit integer columns
+
+      if (isMongoId) {
+        // Exact ObjectId match or fallback to text fields
+        query = query.or(`mongo_id.eq.${term},full_name.ilike.%${term}%,email.ilike.%${term}%`);
+      } else if (isNumericSafe) {
+        const num = parseInt(term, 10);
+        // Matches exact INC code, internal Postgres ID, phone, email, full_name, or partial mongo_id
+        query = query.or(`incremental_user_code.eq.${num},id.eq.${num},phone.ilike.%${term}%,email.ilike.%${term}%,full_name.ilike.%${term}%`);
+      } else {
+        // Phone numbers > 9 digits, alphanumeric text, emails, names, partial mongo IDs
+        query = query.or(`full_name.ilike.%${term}%,email.ilike.%${term}%,phone.ilike.%${term}%,mongo_id.ilike.%${term}%`);
+      }
     }
   }
 

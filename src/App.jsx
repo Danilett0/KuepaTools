@@ -13,33 +13,12 @@ import ResetPassword from "./Components/ResetPassword.jsx";
 import { useAppStore } from "./store/useAppStore.js";
 
 const NAV_ITEMS = [
-  {
-    id: "inscripciones",
-    label: "Inscripciones",
-    icon: Users,
-    subItems: [
-      { id: "inscripciones-estudiante", label: "Inscribir grupos a un estudiante" },
-      { id: "inscripciones-grupo", label: "Inscribir varios estudiantes a un grupo" },
-      { id: "inscripciones-multi", label: "Inscribir varios estudiantes a varios grupos" },
-      { id: "inscripciones-especificos", label: "Varios estudiantes a grupos específicos" },
-    ],
-  },
+  { id: "inscripciones-estudiante", label: "Inscripciones", icon: Users },
   { id: "cambios-estado", label: "Cambios de Estado", icon: RefreshCw },
   { id: "auditar-estadisticas", label: "Auditar Estadísticas", icon: BarChart2 },
   { id: "buscar-id", label: "Búscar ID Estudiantes", icon: Search },
   { id: "programas-estudiante", label: "Programas Estudiante", icon: BookOpen },
-  {
-    id: "herramientas-academicos",
-    label: "Grupos",
-    icon: GraduationCap,
-    subItems: [
-      { id: "herramientas-undo", label: "Deshacer Publicación" },
-      { id: "herramientas-final", label: "Re-calcular Nota Estudiante" },
-      { id: "herramientas-extraer", label: "Extraer Grupos académicos" },
-      { id: "herramientas-estudiante", label: "Grupos por estudiante" },
-      { id: "herramientas-auditar-grupo", label: "Auditar Estudiantes de Grupo" },
-    ],
-  },
+  { id: "herramientas-undo", label: "Grupos", icon: GraduationCap },
 ];
 
 function App() {
@@ -125,7 +104,7 @@ function App() {
         {userRole === 'admin' && <KuepaCommandPalette />}
         <div
           className="app-container"
-          style={(activeComponent === "informacion" || activeComponent === "estudiante-360") ? { maxWidth: "100%", height: "100%", width: "100%" } : {}}
+          style={(activeComponent === "informacion" || activeComponent === "estudiante-360" || activeComponent.startsWith("inscripciones") || activeComponent === "cambios-estado" || activeComponent === "auditar-estadisticas" || activeComponent === "buscar-id" || activeComponent === "programas-estudiante" || activeComponent.startsWith("herramientas-")) ? { maxWidth: "100%", width: "100%" } : {}}
         >
           <AppRouter />
         </div>

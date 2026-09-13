@@ -50,6 +50,7 @@ export default function AppRouter() {
         return <ProgramasPorEstudiante key="programas-estudiante" />;
       case "migraciones":
         return <Migrations key="migraciones" />;
+      case "herramientas-academicos":
       case "herramientas-undo":
         return <UndoPublicationPage key="herramientas-undo" />;
       case "herramientas-final":

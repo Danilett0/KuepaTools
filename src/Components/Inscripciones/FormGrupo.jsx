@@ -1,11 +1,10 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { UserPlus, UserMinus } from 'lucide-react';
+import { UserPlus, UserMinus, ClipboardList, Hash, School } from 'lucide-react';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 import { showError, showSuccess } from '../../services/toastService';
 import CommandsDisplay from '../CommandsDisplay';
-import ClearButton from '../ui/ClearButton';
 
-export default function FormGrupo() {
+export default function FormGrupo({ clearToken }) {
   const [groupId, setGroupId] = useLocalStorage('groupId-grupo', '');
   const [txareaIds, setTxareaIds] = useLocalStorage('txareaIds-grupo', '');
   const [studentIds, setStudentIds] = useLocalStorage('studentIds-grupo', Array(8).fill(''));
@@ -25,10 +24,13 @@ export default function FormGrupo() {
     setStudentIds(Array(minInputs).fill(''));
   }, [minInputs, setGroupId, setStudentIds, setTxareaIds]);
 
+  // Respond to clearToken from parent tab bar
   useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape') handleClear();
-    };
+    if (clearToken > 0) handleClear();
+  }, [clearToken]);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => { if (e.key === 'Escape') handleClear(); };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleClear]);
@@ -42,17 +44,11 @@ export default function FormGrupo() {
   const handleGeneratePaste = () => {
     if (!txareaIds || txareaIds.trim() === '') return;
     const flatIds = Array.from(new Set(
-      txareaIds.split(/\s+/).map(e => e.trim()).filter(e => {
-        return e.length >= 24 && e.length <= 26 && /^[a-zA-Z0-9]+$/.test(e);
-      })
+      txareaIds.split(/\s+/).map((e) => e.trim()).filter((e) => e.length >= 24 && e.length <= 26 && /^[a-zA-Z0-9]+$/.test(e))
     ));
-    if (flatIds.length === 0) {
-      setTxareaIds('');
-      return;
-    }
-    const requiredInputs = Math.max(flatIds.length, minInputs);
-    const newIds = Array(requiredInputs).fill('');
-    flatIds.forEach((id, index) => { newIds[index] = id; });
+    if (flatIds.length === 0) { setTxareaIds(''); return; }
+    const newIds = Array(Math.max(flatIds.length, minInputs)).fill('');
+    flatIds.forEach((id, i) => { newIds[i] = id; });
     setStudentIds(newIds);
     showSuccess(`Se importaron ${flatIds.length} registros correctamente.`);
     setTxareaIds('');
@@ -60,98 +56,103 @@ export default function FormGrupo() {
 
   const handleAction = (isRemove) => {
     const gId = groupId.trim();
-    if (!gId) {
-      showError('Por favor ingrese el ID del grupo académico.');
-      return;
-    }
-    const filteredIds = studentIds.filter(id => id.trim() !== '');
-    if (filteredIds.length === 0) {
-      showError('Por favor ingrese al menos un ID de estudiante.');
-      return;
-    }
+    if (!gId) { showError('Por favor ingrese el ID del grupo académico.'); return; }
+    const filteredIds = studentIds.filter((id) => id.trim() !== '');
+    if (filteredIds.length === 0) { showError('Por favor ingrese al menos un ID de estudiante.'); return; }
     const action = isRemove ? 'pull:user:from:group' : 'enroll:user';
     const command = `magik run:prod ${action}["${gId}","${filteredIds.join('","')}"]`;
     setGeneratedCommands([command]);
     showSuccess('Comando generado');
   };
 
+  const filledCount = studentIds.filter((id) => id.trim() !== '').length;
+
   return (
-    <div className="inscripciones-form-container" style={{ marginTop: 0 }}>
-      <div className="inscripciones-form">
-        <div className="buscarIds">
-          <div className="input-wrapper" style={{ flex: 1 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-              <label className="input-label" style={{ marginBottom: 0 }}>ID del grupo académico</label>
-              <ClearButton onClick={handleClear} title="Limpiar formulario" />
-            </div>
-            <input
-              type="text"
-              value={groupId}
-              onChange={(e) => setGroupId(e.target.value)}
-              className="inscripciones-input"
-              placeholder="Ej. 63e14e3af870ee0c8777b6a7"
-              style={{ borderColor: groupId.trim().length > 0 && groupId.trim().length < 24 ? '#ff4757' : undefined }}
-            />
-          </div>
+    <>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+        {/* ── Campo: Grupo ── */}
+        <div className="inscr-field-block">
+          <label className="inscr-field-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <School size={12} style={{ color: 'var(--primary)' }} />
+            ID del Grupo Académico
+          </label>
+          <input
+            type="text"
+            value={groupId}
+            onChange={(e) => setGroupId(e.target.value)}
+            className={`inscr-input ${groupId.trim().length > 0 && groupId.trim().length < 24 ? 'invalid' : ''}`}
+            placeholder="Ej. 63e14e3af870ee0c8777b6a7"
+          />
         </div>
 
-        <div className="segmented-control">
-          <button className={`segmented-btn ${inputMode === 'paste' ? 'active' : ''}`} onClick={() => setInputMode('paste')}>Pegar lista de IDs</button>
-          <button className={`segmented-btn ${inputMode === 'manual' ? 'active' : ''}`} onClick={() => setInputMode('manual')}>
+        {/* ── Selector de Modo ── */}
+        <div className="inscr-mode-selector">
+          <button
+            type="button"
+            className={`inscr-mode-btn ${inputMode === 'paste' ? 'active' : ''}`}
+            onClick={() => setInputMode('paste')}
+          >
+            <ClipboardList size={14} />
+            Pegar lista de IDs de estudiantes
+          </button>
+          <button
+            type="button"
+            className={`inscr-mode-btn ${inputMode === 'manual' ? 'active' : ''}`}
+            onClick={() => setInputMode('manual')}
+          >
+            <Hash size={14} />
             Ingreso manual
-            {studentIds.filter(id => id.trim() !== '').length > 0 && (
-              <span style={{
-                background: inputMode === 'manual' ? 'var(--primary)' : 'var(--glass-border)',
-                color: inputMode === 'manual' ? '#090909' : 'var(--on-surface-variant)',
-                padding: '2px 6px', borderRadius: '100px', fontSize: '10px', marginLeft: '6px'
-              }}>
-                {studentIds.filter(id => id.trim() !== '').length}
-              </span>
+            {filledCount > 0 && (
+              <span className="inscr-count-badge">{filledCount}</span>
             )}
           </button>
         </div>
 
+        {/* ── Modo: Pegar ── */}
+        {inputMode === 'paste' && (
+          <div className="inscr-field-block">
+            <label className="inscr-field-label">IDs de Estudiantes (uno por línea)</label>
+            <textarea
+              className="inscr-textarea"
+              value={txareaIds}
+              onChange={(e) => setTxareaIds(e.target.value)}
+              onBlur={handleGeneratePaste}
+              style={{ minHeight: '200px' }}
+              placeholder="Pega aquí los IDs de los estudiantes, uno por línea o separados por espacios..."
+            />
+          </div>
+        )}
+
+        {/* ── Modo: Manual ── */}
         {inputMode === 'manual' && (
-          <div className="inscripciones-grid" style={{ maxHeight: '250px', overflowY: 'auto', paddingRight: '8px' }}>
+          <div className="inscr-grid-manual">
             {studentIds.map((studentId, index) => (
-              <div className="input-wrapper" key={index}>
-                <label className="input-label">ID Estudiante {index + 1}</label>
+              <div className="inscr-field-block" key={index}>
+                <label className="inscr-field-label">Estudiante {index + 1}</label>
                 <input
                   type="text"
                   value={studentId}
                   onChange={(e) => handleStudentIdChange(index, e.target.value)}
-                  className="inscripciones-input"
-                  style={{ borderColor: studentId.trim().length > 0 && studentId.trim().length < 24 ? '#ff4757' : undefined }}
+                  className={`inscr-input ${studentId.trim().length > 0 && studentId.trim().length < 24 ? 'invalid' : ''}`}
+                  placeholder="ID del estudiante"
                 />
               </div>
             ))}
           </div>
         )}
-
-        {inputMode === 'paste' && (
-          <div className="input-wrapper" style={{ marginTop: '8px' }}>
-            <textarea
-              className="txareaids"
-              value={txareaIds}
-              onChange={(e) => setTxareaIds(e.target.value)}
-              onBlur={handleGeneratePaste}
-              style={{ minHeight: '150px' }}
-              placeholder="Pega aquí los IDs..."
-            />
-          </div>
-        )}
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '24px' }}>
-        <button className="btn btn-outline-danger" onClick={() => handleAction(true)}>
-          <UserMinus size={18} /> Retirar
+      {/* ── Acciones ── */}
+      <div className="inscr-actions-row">
+        <button className="inscr-btn-danger" onClick={() => handleAction(true)}>
+          <UserMinus size={15} /> Retirar del grupo
         </button>
-        <button className="btn btn-primary" onClick={() => handleAction(false)}>
-          <UserPlus size={18} /> Inscribir al grupo
+        <button className="inscr-btn-primary" onClick={() => handleAction(false)}>
+          <UserPlus size={15} /> Inscribir al grupo
         </button>
       </div>
 
       <CommandsDisplay commands={generatedCommands} onClear={() => setGeneratedCommands([])} />
-    </div>
+    </>
   );
 }

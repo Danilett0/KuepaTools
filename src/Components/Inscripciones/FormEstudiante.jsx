@@ -1,26 +1,22 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { UserPlus, UserMinus } from 'lucide-react';
+import { UserPlus, UserMinus, ClipboardList, Hash } from 'lucide-react';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 import { showError, showSuccess } from '../../services/toastService';
 import CommandsDisplay from '../CommandsDisplay';
-import ClearButton from '../ui/ClearButton';
-import AllianceSwitcher from '../ui/AllianceSwitcher';
 import IncAutocomplete from '../ui/IncAutocomplete';
 import { ALLIANCE_IDS } from '../../utils/constants';
 import { useAppStore } from '../../store/useAppStore';
 
-export default function FormEstudiante() {
-  const aiPrefilledData = useAppStore(state => state.aiPrefilledData);
-  const setAiPrefilledData = useAppStore(state => state.setAiPrefilledData);
+export default function FormEstudiante({ alianza, setAlianza, clearToken }) {
+  const aiPrefilledData = useAppStore((state) => state.aiPrefilledData);
+  const setAiPrefilledData = useAppStore((state) => state.setAiPrefilledData);
   const [groupId2, setGroupId2] = useLocalStorage('groupId2-estudiante', '');
   const [txareaIds, setTxareaIds] = useLocalStorage('txareaIds-estudiante', '');
   const [studentIds2, setStudentIds2] = useLocalStorage('studentIds2-estudiante', Array(8).fill(''));
-  const [alianza, setAlianza] = useLocalStorage('alianza-estudiante', 'na');
   const [inputMode, setInputMode] = useState('paste');
   const [generatedCommands, setGeneratedCommands] = useState([]);
-  
+
   const minInputs = 8;
-  const loading = false; // Mocked as original
 
   useEffect(() => {
     if (generatedCommands.length > 0) setGeneratedCommands([]);
@@ -29,13 +25,13 @@ export default function FormEstudiante() {
   useEffect(() => {
     if (aiPrefilledData && aiPrefilledData.intent === 'ENROLL') {
       if (aiPrefilledData.ids && aiPrefilledData.ids.length > 0) {
-        setGroupId2(aiPrefilledData.ids[0]); // student ID
+        setGroupId2(aiPrefilledData.ids[0]);
       }
       if (aiPrefilledData.ids && aiPrefilledData.ids.length > 1) {
         setInputMode('manual');
-        setStudentIds2(prev => {
+        setStudentIds2((prev) => {
           const updated = [...prev];
-          updated[0] = aiPrefilledData.ids[1]; // group ID
+          updated[0] = aiPrefilledData.ids[1];
           return updated;
         });
       }
@@ -50,10 +46,13 @@ export default function FormEstudiante() {
     setStudentIds2(Array(minInputs).fill(''));
   }, [minInputs, setGroupId2, setStudentIds2, setTxareaIds]);
 
+  // Respond to clearToken from parent (tab bar Limpiar button)
   useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape') handleClear();
-    };
+    if (clearToken > 0) handleClear();
+  }, [clearToken]);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => { if (e.key === 'Escape') handleClear(); };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleClear]);
@@ -67,17 +66,11 @@ export default function FormEstudiante() {
   const handleGeneratePaste = () => {
     if (!txareaIds || txareaIds.trim() === '') return;
     const flatIds = Array.from(new Set(
-      txareaIds.split(/\s+/).map(e => e.trim()).filter(e => {
-        return e.length >= 24 && e.length <= 26 && /^[a-zA-Z0-9]+$/.test(e);
-      })
+      txareaIds.split(/\s+/).map((e) => e.trim()).filter((e) => e.length >= 24 && e.length <= 26 && /^[a-zA-Z0-9]+$/.test(e))
     ));
-    if (flatIds.length === 0) {
-      setTxareaIds('');
-      return;
-    }
-    const requiredInputs = Math.max(flatIds.length, minInputs);
-    const newIds = Array(requiredInputs).fill('');
-    flatIds.forEach((id, index) => { newIds[index] = id; });
+    if (flatIds.length === 0) { setTxareaIds(''); return; }
+    const newIds = Array(Math.max(flatIds.length, minInputs)).fill('');
+    flatIds.forEach((id, i) => { newIds[i] = id; });
     setStudentIds2(newIds);
     showSuccess(`Se importaron ${flatIds.length} registros correctamente.`);
     setTxareaIds('');
@@ -85,100 +78,104 @@ export default function FormEstudiante() {
 
   const handleAction = (isRemove) => {
     const estudiante = groupId2.trim();
-    if (!estudiante) {
-      showError('Por favor ingrese el ID del estudiante.');
-      return;
-    }
-    const grupos = studentIds2.filter(id => id.trim() !== '');
-    if (grupos.length === 0) {
-      showError('Por favor ingrese al menos un ID de grupo.');
-      return;
-    }
+    if (!estudiante) { showError('Por favor ingrese el ID del estudiante.'); return; }
+    const grupos = studentIds2.filter((id) => id.trim() !== '');
+    if (grupos.length === 0) { showError('Por favor ingrese al menos un ID de grupo.'); return; }
     const action = isRemove ? 'pull:user:from:group' : 'enroll:user';
-    const comandos = grupos.map(grupo => `magik run:prod ${action}["${grupo}","${estudiante}"]`);
+    const comandos = grupos.map((grupo) => `magik run:prod ${action}["${grupo}","${estudiante}"]`);
     setGeneratedCommands(comandos);
     showSuccess(`${comandos.length} comando${comandos.length !== 1 ? 's' : ''} generado${comandos.length !== 1 ? 's' : ''}`);
   };
 
+  const filledGroupCount = studentIds2.filter((id) => id.trim() !== '').length;
+
   return (
-    <div className="inscripciones-form-container" style={{ marginTop: 0 }}>
-      <div className="inscripciones-form">
-        <div className="buscarIds">
-          <div className="input-wrapper" style={{ flex: 1 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <label className="input-label" style={{ marginBottom: 0 }}>INC / ID del estudiante</label>
-                <AllianceSwitcher value={alianza} onChange={(val) => { if (alianza !== val) { handleClear(); setAlianza(val); } }} />
-              </div>
-              <ClearButton onClick={handleClear} title="Limpiar formulario" />
-            </div>
-            <IncAutocomplete
-              alianzaId={alianza === 'kuepa' ? ALLIANCE_IDS.kuepa : ALLIANCE_IDS.na}
-              value={groupId2}
-              onChange={setGroupId2}
-              onSelect={(user) => { if (user) setGroupId2(user._id.$oid); }}
-              placeholder="Ej. INC o ID largo del estudiante"
-            />
-          </div>
+    <>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+        {/* ── Campo: Estudiante ── */}
+        <div className="inscr-field-block">
+          <label className="inscr-field-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Hash size={12} style={{ color: 'var(--primary)' }} />
+            INC / ID del Estudiante
+          </label>
+          <IncAutocomplete
+            alianzaId={alianza === 'kuepa' ? ALLIANCE_IDS.kuepa : ALLIANCE_IDS.na}
+            value={groupId2}
+            onChange={setGroupId2}
+            onSelect={(user) => { if (user) setGroupId2(user._id.$oid); }}
+            placeholder="Ej. INC o ID largo del estudiante"
+            inputStyle={{ height: '42px', padding: '0 40px 0 14px', boxSizing: 'border-box' }}
+          />
         </div>
 
-        <div className="segmented-control">
-          <button className={`segmented-btn ${inputMode === 'paste' ? 'active' : ''}`} onClick={() => setInputMode('paste')}>Pegar lista de IDs</button>
-          <button className={`segmented-btn ${inputMode === 'manual' ? 'active' : ''}`} onClick={() => setInputMode('manual')}>
+        {/* ── Selector de Modo ── */}
+        <div className="inscr-mode-selector">
+          <button
+            type="button"
+            className={`inscr-mode-btn ${inputMode === 'paste' ? 'active' : ''}`}
+            onClick={() => setInputMode('paste')}
+          >
+            <ClipboardList size={14} />
+            Pegar lista de IDs de grupos
+          </button>
+          <button
+            type="button"
+            className={`inscr-mode-btn ${inputMode === 'manual' ? 'active' : ''}`}
+            onClick={() => setInputMode('manual')}
+          >
+            <Hash size={14} />
             Ingreso manual
-            {studentIds2.filter(id => id.trim() !== '').length > 0 && (
-              <span style={{
-                background: inputMode === 'manual' ? 'var(--primary)' : 'var(--glass-border)',
-                color: inputMode === 'manual' ? '#090909' : 'var(--on-surface-variant)',
-                padding: '2px 6px', borderRadius: '100px', fontSize: '10px', marginLeft: '6px'
-              }}>
-                {studentIds2.filter(id => id.trim() !== '').length}
-              </span>
+            {filledGroupCount > 0 && (
+              <span className="inscr-count-badge">{filledGroupCount}</span>
             )}
           </button>
         </div>
 
+        {/* ── Modo: Pegar ── */}
+        {inputMode === 'paste' && (
+          <div className="inscr-field-block">
+            <label className="inscr-field-label">IDs de Grupos (uno por línea)</label>
+            <textarea
+              className="inscr-textarea"
+              value={txareaIds}
+              onChange={(e) => setTxareaIds(e.target.value)}
+              onBlur={handleGeneratePaste}
+              style={{ minHeight: '200px' }}
+              placeholder="Pega aquí los IDs de los grupos, uno por línea o separados por espacios..."
+            />
+          </div>
+        )}
+
+        {/* ── Modo: Manual ── */}
         {inputMode === 'manual' && (
-          <div className="inscripciones-grid" style={{ maxHeight: '250px', overflowY: 'auto', paddingRight: '8px' }}>
-            {studentIds2.map((studentId, index) => (
-              <div className="input-wrapper" key={index}>
-                <label className="input-label">ID Grupo {index + 1}</label>
+          <div className="inscr-grid-manual">
+            {studentIds2.map((groupId, index) => (
+              <div className="inscr-field-block" key={index}>
+                <label className="inscr-field-label">Grupo {index + 1}</label>
                 <input
                   type="text"
-                  value={studentId}
+                  value={groupId}
                   onChange={(e) => handleStudentIdChange(index, e.target.value)}
-                  className="inscripciones-input"
-                  style={{ borderColor: studentId.trim().length > 0 && studentId.trim().length < 24 ? '#ff4757' : undefined }}
+                  className={`inscr-input ${groupId.trim().length > 0 && groupId.trim().length < 24 ? 'invalid' : ''}`}
+                  placeholder="ID del grupo"
                 />
               </div>
             ))}
           </div>
         )}
-
-        {inputMode === 'paste' && (
-          <div className="input-wrapper" style={{ marginTop: '8px' }}>
-            <textarea
-              className="txareaids"
-              value={txareaIds}
-              onChange={(e) => setTxareaIds(e.target.value)}
-              onBlur={handleGeneratePaste}
-              style={{ minHeight: '150px' }}
-              placeholder="Pega aquí los IDs..."
-            />
-          </div>
-        )}
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '24px' }}>
-        <button className="btn btn-outline-danger" onClick={() => handleAction(true)}>
-          <UserMinus size={18} /> Retirar
+      {/* ── Acciones ── */}
+      <div className="inscr-actions-row">
+        <button className="inscr-btn-danger" onClick={() => handleAction(true)}>
+          <UserMinus size={15} /> Retirar de grupos
         </button>
-        <button className="btn btn-primary" onClick={() => handleAction(false)}>
-          <UserPlus size={18} /> Inscribir a grupos
+        <button className="inscr-btn-primary" onClick={() => handleAction(false)}>
+          <UserPlus size={15} /> Inscribir a grupos
         </button>
       </div>
 
       <CommandsDisplay commands={generatedCommands} onClear={() => setGeneratedCommands([])} />
-    </div>
+    </>
   );
 }

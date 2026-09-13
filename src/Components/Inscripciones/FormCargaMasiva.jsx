@@ -1,11 +1,27 @@
-import React, { useState, useCallback, useEffect } from 'react';
-import { UserPlus, UserMinus } from 'lucide-react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import { UserPlus, UserMinus, CheckCircle2, AlertTriangle, Minus } from 'lucide-react';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 import { showError, showSuccess } from '../../services/toastService';
 import CommandsDisplay from '../CommandsDisplay';
-import ClearButton from '../ui/ClearButton';
 
-export default function FormCargaMasiva() {
+function parseIds(text) {
+  if (!text || text.trim() === '') return [];
+  return text.split(/\s+/).map((e) => e.trim()).filter((e) => e !== '');
+}
+
+function validateIds(text) {
+  if (!text || text.trim() === '') return { valid: false, ids: [], error: 'vacío' };
+  const ids = parseIds(text);
+  if (ids.length === 0) return { valid: false, ids: [], error: 'vacío' };
+  for (const id of ids) {
+    if (id.length < 24 || id.length > 26 || !/^[a-zA-Z0-9]+$/.test(id)) {
+      return { valid: false, ids: [], error: 'inválido' };
+    }
+  }
+  return { valid: true, ids };
+}
+
+export default function FormCargaMasiva({ clearToken }) {
   const [txareaMultiStudents, setTxareaMultiStudents] = useLocalStorage('txareaMultiStudents-multi', '');
   const [txareaMultiGroups, setTxareaMultiGroups] = useLocalStorage('txareaMultiGroups-multi', '');
   const [generatedCommands, setGeneratedCommands] = useState([]);
@@ -21,24 +37,21 @@ export default function FormCargaMasiva() {
   }, [setTxareaMultiStudents, setTxareaMultiGroups]);
 
   useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape') handleClear();
-    };
+    const handleKeyDown = (e) => { if (e.key === 'Escape') handleClear(); };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleClear]);
 
-  const validateIds = (text) => {
-    if (!text || text.trim() === '') return { valid: false, ids: [], error: 'vacío' };
-    const ids = text.split(/\s+/).map(e => e.trim()).filter(e => e !== '');
-    if (ids.length === 0) return { valid: false, ids: [], error: 'vacío' };
-    for (const id of ids) {
-      if (id.length < 24 || id.length > 26 || !/^[a-zA-Z0-9]+$/.test(id)) {
-        return { valid: false, ids: [], error: 'inválido' };
-      }
-    }
-    return { valid: true, ids };
-  };
+  // Respond to clearToken from parent tab bar
+  useEffect(() => {
+    if (clearToken > 0) handleClear();
+  }, [clearToken]);
+
+  // ── Live parity indicator ──
+  const studentCount = useMemo(() => parseIds(txareaMultiStudents).length, [txareaMultiStudents]);
+  const groupCount = useMemo(() => parseIds(txareaMultiGroups).length, [txareaMultiGroups]);
+  const parityMatch = studentCount > 0 && groupCount > 0 && studentCount === groupCount;
+  const parityEmpty = studentCount === 0 && groupCount === 0;
 
   const handleAction = (isRemove) => {
     const studentsValidation = validateIds(txareaMultiStudents);
@@ -73,46 +86,63 @@ export default function FormCargaMasiva() {
     showSuccess(`${commands.length} comando${commands.length !== 1 ? 's' : ''} generado${commands.length !== 1 ? 's' : ''}`);
   };
 
+  const parityClass = parityEmpty ? 'empty' : parityMatch ? 'match' : 'mismatch';
+  const ParityIcon = parityEmpty ? Minus : parityMatch ? CheckCircle2 : AlertTriangle;
+  const parityLabel = parityEmpty
+    ? 'Ingresa IDs para verificar paridad'
+    : parityMatch
+    ? `${studentCount} estudiantes ↔ ${groupCount} grupos — Paridad OK`
+    : `${studentCount} estudiantes ≠ ${groupCount} grupos — No coinciden`;
+
   return (
-    <div className="inscripciones-form-container" style={{ marginTop: 0 }}>
-      <div className="inscripciones-form">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-          <label className="input-label" style={{ marginBottom: 0 }}>Carga masiva por pares</label>
-          <ClearButton onClick={handleClear} title="Limpiar formulario" />
+    <>
+      {/* ── Live parity bar ── */}
+      <div className={`inscr-parity-bar ${parityClass}`}>
+        <ParityIcon size={15} />
+        <span>{parityLabel}</span>
+      </div>
+
+      {/* ── Dual pane ── */}
+      <div className="inscr-dual-pane" style={{ minHeight: '280px' }}>
+        <div className="inscr-pane-card">
+          <div className="inscr-pane-header">
+            <span className="inscr-field-label">Lista de Estudiantes</span>
+            {studentCount > 0 && <span className="inscr-count-badge">{studentCount}</span>}
+          </div>
+          <textarea
+            className="inscr-textarea"
+            value={txareaMultiStudents}
+            onChange={(e) => setTxareaMultiStudents(e.target.value)}
+            style={{ flex: 1, minHeight: '220px', resize: 'none' }}
+            placeholder="Ingrese un ID por línea..."
+          />
         </div>
-        <hr className="inscripciones-divider" style={{ marginTop: 0, marginBottom: '16px' }} />
-        <div style={{ display: 'flex', gap: '16px' }}>
-          <div className="input-wrapper" style={{ flex: 1 }}>
-            <label className="input-label" style={{ marginBottom: '8px' }}>Lista de Estudiantes</label>
-            <textarea
-              className="txareaids"
-              value={txareaMultiStudents}
-              onChange={(e) => setTxareaMultiStudents(e.target.value)}
-              style={{ minHeight: '300px', resize: 'vertical' }}
-              placeholder="Ingrese un ID por línea..."
-            />
+        <div className="inscr-pane-card">
+          <div className="inscr-pane-header">
+            <span className="inscr-field-label">Lista de Grupos</span>
+            {groupCount > 0 && <span className="inscr-count-badge">{groupCount}</span>}
           </div>
-          <div className="input-wrapper" style={{ flex: 1 }}>
-            <label className="input-label" style={{ marginBottom: '8px' }}>Lista de Grupos</label>
-            <textarea
-              className="txareaids"
-              value={txareaMultiGroups}
-              onChange={(e) => setTxareaMultiGroups(e.target.value)}
-              style={{ minHeight: '300px', resize: 'vertical' }}
-              placeholder="Ingrese un ID por línea..."
-            />
-          </div>
+          <textarea
+            className="inscr-textarea"
+            value={txareaMultiGroups}
+            onChange={(e) => setTxareaMultiGroups(e.target.value)}
+            style={{ flex: 1, minHeight: '220px', resize: 'none' }}
+            placeholder="Ingrese un ID por línea..."
+          />
         </div>
       </div>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '24px' }}>
-        <button className="btn btn-outline-danger" onClick={() => handleAction(true)}>
-          <UserMinus size={18} /> Retirar estudiantes
+
+      {/* ── Acciones ── */}
+      <div className="inscr-actions-row">
+        <button className="inscr-btn-danger" onClick={() => handleAction(true)}>
+          <UserMinus size={15} /> Retirar estudiantes
         </button>
-        <button className="btn btn-primary" onClick={() => handleAction(false)}>
-          <UserPlus size={18} /> Inscribir estudiantes
+        <button className="inscr-btn-primary" onClick={() => handleAction(false)}>
+          <UserPlus size={15} /> Inscribir estudiantes
         </button>
       </div>
+
       <CommandsDisplay commands={generatedCommands} onClear={() => setGeneratedCommands([])} />
-    </div>
+    </>
   );
 }

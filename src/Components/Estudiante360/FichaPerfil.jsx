@@ -9,6 +9,7 @@ import {
   ClipboardList,
   GraduationCap,
   CheckCircle2,
+  Circle,
   ChevronDown,
   Database,
   X,
@@ -99,7 +100,10 @@ export default function FichaPerfil({
 
   return (
     <div
+      className="profile-card-enter"
       style={{
+        position: 'relative',
+        zIndex: isDropdownOpen ? 100 : 10,
         background: 'var(--surface-low)',
         border: '1px solid var(--glass-border)',
         borderRadius: '12px',
@@ -200,8 +204,10 @@ export default function FichaPerfil({
             {/* Chip Mongo ObjectId */}
             {student.mongoId && (
               <div
+                className="micro-chip-enter"
                 onClick={copyMongoId}
                 style={{
+                  animationDelay: '60ms',
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '5px',
@@ -245,8 +251,10 @@ export default function FichaPerfil({
             {/* Chip Email */}
             {student.email && (
               <div
+                className="micro-chip-enter"
                 onClick={copyEmail}
                 style={{
+                  animationDelay: '120ms',
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '5px',
@@ -289,8 +297,10 @@ export default function FichaPerfil({
             {/* Chip Teléfono */}
             {student.phone && (
               <div
+                className="micro-chip-enter"
                 onClick={copyPhone}
                 style={{
+                  animationDelay: '180ms',
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '5px',
@@ -372,41 +382,48 @@ export default function FichaPerfil({
             )}
 
             {/* Selector Dropdown de Programas */}
-            <div ref={dropdownRef} style={{ position: 'relative', flexShrink: 0 }}>
+            <div ref={dropdownRef} style={{ position: 'relative', flexShrink: 0, zIndex: isDropdownOpen ? 1000 : 1 }}>
               <button
                 type="button"
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '7px',
-                  height: '28px',
-                  padding: '0 10px',
-                  borderRadius: '6px',
-                  border: `1px solid ${isDropdownOpen ? 'var(--primary)' : 'var(--glass-border)'}`,
-                  background: isDropdownOpen ? 'rgba(18, 163, 131, 0.15)' : 'rgba(255, 255, 255, 0.03)',
-                  color: 'var(--on-surface)',
+                  gap: '8px',
+                  height: '32px',
+                  padding: '0 12px',
+                  borderRadius: '8px',
+                  border: isDropdownOpen ? '1px solid var(--primary)' : '1px solid rgba(18, 163, 131, 0.35)',
+                  background: isDropdownOpen ? 'rgba(18, 163, 131, 0.2)' : 'rgba(18, 163, 131, 0.08)',
+                  boxShadow: isDropdownOpen ? '0 0 14px rgba(18, 163, 131, 0.3)' : 'none',
+                  color: '#f8fafc',
                   cursor: 'pointer',
-                  transition: 'all 0.15s ease',
-                  fontSize: '11px',
+                  transition: 'all 0.18s ease',
+                  fontSize: '12px',
                   fontWeight: 700,
-                  maxWidth: '340px',
+                  maxWidth: '380px',
                 }}
                 title={`Programa activo: ${activeProgram?.name || 'Selecciona un programa'}`}
                 onMouseEnter={(e) => {
-                  if (!isDropdownOpen) e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+                  if (!isDropdownOpen) {
+                    e.currentTarget.style.borderColor = 'var(--primary)';
+                    e.currentTarget.style.background = 'rgba(18, 163, 131, 0.14)';
+                  }
                 }}
                 onMouseLeave={(e) => {
-                  if (!isDropdownOpen) e.currentTarget.style.borderColor = 'var(--glass-border)';
+                  if (!isDropdownOpen) {
+                    e.currentTarget.style.borderColor = 'rgba(18, 163, 131, 0.35)';
+                    e.currentTarget.style.background = 'rgba(18, 163, 131, 0.08)';
+                  }
                 }}
               >
-                <GraduationCap size={13} color="var(--primary)" style={{ flexShrink: 0 }} />
+                <GraduationCap size={14} color="var(--primary)" style={{ flexShrink: 0 }} />
                 <span
                   style={{
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                     whiteSpace: 'nowrap',
-                    color: '#f1f5f9',
+                    color: '#f8fafc',
                   }}
                 >
                   {activeProgram?.name || 'Seleccionar Programa'}
@@ -415,12 +432,13 @@ export default function FichaPerfil({
                 {programs.length > 1 && (
                   <span
                     style={{
-                      fontSize: '9px',
+                      fontSize: '10px',
                       fontWeight: 800,
-                      background: 'rgba(18, 163, 131, 0.15)',
+                      background: 'rgba(18, 163, 131, 0.22)',
                       color: 'var(--primary)',
-                      padding: '1px 5px',
-                      borderRadius: '4px',
+                      border: '1px solid rgba(18, 163, 131, 0.4)',
+                      padding: '1px 6px',
+                      borderRadius: '5px',
                       flexShrink: 0,
                     }}
                   >
@@ -429,11 +447,11 @@ export default function FichaPerfil({
                 )}
 
                 <ChevronDown
-                  size={12}
-                  color="var(--on-surface-variant)"
+                  size={13}
+                  color={isDropdownOpen ? 'var(--primary)' : 'var(--on-surface-variant)'}
                   style={{
                     transform: isDropdownOpen ? 'rotate(180deg)' : 'none',
-                    transition: 'transform 0.2s ease',
+                    transition: 'transform 0.22s cubic-bezier(0.16, 1, 0.3, 1)',
                     flexShrink: 0,
                   }}
                 />
@@ -444,19 +462,20 @@ export default function FichaPerfil({
                 <div
                   style={{
                     position: 'absolute',
-                    top: 'calc(100% + 6px)',
+                    top: 'calc(100% + 8px)',
                     right: 0,
-                    width: '380px',
-                    maxWidth: '90vw',
-                    background: '#12161a',
-                    border: '1px solid var(--glass-border)',
-                    borderRadius: '10px',
-                    boxShadow: '0 12px 32px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.05)',
-                    zIndex: 100,
-                    padding: '8px',
+                    width: '410px',
+                    maxWidth: 'min(440px, 94vw)',
+                    background: '#131822',
+                    border: '1px solid rgba(255, 255, 255, 0.12)',
+                    borderRadius: '12px',
+                    boxShadow: '0 20px 50px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(255, 255, 255, 0.08), 0 10px 24px rgba(0, 0, 0, 0.5)',
+                    zIndex: 9999,
+                    padding: '10px',
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: '4px',
+                    gap: '6px',
+                    animation: 'dropdownFadeIn 0.15s cubic-bezier(0.16, 1, 0.3, 1) both',
                   }}
                 >
                   <div
@@ -464,29 +483,65 @@ export default function FichaPerfil({
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      padding: '4px 8px 6px 8px',
-                      borderBottom: '1px solid var(--glass-border)',
+                      padding: '4px 6px 10px 6px',
+                      borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
                       marginBottom: '4px',
                     }}
                   >
-                    <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--on-surface-variant)' }}>
-                      PROGRAMAS INSCRITOS ({programs.length})
-                    </span>
-                    <X
-                      size={13}
-                      color="var(--on-surface-variant)"
-                      style={{ cursor: 'pointer' }}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+                      <GraduationCap size={14} color="var(--primary)" />
+                      <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--on-surface-variant)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                        Programas Inscritos
+                      </span>
+                      <span
+                        style={{
+                          fontSize: '10px',
+                          fontWeight: 800,
+                          background: 'rgba(18, 163, 131, 0.2)',
+                          color: 'var(--primary)',
+                          padding: '1px 6px',
+                          borderRadius: '10px',
+                        }}
+                      >
+                        {programs.length}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
                       onClick={() => setIsDropdownOpen(false)}
-                    />
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        padding: '4px',
+                        borderRadius: '5px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'var(--on-surface-variant)',
+                        transition: 'all 0.15s ease',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+                        e.currentTarget.style.color = '#f1f5f9';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'transparent';
+                        e.currentTarget.style.color = 'var(--on-surface-variant)';
+                      }}
+                      title="Cerrar selector"
+                    >
+                      <X size={14} />
+                    </button>
                   </div>
 
                   <div
                     style={{
-                      maxHeight: '260px',
+                      maxHeight: '280px',
                       overflowY: 'auto',
                       display: 'flex',
                       flexDirection: 'column',
-                      gap: '3px',
+                      gap: '4px',
                       paddingRight: '2px',
                       scrollbarWidth: 'thin',
                     }}
@@ -506,37 +561,39 @@ export default function FichaPerfil({
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'space-between',
-                            gap: '8px',
-                            padding: '7px 10px',
-                            borderRadius: '7px',
-                            background: isSelected ? 'rgba(18, 163, 131, 0.12)' : 'transparent',
-                            border: `1px solid ${isSelected ? 'rgba(18, 163, 131, 0.4)' : 'transparent'}`,
+                            gap: '10px',
+                            padding: '9px 12px',
+                            borderRadius: '8px',
+                            background: isSelected ? 'rgba(18, 163, 131, 0.14)' : 'rgba(255, 255, 255, 0.02)',
+                            border: `1px solid ${isSelected ? 'rgba(18, 163, 131, 0.45)' : 'rgba(255, 255, 255, 0.05)'}`,
                             cursor: 'pointer',
                             transition: 'all 0.15s ease',
                           }}
                           onMouseEnter={(e) => {
                             if (!isSelected) {
-                              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.04)';
+                              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)';
+                              e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.12)';
                             }
                           }}
                           onMouseLeave={(e) => {
                             if (!isSelected) {
-                              e.currentTarget.style.background = 'transparent';
+                              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.02)';
+                              e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.05)';
                             }
                           }}
                         >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '9px', minWidth: 0, flex: 1 }}>
                             {isSelected ? (
-                              <CheckCircle2 size={13} color="var(--primary)" style={{ flexShrink: 0 }} />
+                              <CheckCircle2 size={15} color="var(--primary)" style={{ flexShrink: 0 }} />
                             ) : (
-                              <GraduationCap size={13} color="var(--on-surface-variant)" style={{ flexShrink: 0 }} />
+                              <Circle size={15} color="rgba(255, 255, 255, 0.25)" style={{ flexShrink: 0 }} />
                             )}
                             <span
                               style={{
-                                fontSize: '12px',
+                                fontSize: '12.5px',
                                 fontWeight: isSelected ? 700 : 500,
-                                color: isSelected ? 'var(--primary)' : 'var(--on-surface)',
-                                lineHeight: 1.3,
+                                color: isSelected ? '#ffffff' : '#cbd5e1',
+                                lineHeight: 1.35,
                                 overflow: 'hidden',
                                 textOverflow: 'ellipsis',
                                 whiteSpace: 'nowrap',
@@ -551,12 +608,12 @@ export default function FichaPerfil({
                             {prog.statusName && (
                               <span
                                 style={{
-                                  fontSize: '9px',
+                                  fontSize: '9.5px',
                                   fontWeight: 800,
                                   background: getStatusTheme(prog.statusName).bg,
                                   color: getStatusTheme(prog.statusName).text,
                                   border: `1px solid ${getStatusTheme(prog.statusName).border}`,
-                                  padding: '1px 6px',
+                                  padding: '2px 7px',
                                   borderRadius: '4px',
                                   whiteSpace: 'nowrap',
                                 }}
@@ -569,19 +626,22 @@ export default function FichaPerfil({
                               style={{
                                 display: 'inline-flex',
                                 alignItems: 'center',
-                                gap: '3px',
-                                background: 'rgba(255, 255, 255, 0.05)',
-                                padding: '2px 5px',
-                                borderRadius: '4px',
-                                fontSize: '9px',
+                                gap: '4px',
+                                background: isCopied ? 'rgba(18, 163, 131, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+                                padding: '3px 7px',
+                                borderRadius: '5px',
+                                fontSize: '9.5px',
+                                fontWeight: 600,
+                                fontFamily: 'monospace',
                                 color: isCopied ? 'var(--primary)' : '#94a3b8',
-                                border: `1px solid ${isCopied ? 'var(--primary)' : 'var(--glass-border)'}`,
+                                border: `1px solid ${isCopied ? 'var(--primary)' : 'rgba(255, 255, 255, 0.08)'}`,
                                 transition: 'all 0.15s ease',
+                                cursor: 'pointer',
                               }}
                               title={`Copiar ID del programa: ${prog.programId}`}
                             >
                               <span>...{prog.programId.slice(-4)}</span>
-                              {isCopied ? <Check size={9} color="var(--primary)" /> : <Copy size={9} />}
+                              {isCopied ? <Check size={10} color="var(--primary)" /> : <Copy size={10} />}
                             </div>
                           </div>
                         </div>

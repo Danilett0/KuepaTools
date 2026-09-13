@@ -101,6 +101,8 @@ export default function ProgramasYGrupos({
   return (
     <div
       style={{
+        position: 'relative',
+        zIndex: 1,
         background: 'var(--surface-low)',
         border: '1px solid var(--glass-border)',
         borderRadius: '12px',
@@ -194,15 +196,16 @@ export default function ProgramasYGrupos({
                       minWidth: '220px',
                       maxHeight: '320px',
                       overflowY: 'auto',
-                      background: '#12161a',
-                      border: '1px solid var(--glass-border)',
-                      borderRadius: '8px',
-                      boxShadow: '0 12px 28px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.05)',
-                      zIndex: 100,
+                      background: '#131822',
+                      border: '1px solid rgba(255, 255, 255, 0.12)',
+                      borderRadius: '10px',
+                      boxShadow: '0 16px 36px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(255, 255, 255, 0.08)',
+                      zIndex: 500,
                       padding: '6px',
                       display: 'flex',
                       flexDirection: 'column',
                       gap: '2px',
+                      animation: 'dropdownFadeIn 0.15s cubic-bezier(0.16, 1, 0.3, 1) both',
                     }}
                   >
                     {/* Opción: Todos los niveles */}
@@ -474,15 +477,17 @@ export default function ProgramasYGrupos({
                 : 'No se encontraron materias con el filtro aplicado.'}
             </div>
           ) : (
-            filteredGroups.map((g) => {
+            filteredGroups.map((g, idx) => {
               const isChecked = selectedGroupIds.includes(g.groupId);
               const isDuplicate = duplicateGroupIds.has(g.groupId);
 
               return (
                 <div
                   key={g.groupId}
+                  className="estudiante360-card-enter"
                   onClick={() => onToggleGroup(g.groupId)}
                   style={{
+                    animationDelay: `${Math.min(idx * 30, 450)}ms`,
                     padding: '8px 12px',
                     borderRadius: '10px',
                     border: `1px solid ${
@@ -574,6 +579,7 @@ export default function ProgramasYGrupos({
                   >
                     {isDuplicate && (
                       <span
+                        className="duplicate-badge-pulse"
                         style={{
                           background: 'rgba(239, 68, 68, 0.15)',
                           border: '1px solid rgba(239, 68, 68, 0.4)',

@@ -4,10 +4,38 @@ import AgregacionesPanel from './AgregacionesPanel';
 import AlianzasView from './Informacion/AlianzasView';
 import ProgramasView from './Informacion/ProgramasView';
 import UsuariosView from './Informacion/UsuariosView';
+import { Database, Briefcase, BookOpen, Users, Code, Layers } from 'lucide-react';
 
 const Informacion = () => {
-  const [consultaActiva, setConsultaActiva] = useState(null);
-  const { alianzas: alianzasData, programas: programasData, estados: estadosData, loading: loadingCatalogos } = useCatalogos();
+  const [consultaActiva, setConsultaActiva] = useState('alianzas');
+  const { alianzas: alianzasData = [], programas: programasData = [], estados: estadosData = [], loading: loadingCatalogos } = useCatalogos();
+
+  const tabs = [
+    {
+      id: 'alianzas',
+      label: 'Alianzas Kuepa',
+      icon: Briefcase,
+      count: alianzasData.length || null,
+    },
+    {
+      id: 'programas',
+      label: 'Programas Kuepa',
+      icon: BookOpen,
+      count: programasData.length || null,
+    },
+    {
+      id: 'usuarios',
+      label: 'Usuarios',
+      icon: Users,
+      count: null,
+    },
+    {
+      id: 'agregaciones',
+      label: 'Agregaciones',
+      icon: Code,
+      count: null,
+    },
+  ];
 
   const renderContenido = () => {
     switch (consultaActiva) {
@@ -20,70 +48,93 @@ const Informacion = () => {
       case 'usuarios':
         return <UsuariosView programasData={programasData} estadosData={estadosData} />;
       default:
-        return (
-          <div style={{ textAlign: 'center', color: 'var(--on-surface-variant)', padding: '60px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', flex: 1, justifyContent: 'center' }}>
-            <div style={{ padding: '16px', background: 'var(--surface-low)', borderRadius: '50%', display: 'inline-flex' }}>
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--primary)' }}>
-                <circle cx="12" cy="12" r="10"></circle>
-                <line x1="12" y1="16" x2="12" y2="12"></line>
-                <line x1="12" y1="8" x2="12.01" y2="8"></line>
-              </svg>
-            </div>
-            <p>Selecciona una opción en la parte superior para cargar la información.</p>
-          </div>
-        );
+        return null;
     }
   };
 
   return (
-    <div className="content-container animate-slide-down" style={{ display: 'flex', flexDirection: 'column', gap: '24px', width: '100%', height: 'calc(100vh - 80px)', minHeight: 0, overflow: 'hidden' }}>
-      <div className="inscripciones-title" style={{ textAlign: 'left', margin: 0, fontSize: '24px', color: 'var(--on-surface)' }}>
-        Información y Consultas
-      </div>
-      
-      <div className="opciones-consultas" style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-        <button 
-          className={`btn ${consultaActiva === 'alianzas' ? 'btn-primary' : 'btn-black'}`}
-          onClick={() => setConsultaActiva('alianzas')}
-          style={{ padding: '10px 20px', transition: 'none', transform: 'none' }}
-        >
-          Alianzas Kuepa
-        </button>
-        <button 
-          className={`btn ${consultaActiva === 'programas' ? 'btn-primary' : 'btn-black'}`}
-          onClick={() => setConsultaActiva('programas')}
-          style={{ padding: '10px 20px', transition: 'none', transform: 'none' }}
-        >
-          Programas Kuepa
-        </button>
-        <button 
-          className={`btn ${consultaActiva === 'usuarios' ? 'btn-primary' : 'btn-black'}`}
-          onClick={() => setConsultaActiva('usuarios')}
-          style={{ padding: '10px 20px', transition: 'none', transform: 'none' }}
-        >
-          Usuarios
-        </button>
-        <button 
-          className={`btn ${consultaActiva === 'agregaciones' ? 'btn-primary' : 'btn-black'}`}
-          onClick={() => setConsultaActiva('agregaciones')}
-          style={{ padding: '10px 20px', transition: 'none', transform: 'none' }}
-        >
-          Agregaciones
-        </button>
+    <div className="info-main-container animate-slide-down">
+      {/* ── Header de Alta Fidelidad Estilo Estudiante 360° ── */}
+      <div className="info-header">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div className="info-header-badge">
+            <Database size={17} />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', flexWrap: 'wrap' }}>
+            <h1 className="info-header-title">
+              Información y Consultas
+            </h1>
+            <span className="info-header-subtitle">
+              Catálogos maestros, alianzas activas, programas, usuarios y pipelines
+            </span>
+          </div>
+        </div>
+
+        {/* Badges de Métricas Rápidas */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span
+            style={{
+              fontSize: '11px',
+              color: 'var(--on-surface-variant)',
+              background: 'rgba(255, 255, 255, 0.03)',
+              border: '1px solid var(--glass-border)',
+              padding: '3px 10px',
+              borderRadius: '100px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+          >
+            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--primary)' }} />
+            <span>Alianzas: <strong style={{ color: 'var(--on-surface)' }}>{alianzasData.length}</strong></span>
+          </span>
+
+          <span
+            style={{
+              fontSize: '11px',
+              color: 'var(--on-surface-variant)',
+              background: 'rgba(255, 255, 255, 0.03)',
+              border: '1px solid var(--glass-border)',
+              padding: '3px 10px',
+              borderRadius: '100px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+          >
+            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#38bdf8' }} />
+            <span>Programas: <strong style={{ color: 'var(--on-surface)' }}>{programasData.length}</strong></span>
+          </span>
+        </div>
       </div>
 
-      <hr className="inscripciones-divider" style={{ width: '100%', margin: '0' }} />
+      {/* ── Barra de Navegación Segmentada ── */}
+      <div className="info-tabs-bar">
+        {tabs.map((tab) => {
+          const Icon = tab.icon;
+          const isActive = consultaActiva === tab.id;
 
-      <div className="resultados-consultas" style={{ 
-        background: 'rgba(0, 0, 0, 0.2)', 
-        padding: '32px', 
-        borderRadius: '16px', 
-        flex: 1,
-        minHeight: 0,
-        border: '1px solid var(--glass-border)',
-        display: 'flex',
-        flexDirection: 'column'
-      }}>
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              className={`info-tab-button ${isActive ? 'active' : ''}`}
+              onClick={() => setConsultaActiva(tab.id)}
+            >
+              <Icon size={15} style={{ color: isActive ? 'var(--primary)' : 'var(--on-surface-variant)' }} />
+              <span>{tab.label}</span>
+              {tab.count !== null && (
+                <span className="info-tab-counter">
+                  {tab.count}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ── Contenedor Panel de Resultados ── */}
+      <div className="info-content-panel">
         {renderContenido()}
       </div>
     </div>

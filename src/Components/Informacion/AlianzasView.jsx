@@ -1,54 +1,139 @@
-import { useState } from 'react';
-import { Search } from 'lucide-react';
-import { renderListItems, renderPagination } from './Shared';
+import React, { useState, useMemo } from 'react';
+import { Briefcase, Building2 } from 'lucide-react';
+import { CopyChip, InfoSearchBar, InfoEmptyState, renderPagination } from './Shared';
 
-export default function AlianzasView({ alianzasData, isLoading }) {
+export default function AlianzasView({ alianzasData = [], isLoading }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [alianzasPagina, setAlianzasPagina] = useState(0);
-  const PAGE_SIZE = 10;
+  const PAGE_SIZE = 12;
 
-  const filteredAlianzas = alianzasData.filter(a => 
-    a.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredAlianzas = useMemo(() => {
+    const term = (searchTerm || '').trim().toLowerCase();
+    if (!term) return alianzasData;
+    return alianzasData.filter((a) => {
+      const name = (a.name || '').toLowerCase();
+      const id = String(a._id?.$oid || a._id || '').toLowerCase();
+      return name.includes(term) || id.includes(term);
+    });
+  }, [alianzasData, searchTerm]);
+
+  const totalPages = Math.ceil(filteredAlianzas.length / PAGE_SIZE);
+  const currentItems = useMemo(() => {
+    const start = alianzasPagina * PAGE_SIZE;
+    return filteredAlianzas.slice(start, start + PAGE_SIZE);
+  }, [filteredAlianzas, alianzasPagina, PAGE_SIZE]);
 
   return (
-    <div className="consulta-contenido" style={{ display: 'flex', flexDirection: 'column', height: '100%', flex: 1, minHeight: 0 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
-        <h3 style={{ color: 'var(--primary)', fontSize: '20px', margin: 0 }}>Alianzas Kuepa ({filteredAlianzas.length})</h3>
-        <div style={{ position: 'relative', width: '300px', maxWidth: '100%' }}>
-          <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--on-surface-variant)' }} />
-          <input 
-            type="text" 
-            className="inscripciones-input" 
-            placeholder="Buscar por nombre..." 
-            value={searchTerm}
-            onChange={(e) => {
-              setSearchTerm(e.target.value);
-              setAlianzasPagina(0);
-            }}
-            style={{ width: '100%', padding: '10px 16px 10px 40px' }}
-          />
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', flex: 1, minHeight: 0, gap: '14px' }}>
+      {/* ── Toolbar Superior ── */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <h3 style={{ color: 'var(--on-surface)', fontSize: '16px', fontWeight: 800, margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span>Alianzas Registradas</span>
+            <span
+              style={{
+                fontSize: '11px',
+                color: 'var(--primary)',
+                background: 'rgba(18, 163, 131, 0.14)',
+                padding: '2px 8px',
+                borderRadius: '100px',
+                fontWeight: 800,
+                border: '1px solid rgba(18, 163, 131, 0.25)',
+              }}
+            >
+              {filteredAlianzas.length}
+            </span>
+          </h3>
         </div>
+
+        <InfoSearchBar
+          value={searchTerm}
+          onChange={(val) => {
+            setSearchTerm(val);
+            setAlianzasPagina(0);
+          }}
+          onClear={() => {
+            setSearchTerm('');
+            setAlianzasPagina(0);
+          }}
+          placeholder="Buscar alianza o Mongo ID..."
+          width="300px"
+        />
       </div>
-      
-      <div style={{ 
-        display: 'flex', 
-        flexDirection: 'column', 
-        gap: '6px',
-        overflowY: 'auto',
-        paddingRight: '8px',
-        flex: 1,
-        minHeight: 0
-      }}>
-        {isLoading ? (
-          <div style={{ textAlign: 'center', color: '#eab308', padding: '60px 20px', background: 'rgba(255,200,0,0.05)', borderRadius: '12px', border: '1px solid rgba(255,200,0,0.1)' }}>
-            Descargando base de datos (puede tardar unos segundos)...
-          </div>
-        ) : (
-          renderListItems(filteredAlianzas.slice(alianzasPagina * PAGE_SIZE, (alianzasPagina + 1) * PAGE_SIZE), 'alianza', searchTerm)
-        )}
-      </div>
-      {renderPagination(alianzasPagina, Math.ceil(filteredAlianzas.length / PAGE_SIZE), filteredAlianzas.length, filteredAlianzas.slice(alianzasPagina * PAGE_SIZE, (alianzasPagina + 1) * PAGE_SIZE).length, setAlianzasPagina)}
+
+      {/* ── Grid Adaptativo de Alianzas ── */}
+      {isLoading ? (
+        <div
+          style={{
+            textAlign: 'center',
+            color: '#eab308',
+            padding: '50px 20px',
+            background: 'rgba(234, 179, 8, 0.05)',
+            borderRadius: '12px',
+            border: '1px solid rgba(234, 179, 8, 0.15)',
+            fontSize: '13px',
+            fontWeight: 600,
+          }}
+        >
+          Cargando catálogo maestro de alianzas...
+        </div>
+      ) : filteredAlianzas.length === 0 ? (
+        <InfoEmptyState
+          icon={Building2}
+          title="Sin coincidencias de alianzas"
+          message={`No encontramos alianzas con el término "${searchTerm}".`}
+        />
+      ) : (
+        <div className="info-card-grid">
+          {currentItems.map((item) => {
+            const rawId = item._id?.$oid || item._id;
+            const initial = item.name ? item.name.charAt(0).toUpperCase() : 'A';
+
+            return (
+              <div key={rawId} className="info-card">
+                {/* Avatar / Inicial de Alianza */}
+                <div className="info-card-avatar">
+                  {initial}
+                </div>
+
+                {/* Contenido */}
+                <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                  <div
+                    style={{
+                      color: 'var(--on-surface)',
+                      fontSize: '14px',
+                      fontWeight: 700,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                    title={item.name}
+                  >
+                    {item.name}
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <CopyChip
+                      text={rawId}
+                      label="ID"
+                      successMessage="ID de alianza copiado"
+                    />
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── Paginador ── */}
+      {renderPagination(
+        alianzasPagina,
+        totalPages,
+        filteredAlianzas.length,
+        currentItems.length,
+        setAlianzasPagina
+      )}
     </div>
   );
 }

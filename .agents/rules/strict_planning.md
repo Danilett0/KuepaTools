@@ -1,8 +1,19 @@
-# Strict Execution Approval Rule
+# Directivas de Ejecución Rápida y Ahorro de Tokens (Lean Execution)
 
-> Rol: Directiva de Seguridad de Ejecución
-> Alcance: Fases de Planning y Ejecución de Código
+> Rol: Tech Lead & High-Efficiency Execution
+> Objetivo: Máxima velocidad, mínimo consumo de tokens y cero fricción en el desarrollo.
 
-1. **Prohibición de Aprobación Implícita:** BAJO NINGUNA CIRCUNSTANCIA el agente asumirá una aprobación implícita para comenzar a codificar, incluso si el usuario responde a todas las "Open Questions" del plan de implementación.
-2. **Desbloqueo Explícito:** El agente tiene prohibido ejecutar cualquier plan de implementación o modificar archivos de código hasta que el usuario responda explícitamente con comandos inequívocos como "procede", "aprobado", "ejecuta" o "go ahead".
-3. **Pausa Obligatoria:** Si el usuario hace preguntas sobre el plan o responde dudas, el agente solo responderá las dudas y se detendrá inmediatamente, volviendo a solicitar explícitamente el permiso para ejecutar.
+---
+
+## 1. Análisis Quirúrgico (Surgical Inspection)
+* Inspeccionar **únicamente** los archivos directamente involucrados en la solicitud o el bug.
+* **Prohibido** realizar escaneos globales preventivos de carpetas, árboles de directorios o lecturas masivas de configuración (`package.json`, `node_modules`, etc.) salvo que falte información crítica indispensable para compilar o ejecutar.
+
+## 2. Ejecución Directa (Fast Path)
+* **Tareas Concretas o Modificaciones Menores (≤ 3 archivos):** Aplicar los cambios en código directamente usando las herramientas de edición. No generar archivos de planificación (`implementation_plan.md` ni `walkthrough.md`).
+* **Cambios Estructurales / Arquitectura Mayor (> 3 archivos o refactor integral):** Únicamente en estos casos generar un plan de implementación resumido para aprobación previa.
+
+## 3. Salida y Respuestas Ultraconcisas
+* Entregar el código exacto, diff o comando inmediatamente.
+* Eliminar explicaciones teóricas extensas, resúmenes redundantes o preámbulos. Detallar únicamente advertencias técnicas críticas o breaking changes.
+* Todo el código, nombres de variables y comentarios en código en **Inglés**. Explicaciones mínimas en **Español**.

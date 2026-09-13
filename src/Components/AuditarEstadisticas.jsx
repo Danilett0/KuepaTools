@@ -3,15 +3,15 @@ import { useLocalStorage } from "../hooks/useLocalStorage";
 import { findUser } from "../services/usuariosService";
 import { useCatalogos } from "../hooks/useCatalogos";
 import "../Styles/styles.css";
-import { Activity } from "lucide-react";
+import { BarChart2 } from "lucide-react";
 import CommandsDisplay from "./CommandsDisplay";
 import AllianceSwitcher from "./ui/AllianceSwitcher";
-import ClearButton from "./ui/ClearButton";
 import IncAutocomplete from "./ui/IncAutocomplete";
 import { useAppStore } from "../store/useAppStore";
+import { ALLIANCE_IDS } from "../utils/constants";
 
-function SegundaPagina() {
-  const [alliance, setAlliance] = useLocalStorage("auditar-alliance", "6303ed663138387a1669d82a");
+function AuditarEstadisticas() {
+  const [alliance, setAlliance] = useLocalStorage("auditar-alliance", ALLIANCE_IDS.na);
   const [secondStudentId, setSecondStudentId] = useLocalStorage("auditar-secondStudentId", "");
   const [secondProgramId, setSecondProgramId] = useLocalStorage("auditar-secondProgramId", "");
   const [groupId, setGroupId] = useLocalStorage("auditar-groupId", "");
@@ -102,142 +102,161 @@ function SegundaPagina() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleClear]);
 
+  const userPrograms = selectedUser?.programs || [];
+  const hasUserPrograms = userPrograms.length > 0 && !manualProgram;
+
   return (
-    <div className="inscripciones-container">
-      <div className="inscripciones-content">
-        <div className="inscripciones-form-container" style={{ marginTop: 0 }}>
-          {/* ── Header ─────────────────────────────────────────── */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div style={{
-                width: "32px", height: "32px", borderRadius: "10px",
-                background: "var(--primary)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-              }}>
-                <Activity size={16} style={{ color: "#090909" }} />
-              </div>
-              <span style={{ fontSize: "14px", fontWeight: 700, color: "var(--on-surface)", fontFamily: "'Nunito', sans-serif" }}>
-                Auditar Estadísticas
-              </span>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-              <ClearButton onClick={handleClear} />
-            </div>
+    <div
+      className="inscripciones-main animate-slide-down"
+      style={{ padding: "18px 24px", maxWidth: "1100px", margin: "0 auto", width: "100%", boxSizing: "border-box" }}
+    >
+      {/* ── Header ── */}
+      <div className="inscripciones-header-row">
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <div className="inscripciones-mode-badge">
+            <BarChart2 size={17} />
           </div>
-
-          <div style={{ height: "1px", background: "var(--glass-border)", marginBottom: "24px", width: "100%" }} />
-
-          <div className="inscripciones-form">
-            <div className="inscripciones-grid" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
-              <div className="input-wrapper" style={{ position: "relative" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px", height: "32px", flexWrap: "wrap" }}>
-                  <label className="input-label" style={{ marginBottom: 0 }}>Usuario</label>
-                  <AllianceSwitcher
-                    value={alliance}
-                    mode="long"
-                    onChange={(val) => { setAlliance(val); handleClear(); }}
-                  />
-                </div>
-                <IncAutocomplete
-                  alianzaId={alliance}
-                  value={secondStudentId}
-                  onChange={setSecondStudentId}
-                  onBlur={handleStudentIdBlur}
-                  onSelect={(user) => {
-                    if (user) {
-                      setSecondStudentId(user._id?.$oid || user._id);
-                      setSelectedUser(user);
-                    } else {
-                      setSelectedUser(null);
-                    }
-                    setSecondProgramId("");
-                  }}
-                  placeholder="INC o ID del estudiante"
-                  inputStyle={{ height: "48px", padding: "0 40px 0 16px" }}
-                />
-                {secondStudentId && !selectedUser && (
-                  <div style={{ fontSize: "12px", color: "#ef4444", marginTop: "6px" }}>
-                    Estudiante no encontrado
-                  </div>
-                )}
-                {selectedUser && (
-                  <div style={{ fontSize: "11px", color: "var(--primary)", marginTop: "4px", fontFamily: "'Space Grotesk', sans-serif" }}>
-                    ✓ {selectedUser.profile?.full_name}
-                  </div>
-                )}
-              </div>
-
-              <div className="input-wrapper">
-                <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px", height: "32px" }}>
-                  <label className="input-label" style={{ marginBottom: 0 }}>Programa</label>
-                  {selectedUser && selectedUser.programs?.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setManualProgram((prev) => !prev)}
-                      style={{
-                        background: "none",
-                        border: "none",
-                        color: "var(--primary)",
-                        fontSize: "11px",
-                        fontWeight: "600",
-                        cursor: "pointer",
-                        padding: 0,
-                        whiteSpace: "nowrap",
-                        letterSpacing: "0.02em",
-                      }}
-                    >
-                      {manualProgram ? "← Ver lista" : "Ingreso manual"}
-                    </button>
-                  )}
-                </div>
-
-                {selectedUser && selectedUser.programs?.length > 0 && !manualProgram ? (
-                  <select
-                    value={selectedUser.programs.some(p => (p.structure?.$oid || p.structure) === secondProgramId) ? secondProgramId : ""}
-                    onChange={(e) => setSecondProgramId(e.target.value)}
-                    className="inscripciones-input"
-                    style={{ appearance: "auto", height: "48px", padding: "0 16px" }}
-                  >
-                    <option value="" style={{ backgroundColor: "#1c1b1b", color: "#cae1d7", padding: "12px 16px" }}>Selecciona un programa</option>
-                    {selectedUser.programs.map((prog, idx) => {
-                      const pid = prog.structure?.$oid || prog.structure;
-                      if (!pid) return null;
-                      const pName = programasMap[pid]?.name || pid;
-                      return <option key={`${pid}-${idx}`} value={pid} style={{ backgroundColor: "#1c1b1b", color: "#e5e2e1", padding: "12px 16px", fontSize: "14px" }}>{pName}</option>;
-                    })}
-                  </select>
-                ) : (
-                  <input
-                    type="text"
-                    value={secondProgramId}
-                    onChange={(e) => setSecondProgramId(e.target.value)}
-                    className="inscripciones-input"
-                    placeholder="ID Programa"
-                    style={{ height: "48px", padding: "0 16px" }}
-                  />
-                )}
-              </div>
-
-              <div className="input-wrapper">
-                <div style={{ display: "flex", alignItems: "center", marginBottom: "8px", height: "32px" }}>
-                  <label className="input-label" style={{ marginBottom: 0 }}>Grupo (Opcional)</label>
-                </div>
-                <input
-                  type="text"
-                  value={groupId}
-                  onChange={(e) => setGroupId(e.target.value)}
-                  className="inscripciones-input"
-                  style={{ height: "48px", padding: "0 16px" }}
-                />
-              </div>
-            </div>
+          <div style={{ display: "flex", alignItems: "baseline", gap: "8px", flexWrap: "wrap" }}>
+            <h1 style={{ fontSize: "18px", fontWeight: 800, color: "var(--on-surface)", margin: 0, lineHeight: 1.2 }}>
+              Auditar Estadísticas
+            </h1>
+            <span style={{ fontSize: "11.5px", color: "var(--on-surface-variant)" }}>
+              Auditoría de nivel, estadísticas, materias y compactos de un estudiante
+            </span>
           </div>
-
-          <CommandsDisplay commands={commands} onClear={() => setCommands([])} />
         </div>
+      </div>
+
+      {/* ── Barra de Pestañas / Acciones ── */}
+      <div className="inscripciones-tabs">
+        <div style={{ display: "inline-flex", alignItems: "center", gap: "7px", padding: "7px 14px" }}>
+          <BarChart2 size={14} style={{ color: "var(--primary)" }} />
+          <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--primary)", fontFamily: "'Nunito', sans-serif" }}>
+            Auditoría Individual
+          </span>
+        </div>
+
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "10px" }}>
+          <AllianceSwitcher
+            value={alliance}
+            mode="long"
+            onChange={(val) => { setAlliance(val); handleClear(); }}
+          />
+          <button
+            type="button"
+            onClick={handleClear}
+            title="Limpiar (Esc)"
+            style={{
+              background: "transparent",
+              border: "1px solid var(--glass-border)",
+              color: "var(--on-surface-variant)",
+              borderRadius: "8px",
+              padding: "7px 14px",
+              fontSize: "11px",
+              cursor: "pointer",
+              fontFamily: "'Nunito', sans-serif",
+              fontWeight: 700,
+              transition: "all 0.15s ease",
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = "var(--on-surface)"; e.currentTarget.style.background = "rgba(255,255,255,0.05)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = "var(--on-surface-variant)"; e.currentTarget.style.background = "transparent"; }}
+          >
+            Limpiar
+          </button>
+        </div>
+      </div>
+
+      {/* ── Panel Principal ── */}
+      <div className="inscripciones-panel">
+        <div className="inscr-grid-3">
+          {/* Col 1: Usuario */}
+          <div className="inscr-field-block">
+            <label className="inscr-field-label">Usuario</label>
+            <IncAutocomplete
+              alianzaId={alliance}
+              value={secondStudentId}
+              onChange={setSecondStudentId}
+              onBlur={handleStudentIdBlur}
+              onSelect={(user) => {
+                if (user) {
+                  setSecondStudentId(user._id?.$oid || user._id);
+                  setSelectedUser(user);
+                } else {
+                  setSelectedUser(null);
+                }
+                setSecondProgramId("");
+              }}
+              placeholder="INC o ID del estudiante"
+              inputStyle={{ height: "42px", padding: "0 40px 0 14px", boxSizing: "border-box" }}
+            />
+          </div>
+
+          {/* Col 2: Programa */}
+          <div className="inscr-field-block">
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <label className="inscr-field-label">Programa</label>
+              {userPrograms.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setManualProgram((prev) => !prev)}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "var(--primary)",
+                    fontSize: "11px",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    padding: 0,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {manualProgram ? "← Ver lista" : "Ingreso manual"}
+                </button>
+              )}
+            </div>
+
+            {hasUserPrograms ? (
+              <select
+                value={userPrograms.some(p => (p.structure?.$oid || p.structure) === secondProgramId) ? secondProgramId : ""}
+                onChange={(e) => setSecondProgramId(e.target.value)}
+                className="inscr-select"
+              >
+                <option value="">Selecciona un programa</option>
+                {userPrograms.map((prog, idx) => {
+                  const pid = prog.structure?.$oid || prog.structure;
+                  if (!pid) return null;
+                  const pName = programasMap[pid]?.name || pid;
+                  return <option key={`${pid}-${idx}`} value={pid}>{pName}</option>;
+                })}
+              </select>
+            ) : (
+              <input
+                type="text"
+                value={secondProgramId}
+                onChange={(e) => setSecondProgramId(e.target.value)}
+                className="inscr-input"
+                placeholder="ID del programa"
+              />
+            )}
+          </div>
+
+          {/* Col 3: Grupo (Opcional) */}
+          <div className="inscr-field-block">
+            <label className="inscr-field-label">Grupo (Opcional)</label>
+            <input
+              type="text"
+              value={groupId}
+              onChange={(e) => setGroupId(e.target.value)}
+              className="inscr-input"
+              placeholder="ID del grupo académico..."
+            />
+          </div>
+        </div>
+
+        <CommandsDisplay commands={commands} onClear={() => setCommands([])} />
       </div>
     </div>
   );
 }
 
-export default SegundaPagina;
+export default AuditarEstadisticas;

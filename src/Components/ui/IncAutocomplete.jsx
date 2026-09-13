@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Search } from "lucide-react";
+import { Search, Loader2 } from "lucide-react";
 import { useUsuariosCompletos } from "../../hooks/useUsuariosCompletos";
 
 const DEBOUNCE_MS = 800;
@@ -25,6 +25,8 @@ export default function IncAutocomplete({
   onSelect,
   onBlur,
   onKeyDown,
+  autoSelectExact = true,
+  debounceMs = DEBOUNCE_MS,
   placeholder = "Ej: 292828",
   style,
   inputStyle,
@@ -73,7 +75,9 @@ export default function IncAutocomplete({
 
     if (!val || val.length < MIN_CHARS) {
       setSearching(false);
-      onSelect?.(null);
+      if (autoSelectExact) {
+        onSelect?.(null);
+      }
       return;
     }
 
@@ -86,13 +90,15 @@ export default function IncAutocomplete({
     debounceRef.current = setTimeout(async () => {
       setSearching(true);
       try {
-        // First try exact match
-        const exact = await findUser(val, alianzaId);
-        if (exact) {
-          onSelect?.(exact);
-          setSuggestions([]);
-          setNotFound(false);
-          return;
+        // Solo auto-seleccionar si autoSelectExact está habilitado
+        if (autoSelectExact) {
+          const exact = await findUser(val, alianzaId);
+          if (exact) {
+            onSelect?.(exact);
+            setSuggestions([]);
+            setNotFound(false);
+            return;
+          }
         }
 
         // Partial prefix search
@@ -102,20 +108,22 @@ export default function IncAutocomplete({
 
         if (!partial.length && val.length >= 5) {
           setNotFound(true);
-          onSelect?.(null);
+          if (autoSelectExact) {
+            onSelect?.(null);
+          }
         }
       } catch (err) {
         console.error("IncAutocomplete search error:", err);
       } finally {
         setSearching(false);
       }
-    }, DEBOUNCE_MS);
+    }, debounceMs);
 
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value, alianzaId]);
+  }, [value, alianzaId, autoSelectExact, debounceMs]);
 
   const selectSuggestion = useCallback((user) => {
     onChange(String(user.incremental_user_code));
@@ -129,24 +137,6 @@ export default function IncAutocomplete({
 
   return (
     <div ref={containerRef} style={{ position: "relative" }}>
-      {/* ── Label de estado ── */}
-      {isLoading && (
-        <span
-          style={{
-            fontSize: "10px",
-            color: "#eab308",
-            fontStyle: "italic",
-            fontWeight: 400,
-            position: "absolute",
-            top: "-18px",
-            left: 0,
-            fontFamily: "'Space Grotesk', sans-serif",
-          }}
-        >
-          buscando…
-        </span>
-      )}
-
       {/* ── Input ── */}
       <div style={{ position: "relative" }}>
         <input
@@ -156,7 +146,9 @@ export default function IncAutocomplete({
           onChange={(e) => {
             onChange(e.target.value);
             setShowSuggestions(true);
-            onSelect?.(null);
+            if (autoSelectExact) {
+              onSelect?.(null);
+            }
           }}
           onFocus={() => setShowSuggestions(true)}
           onBlur={onBlur}
@@ -169,17 +161,32 @@ export default function IncAutocomplete({
             ...combinedStyle,
           }}
         />
-        <Search
-          size={14}
-          style={{
-            position: "absolute",
-            right: "14px",
-            top: "50%",
-            transform: "translateY(-50%)",
-            color: "var(--on-surface-variant)",
-            pointerEvents: "none",
-          }}
-        />
+        {isLoading ? (
+          <Loader2
+            size={14}
+            className="animate-spin"
+            style={{
+              position: "absolute",
+              right: "14px",
+              top: "50%",
+              transform: "translateY(-50%)",
+              color: "var(--primary)",
+              pointerEvents: "none",
+            }}
+          />
+        ) : (
+          <Search
+            size={14}
+            style={{
+              position: "absolute",
+              right: "14px",
+              top: "50%",
+              transform: "translateY(-50%)",
+              color: "var(--on-surface-variant)",
+              pointerEvents: "none",
+            }}
+          />
+        )}
       </div>
 
       {/* ── Sugerencias desplegables ── */}
