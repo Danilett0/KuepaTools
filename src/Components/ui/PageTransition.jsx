@@ -17,7 +17,7 @@ export default function PageTransition({ children, transitionKey }) {
           duration: 0.4, 
           ease: [0.25, 0.1, 0.25, 1.0] // Smooth custom cubic bezier
         }}
-        style={{ width: '100%', display: 'flex', flexDirection: 'column' }}
+        style={{ width: '100%', height: '100%', flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}
       >
         {children}
       </motion.div>

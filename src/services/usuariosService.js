@@ -89,7 +89,8 @@ export async function findUser(value, alianzaId) {
 
   const promise = (async () => {
     const incNum = Number(trimmed);
-    const isInc  = !isNaN(incNum) && trimmed.length <= 7;
+    const isInc  = !isNaN(incNum) && trimmed.length <= 6 && incNum <= 100000;
+    const isMongo = /^[a-f0-9]{24}$/i.test(trimmed);
 
     let query = supabase.from('users').select(USER_FIELDS).limit(1);
 
@@ -99,14 +100,29 @@ export async function findUser(value, alianzaId) {
 
     if (isInc) {
       query = query.eq('incremental_user_code', incNum);
-    } else {
-      // mongo_id / _id lookup
+    } else if (isMongo) {
       query = query.eq('mongo_id', trimmed);
+    } else {
+      // Cédula / Documento / Teléfono lookup exacto
+      query = query.eq('phone', trimmed);
     }
 
     const { data, error } = await query;
     if (error) throw new Error(error.message);
-    return data.length ? normalizeUser(data[0]) : null;
+    if (data && data.length) return normalizeUser(data[0]);
+
+    // Fallback para Cédula: consultar si la cédula está contenida en el email
+    if (!isInc && !isMongo && trimmed.length >= 6) {
+      let emailQuery = supabase.from('users').select(USER_FIELDS).limit(1);
+      if (alianzaId) {
+        emailQuery = emailQuery.eq('alliance_id', alianzaId);
+      }
+      emailQuery = emailQuery.ilike('email', `%${trimmed}%`);
+      const { data: emailData } = await emailQuery;
+      if (emailData && emailData.length) return normalizeUser(emailData[0]);
+    }
+
+    return null;
   })();
 
   inFlightUsers.set(key, promise);

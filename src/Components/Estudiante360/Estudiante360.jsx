@@ -145,7 +145,7 @@ export default function Estudiante360() {
         const currentKey = `${trimmed}:${allianceId}`;
         const matchesCache =
           studentData &&
-          (String(studentData.student?.inc) === trimmed || studentData.student?.mongoId === trimmed) &&
+          (String(studentData.student?.inc) === trimmed || studentData.student?.mongoId === trimmed || studentData.student?.phone === trimmed) &&
           studentData.student?.allianceId === allianceId;
 
         if (!matchesCache) {
@@ -229,7 +229,7 @@ export default function Estudiante360() {
         const currentKey = `${trimmed}:${allianceId}`;
         const isAlreadyLoaded =
           studentData &&
-          (String(studentData.student?.inc) === trimmed || studentData.student?.mongoId === trimmed) &&
+          (String(studentData.student?.inc) === trimmed || studentData.student?.mongoId === trimmed || studentData.student?.phone === trimmed) &&
           studentData.student?.allianceId === allianceId;
 
         if (!isAlreadyLoaded && lastLoadedKeyRef.current !== currentKey) {
@@ -416,7 +416,7 @@ export default function Estudiante360() {
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
             <label className="input-label" style={{ marginBottom: 0, fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>
-              Buscar Estudiante por Código INC o Mongo ObjectId
+              Buscar Estudiante por Código INC, Cédula o Mongo ObjectId
             </label>
             {loading && (
               <span style={{ fontSize: '10px', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
@@ -433,7 +433,7 @@ export default function Estudiante360() {
             onSelect={handleSelectSuggestion}
             autoSelectExact={false}
             debounceMs={1000}
-            placeholder="Pega Mongo ObjectId (24 car.) o escribe código INC..."
+            placeholder="Pega Mongo ObjectId, Cédula o escribe código INC..."
             inputStyle={{ height: '32px', fontSize: '12px' }}
           />
         </div>

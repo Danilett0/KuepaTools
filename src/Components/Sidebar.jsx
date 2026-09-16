@@ -1,4 +1,4 @@
-import { Info, LogOut, Database } from "lucide-react";
+import { Info, LogOut, Database, Ticket } from "lucide-react";
 import { motion } from "framer-motion";
 import ClearStorageModal from "./ui/ClearStorageModal.jsx";
 import { useAppStore } from "../store/useAppStore.js";
@@ -162,12 +162,20 @@ export default function Sidebar({ onConfirmClear, navItems }) {
         {/* ── Footer ────────────────────────────────────────────────── */}
         <div className="sidebar-footer">
           {userRole === 'admin' && (
-            <FooterItem
-              id="migraciones"
-              icon={Database}
-              label="Migraciones DB"
-              onClick={() => { setActiveComponent('migraciones'); setExpandedMenu(null); }}
-            />
+            <>
+              <FooterItem
+                id="escalamiento-jira"
+                icon={Ticket}
+                label="Escalamiento Jira"
+                onClick={() => { setActiveComponent('escalamiento-jira'); setExpandedMenu(null); }}
+              />
+              <FooterItem
+                id="migraciones"
+                icon={Database}
+                label="Migraciones DB"
+                onClick={() => { setActiveComponent('migraciones'); setExpandedMenu(null); }}
+              />
+            </>
           )}
           <FooterItem
             id="informacion"

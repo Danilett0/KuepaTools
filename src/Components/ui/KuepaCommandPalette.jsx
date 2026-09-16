@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Command, ArrowRight, Bot, Zap, Settings, Loader2, Key, Trash2, Edit2, RefreshCw, Check, X, Copy, Sparkles, Cpu } from 'lucide-react';
+import { Search, Command, ArrowRight, Bot, Zap, Settings, Loader2, Key, Trash2, Edit2, RefreshCw, Check, X, Copy, Sparkles, Cpu, Ticket } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { supabase } from '../../services/supabaseClient';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
@@ -10,6 +10,7 @@ import { ALLIANCE_IDS } from '../../utils/constants';
 import { setGlobalSetting, getGlobalSetting } from '../../services/settingsService';
 import { AVAILABLE_AI_MODELS, DEFAULT_AI_MODEL } from '../../services/aiService';
 import AiAssistantHero from './AiAssistantHero';
+import { matchAcademicTerm } from '../../utils/academicTerms';
 
 const renderCommandSyntax = (cmd, isCopied) => {
   if (isCopied) {
@@ -165,10 +166,8 @@ export default function KuepaCommandPalette() {
                 if (data && data.length) {
                   let mapped = data;
                   if (searchTerm) {
-                    const searchLower = searchTerm.toLowerCase();
                     mapped = data.filter(g => 
-                      g.name.toLowerCase().includes(searchLower) || 
-                      g.parent?.level?.name?.toLowerCase().includes(searchLower)
+                      matchAcademicTerm(g.name, g.parent?.level?.name, searchTerm)
                     );
                   }
                   if (mapped.length) {
@@ -188,11 +187,20 @@ export default function KuepaCommandPalette() {
             dbResultsStr = "Error técnico al consultar la base de datos.";
           }
 
-          const systemMsgText = `[RESULTADOS DE BD PARA '${searchTerm}']: ${dbResultsStr}\nResponde al usuario basándote EXCLUSIVAMENTE en esto. No inventes.`;
-          
+          const searchLabel = searchTerm ? `'${searchTerm}'` : 'todos los grupos del estudiante';
+          const systemMsgText = `[RESULTADOS DE BD PARA ${searchLabel}]:
+${dbResultsStr}
+
+INSTRUCCIONES DE ACCIÓN:
+- Utiliza estos grupos reales de la BD para resolver los IDs de los grupos actuales del estudiante.
+- Si el usuario solicitó trasladar materias, retira (remove_user) al estudiante de los grupos antiguos listados arriba que coincidan con las materias solicitadas, e inscríbelo (enroll_user) en los nuevos grupos indicados en el mensaje original.
+- Si el usuario solicitó eliminar un cuatrimestre o nivel (ej: C3), retira (remove_user) al estudiante de todos los grupos listados arriba pertenecientes a ese nivel.
+- Conserva e incluye cualquier otra acción solicitada en el mensaje original (como cambios de estado).
+- Genera el conjunto COMPLETO de acciones en el arreglo "actions".`;
+
           currentHistory = [
             ...currentHistory, 
-            { id: Date.now().toString(), role: 'ai', text: `*(Consulté la base de datos buscando ${searchTerm}...)*`, isHidden: true }, 
+            { id: Date.now().toString(), role: 'ai', text: `*(Consulté la base de datos buscando ${searchTerm || 'grupos actuales'}...)*`, isHidden: true }, 
             { id: (Date.now()+1).toString(), role: 'user', text: systemMsgText, isHidden: true }
           ];
         } else {
@@ -508,6 +516,35 @@ export default function KuepaCommandPalette() {
                     title="Configuración de IA"
                   >
                     <Settings size={18} />
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setIsCommandPaletteOpen(false);
+                      setActiveComponent('escalamiento-jira');
+                      setExpandedMenu(null);
+                    }}
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.04)',
+                      border: '1px solid var(--glass-border)',
+                      borderRadius: '6px',
+                      padding: '3px 8px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      color: 'var(--on-surface-variant)',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      transition: 'all 0.2s',
+                      marginLeft: '4px'
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--primary)'; e.currentTarget.style.borderColor = 'rgba(18,163,131,0.4)'; e.currentTarget.style.background = 'rgba(18,163,131,0.08)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--on-surface-variant)'; e.currentTarget.style.borderColor = 'var(--glass-border)'; e.currentTarget.style.background = 'rgba(255, 255, 255, 0.04)'; }}
+                    title="Abrir Asistente de Escalamiento Jira (Nivel 2)"
+                  >
+                    <Ticket size={13} />
+                    <span>Escalar Jira</span>
                   </button>
                 </div>
                 <div style={{ display: 'flex', gap: '8px', color: 'var(--on-surface-variant)', fontSize: '11px', fontWeight: 600, alignItems: 'center' }}>

@@ -100,18 +100,27 @@ function App() {
         navItems={NAV_ITEMS}
       />
 
-      <main className="main-content">
+      <main 
+        className="main-content"
+        style={activeComponent === 'escalamiento-jira' ? { padding: '16px 24px', overflow: 'hidden', height: '100vh', boxSizing: 'border-box' } : {}}
+      >
         {userRole === 'admin' && <KuepaCommandPalette />}
         <div
           className="app-container"
-          style={(activeComponent === "informacion" || activeComponent === "estudiante-360" || activeComponent.startsWith("inscripciones") || activeComponent === "cambios-estado" || activeComponent === "auditar-estadisticas" || activeComponent === "buscar-id" || activeComponent === "programas-estudiante" || activeComponent.startsWith("herramientas-")) ? { maxWidth: "100%", width: "100%" } : {}}
+          style={
+            activeComponent === "escalamiento-jira"
+              ? { maxWidth: "100%", width: "100%", height: "100%", margin: 0, display: "flex", flexDirection: "column", minHeight: 0 }
+              : (activeComponent === "informacion" || activeComponent === "estudiante-360" || activeComponent === "migraciones" || activeComponent.startsWith("inscripciones") || activeComponent === "cambios-estado" || activeComponent === "auditar-estadisticas" || activeComponent === "buscar-id" || activeComponent === "programas-estudiante" || activeComponent.startsWith("herramientas-")) 
+                ? { maxWidth: "100%", width: "100%" } 
+                : {}
+          }
         >
           <AppRouter />
         </div>
       </main>
 
-      {/* Floating AI Button (Only for admin) */}
-      {userRole === 'admin' && (
+      {/* Floating AI Button (Only for admin and outside full-height workspace views) */}
+      {userRole === 'admin' && activeComponent !== 'escalamiento-jira' && (
         <button
           onClick={() => setIsCommandPaletteOpen(true)}
           style={{

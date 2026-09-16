@@ -4,6 +4,7 @@ import { supabase } from './supabaseClient';
 import { ALLIANCE_IDS } from '../utils/constants';
 import { generateCommandsFromActions } from '../agent/skills';
 import { hydrateStudents } from './studentHydrator';
+import { extractMultipleSisUrls } from '../utils/academicTerms';
 
 export class AgentOrchestrator {
   constructor(apiKey, alliance, options = {}) {
@@ -133,33 +134,35 @@ export class AgentOrchestrator {
       // Fallback silencioso: el sistema sigue funcionando sin hidratación
     }
 
-    // ── URL Detection (compatibilidad existente) ────────────────────────
-    const urlMatch = text.match(/https:\/\/sis\.kuepa\.com\/students\/details\/([a-f0-9]{24})\?structure_id=([a-f0-9]{24})/i);
-    
-    if (urlMatch) {
-      const studentId = urlMatch[1];
-      const programId = urlMatch[2];
-      
-      try {
-        const studentUser = await this.getUser(studentId);
-        let programName = "desconocido";
-        
-        if (studentUser) {
-          const { data: progCatalog } = await supabase.from('programas')
-            .select('mongo_id, name')
-            .eq('alliance_id', ALLIANCE_IDS[this.alliance])
-            .eq('mongo_id', programId)
-            .single();
-            
-          if (progCatalog) {
-            programName = progCatalog.name;
+    // ── Multi-URL SIS Detection (Fase 5: Tickets con múltiples URLs) ────
+    const sisUrls = extractMultipleSisUrls(text);
+    if (sisUrls.length > 0) {
+      for (const item of sisUrls) {
+        const { studentId, programId } = item;
+        try {
+          const studentUser = await this.getUser(studentId);
+          let programName = "desconocido";
+          
+          if (studentUser && programId) {
+            const { data: progCatalog } = await supabase.from('programas')
+              .select('mongo_id, name')
+              .eq('alliance_id', ALLIANCE_IDS[this.alliance])
+              .eq('mongo_id', programId)
+              .single();
+              
+            if (progCatalog) {
+              programName = progCatalog.name;
+            }
           }
+          
+          const studentName = studentUser?.profile?.full_name || "Estudiante";
+          const progInfo = programId ? `, program_id: "${programId}" (Programa: "${programName}")` : '';
+          additionalContext += `\n[CONTEXTO DE URL: ${studentName} - student_id: "${studentId}"${progInfo}. USA ESTOS IDs DIRECTAMENTE.]`;
+        } catch (err) {
+          console.error("Error en RAG de URL:", err);
+          const progInfo = programId ? `, program_id: "${programId}"` : '';
+          additionalContext += `\n[CONTEXTO DE URL: student_id: "${studentId}"${progInfo}.]`;
         }
-        
-        additionalContext += `\n[CONTEXTO DE URL: El usuario proporcionó una URL de SIS. student_id: "${studentId}", program_id: "${programId}" (Programa: "${programName}"). USA ESTOS IDs DIRECTAMENTE.]`;
-      } catch (err) {
-        console.error("Error en RAG de URL:", err);
-        additionalContext += `\n[CONTEXTO DE URL: student_id: "${studentId}", program_id: "${programId}".]`;
       }
     }
 

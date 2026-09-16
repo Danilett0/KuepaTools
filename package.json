@@ -11,6 +11,8 @@
     "@testing-library/user-event": "^13.5.0",
     "ajv": "^8.20.0",
     "framer-motion": "^13.1.0",
+    "html-to-image": "^1.11.13",
+    "jspdf": "^4.2.1",
     "lucide-react": "^0.541.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",

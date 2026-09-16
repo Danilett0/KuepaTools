@@ -11,6 +11,7 @@ const BuscarIdInc = lazy(() => import("./BuscarIdInc.jsx"));
 const ProgramasPorEstudiante = lazy(() => import("./ProgramasPorEstudiante.jsx"));
 const Migrations = lazy(() => import("./Migrations.jsx"));
 const Estudiante360 = lazy(() => import("./Estudiante360/Estudiante360.jsx"));
+const JiraEscalationView = lazy(() => import("./JiraEscalation/JiraEscalationView.jsx"));
 
 // Para componentes exportados de forma nombrada:
 const UndoPublicationPage = lazy(() => import("./HerramientasAcademicos.jsx").then(module => ({ default: module.UndoPublicationPage })));
@@ -50,6 +51,8 @@ export default function AppRouter() {
         return <ProgramasPorEstudiante key="programas-estudiante" />;
       case "migraciones":
         return <Migrations key="migraciones" />;
+      case "escalamiento-jira":
+        return <JiraEscalationView key="escalamiento-jira" />;
       case "herramientas-academicos":
       case "herramientas-undo":
         return <UndoPublicationPage key="herramientas-undo" />;

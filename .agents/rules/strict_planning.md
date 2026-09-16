@@ -17,3 +17,9 @@
 * Entregar el código exacto, diff o comando inmediatamente.
 * Eliminar explicaciones teóricas extensas, resúmenes redundantes o preámbulos. Detallar únicamente advertencias técnicas críticas o breaking changes.
 * Todo el código, nombres de variables y comentarios en código en **Inglés**. Explicaciones mínimas en **Español**.
+
+## 4. Cero Ejecución de Tests Innecesarios (Zero Waste Testing)
+* **PROHIBIDO** crear scripts de prueba ad-hoc, correr suites de tests (`npm test`, `node test.js`) o ejecutar comandos de compilación preventiva (`npm run build`) tras cambios rutinarios de UI o lógica.
+* El dev server (`npm run dev`) ya corre en segundo plano con Hot Module Replacement (HMR).
+* Solo ejecutar builds o tests si el usuario lo solicita explícitamente ("corre los tests", "compila para producción").
+* Maximizar el ahorro de tokens y la inmediatez de respuesta aplicando los cambios en código directamente.

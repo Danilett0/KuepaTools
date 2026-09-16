@@ -12,6 +12,7 @@
 import { findUser, findUsersByIncList, findUsersByMongoIds } from './usuariosService';
 import { supabase } from './supabaseClient';
 import { ALLIANCE_IDS } from '../utils/constants';
+import { cleanTicketNoise } from '../utils/academicTerms';
 
 /**
  * Detecta todos los números que parecen INCs en el texto.
@@ -21,8 +22,11 @@ import { ALLIANCE_IDS } from '../utils/constants';
  * @returns {string[]} - Array de INCs encontrados como strings
  */
 function extractINCs(text) {
+  // Limpiar ruido de tickets (menciones de Slack, enlaces externos, números de tickets)
+  const cleanedText = cleanTicketNoise(text);
+
   // Primero, eliminamos los ObjectIDs para no confundir dígitos dentro de ellos
-  const textWithoutObjectIds = text.replace(/\b[a-f0-9]{24}\b/gi, '___OID___');
+  const textWithoutObjectIds = cleanedText.replace(/\b[a-f0-9]{24}\b/gi, '___OID___');
   
   // Buscamos secuencias de dígitos de 3-7 caracteres (mínimo 3 para evitar "1", "2", "10")
   const matches = textWithoutObjectIds.match(/\b\d{3,7}\b/g) || [];
