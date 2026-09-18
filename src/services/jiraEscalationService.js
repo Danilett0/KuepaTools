@@ -1,6 +1,6 @@
-import { DEFAULT_AI_MODEL, AVAILABLE_AI_MODELS } from './aiService';
-import { findUser } from './usuariosService';
-import { sanitizeTableOrDump, convertMarkdownTablesToJira } from './tableSanitizerService';
+import { DEFAULT_AI_MODEL, AVAILABLE_AI_MODELS } from './aiService.js';
+import { findUser } from './usuariosService.js';
+import { sanitizeTableOrDump, convertMarkdownTablesToJira } from './tableSanitizerService.js';
 
 const JIRA_SYSTEM_PROMPT = `
 Eres un Líder Técnico de Soporte N3 y QA Lead especializado en plataformas educativas y sistemas empresariales.
@@ -463,3 +463,165 @@ ${content}
 
   return parsed;
 }
+
+/**
+ * Da formato estandarizado al resumen para canales de Slack
+ * (Con iconos atractivos, sin asteriscos, sin preguntas por viñeta, con espacio para Tarea generada)
+ */
+export function formatSlackEscalationMessage({ taskRef = '', summary = '' } = {}) {
+  const cleanSummary = (summary && typeof summary === 'string') 
+    ? summary.replace(/\*/g, '').trim()
+    : (summary ? String(summary).replace(/\*/g, '').trim() : 'Se reportó el incidente en plataforma para revisión y corrección técnica.');
+
+  const cleanTaskRef = (taskRef && typeof taskRef === 'string') 
+    ? taskRef.replace(/\*/g, '').trim() 
+    : '';
+
+  return [
+    `🎫 Tarea generada: ${cleanTaskRef}`.trimEnd(),
+    `📢 Se escaló: ${cleanSummary}`
+  ].join('\n\n');
+}
+
+/**
+ * Genera un resumen determinista directo sin consumo de API ni asteriscos
+ */
+export function generateSlackSummaryFallback(ticket) {
+  if (!ticket || typeof ticket !== 'object') {
+    return formatSlackEscalationMessage({});
+  }
+
+  const rawSummary = ticket.summary || '';
+  const cleanTitle = (typeof rawSummary === 'string' ? rawSummary : String(rawSummary))
+    .replace(/^Soporte_Estudiante\s*-\s*/i, '')
+    .replace(/\*/g, '')
+    .trim();
+
+  let what = '';
+  if (ticket.sections?.context && typeof ticket.sections.context === 'string') {
+    what = ticket.sections.context.split('\n')[0].replace(/^[#\-*]\s*/, '').replace(/\*/g, '').trim();
+  } else if (ticket.sections?.behavior && typeof ticket.sections.behavior === 'string') {
+    const obsMatch = ticket.sections.behavior.match(/❌\s*Observado\s*:?\s*([^\n]+)/i);
+    what = (obsMatch && obsMatch[1] ? obsMatch[1] : ticket.sections.behavior.split('\n')[0])
+      .replace(/\*/g, '')
+      .trim();
+  }
+
+  let why = '';
+  if (ticket.sections?.acceptanceCriteria && typeof ticket.sections.acceptanceCriteria === 'string') {
+    const crit = ticket.sections.acceptanceCriteria
+      .split('\n')
+      .find(line => line.trim().length > 0 && !line.startsWith('#'));
+    if (crit) {
+      why = crit.replace(/^\[\s*[x ]?\s*\]\s*/i, '').replace(/^[*\-]\s*/, '').replace(/\*/g, '').trim();
+    }
+  }
+  if (!why && ticket.sections?.behavior && typeof ticket.sections.behavior === 'string') {
+    const expMatch = ticket.sections.behavior.match(/✅\s*Esperado\s*:?\s*([^\n]+)/i);
+    if (expMatch && expMatch[1]) {
+      why = expMatch[1].replace(/\*/g, '').trim();
+    }
+  }
+  if (!why && ticket.sections?.solution && typeof ticket.sections.solution === 'string') {
+    if (!ticket.sections.solution.includes('```') && !ticket.sections.solution.includes('db.')) {
+      why = ticket.sections.solution.split('\n')[0].replace(/\*/g, '').trim();
+    }
+  }
+
+  let combined = '';
+  if (what && why) {
+    const lowerWhy = why.charAt(0).toLowerCase() + why.slice(1);
+    combined = `${what}; se busca ${lowerWhy}`;
+  } else if (what) {
+    combined = what;
+  } else if (cleanTitle) {
+    combined = `${cleanTitle}, para su revisión y corrección técnica.`;
+  }
+
+  return formatSlackEscalationMessage({
+    summary: combined
+  });
+}
+
+/**
+ * Genera el resumen para Slack asistido por IA en tono sencillo con iconos atractivos,
+ * sin asteriscos, sin preguntas por viñetas y dejando Tarea generada para completar.
+ */
+export async function generateSlackSummaryWithAI(ticket, apiKey, options = {}) {
+  if (!ticket || typeof ticket !== 'object') {
+    return generateSlackSummaryFallback(null);
+  }
+
+  const cleanKey = apiKey ? String(apiKey).replace(/['"]/g, '').trim() : '';
+  if (!cleanKey) {
+    return generateSlackSummaryFallback(ticket);
+  }
+
+  const model = options.model || DEFAULT_AI_MODEL;
+  const prompt = `
+Eres un comunicador de soporte técnico en Slack.
+Tu objetivo es redactar un mensaje ULTRA CORTO, dinámico, fluido y en lenguaje cotidiano para usuarios básicos / asesores no técnicos en un canal de Slack.
+A partir del siguiente ticket de Jira, sintetiza en un único texto continuo (de 2 a 3 líneas) qué se escaló y qué se busca solucionar (unificando ambas respuestas sin preguntas).
+
+Ticket:
+Título: ${ticket.summary || ''}
+Secciones:
+${JSON.stringify(ticket.sections || {}, null, 2)}
+
+REGLAS ESTRICTAS:
+1. PROHIBIDO terminantemente usar asteriscos (*) en ningún lugar del mensaje.
+2. PROHIBIDO formular o estructurar el texto como preguntas (NO uses "¿Qué se escaló?", "¿Por qué?", etc.).
+3. PROHIBIDO inventar o asumir identificadores o códigos de tarea. Deja "🎫 Tarea generada:" vacía para que el usuario la complete.
+4. Devuelve ÚNICAMENTE este formato exacto con iconos:
+🎫 Tarea generada: 
+
+📢 Se escaló: <Resumen unificado y fluido de qué ocurrió y qué se busca solucionar>
+`;
+
+  try {
+    const payload = {
+      contents: [{
+        role: 'user',
+        parts: [{ text: prompt }]
+      }],
+      generationConfig: {
+        temperature: 0.2,
+        maxOutputTokens: 250
+      }
+    };
+
+    const apiUrl = getApiUrl(model);
+    const response = await fetch(`${apiUrl}?key=${cleanKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      return generateSlackSummaryFallback(ticket);
+    }
+
+    const data = await response.json();
+    const rawAiText = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+    if (rawAiText) {
+      let cleanAiText = rawAiText.replace(/\*/g, '').trim();
+      if (/tarea generada:/i.test(cleanAiText)) {
+        if (!cleanAiText.startsWith('🎫')) {
+          cleanAiText = cleanAiText.replace(/^(?:📌\s*|🎫\s*)?tarea generada:/i, '🎫 Tarea generada:');
+        }
+        if (!cleanAiText.includes('📢')) {
+          cleanAiText = cleanAiText.replace(/se escal[oó]:/i, '📢 Se escaló:');
+        }
+        return cleanAiText;
+      }
+      const strippedSummary = cleanAiText.replace(/^(?:📢\s*)?se escal[oó]:?\s*/i, '');
+      return `🎫 Tarea generada: \n\n📢 Se escaló: ${strippedSummary}`;
+    }
+    return generateSlackSummaryFallback(ticket);
+  } catch (err) {
+    console.warn("Fallo al generar resumen Slack con IA, usando fallback determinista:", err);
+    return generateSlackSummaryFallback(ticket);
+  }
+}
+
+

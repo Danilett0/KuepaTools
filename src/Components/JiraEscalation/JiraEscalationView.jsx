@@ -31,13 +31,14 @@ import {
   Pencil,
   X,
   ExternalLink,
-  Table
+  Table,
+  MessageSquare
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 import { useAppStore } from '../../store/useAppStore';
 import { getGlobalSetting } from '../../services/settingsService';
-import { processJiraEscalation, compileDescription } from '../../services/jiraEscalationService';
+import { processJiraEscalation, compileDescription, generateSlackSummaryWithAI } from '../../services/jiraEscalationService';
 import { exportTicketAsImage, exportTicketAsPdf } from '../../services/ticketExportService';
 import { DEFAULT_AI_MODEL } from '../../services/aiService';
 import { isTableContent, sanitizeTableOrDump, convertMarkdownTablesToJira, parseMarkdownTable } from '../../services/tableSanitizerService';
@@ -1366,6 +1367,7 @@ export default function JiraEscalationView() {
   const [editDraftValue, setEditDraftValue] = useState('');
   const [processingStage, setProcessingStage] = useState(0);
   const [isExporting, setIsExporting] = useState(null); // null | 'image' | 'pdf'
+  const [isGeneratingSlackSummary, setIsGeneratingSlackSummary] = useState(false);
   const ticketExportRef = useRef(null);
 
   // Cerrar modal de imagen con tecla Escape
@@ -1459,6 +1461,23 @@ export default function JiraEscalationView() {
       toast.error("Error al generar PDF del ticket.");
     } finally {
       setIsExporting(null);
+    }
+  };
+
+  const handleCopySlackSummary = async () => {
+    if (!currentTicket || isGeneratingSlackSummary) return;
+    try {
+      setIsGeneratingSlackSummary(true);
+      const summaryText = await generateSlackSummaryWithAI(currentTicket, apiKey, { model: aiModel });
+      await navigator.clipboard.writeText(summaryText);
+      setCopiedSection('slack');
+      toast.success("Resumen para Slack copiado al portapapeles.");
+      setTimeout(() => setCopiedSection(null), 2000);
+    } catch (err) {
+      console.error("Error al generar resumen para Slack:", err);
+      toast.error("Error al generar el resumen para Slack.");
+    } finally {
+      setIsGeneratingSlackSummary(false);
     }
   };
   
@@ -3068,6 +3087,47 @@ export default function JiraEscalationView() {
                     <FileDown size={13} />
                   )}
                   {isExporting === 'pdf' ? 'Generando...' : 'PDF'}
+                </button>
+
+                {/* Botón Resumen Slack */}
+                <button
+                  onClick={handleCopySlackSummary}
+                  disabled={isExporting !== null || isGeneratingSlackSummary}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    background: copiedSection === 'slack' ? 'rgba(34, 197, 94, 0.2)' : 'rgba(244, 63, 94, 0.12)',
+                    color: copiedSection === 'slack' ? '#4ade80' : '#fb7185',
+                    border: copiedSection === 'slack' ? '1px solid rgba(34, 197, 94, 0.35)' : '1px solid rgba(244, 63, 94, 0.35)',
+                    borderRadius: '8px',
+                    padding: '5px 11px',
+                    fontSize: '11.5px',
+                    fontWeight: 700,
+                    cursor: (isExporting !== null || isGeneratingSlackSummary) ? 'not-allowed' : 'pointer',
+                    transition: 'all 0.2s',
+                    opacity: (isExporting !== null || isGeneratingSlackSummary) ? 0.6 : 1
+                  }}
+                  title="Generar y copiar resumen ultra corto para responder en el grupo de Slack"
+                  onMouseEnter={(e) => { 
+                    if (copiedSection !== 'slack') e.currentTarget.style.background = 'rgba(244, 63, 94, 0.22)'; 
+                  }}
+                  onMouseLeave={(e) => { 
+                    if (copiedSection !== 'slack') e.currentTarget.style.background = 'rgba(244, 63, 94, 0.12)'; 
+                  }}
+                >
+                  {isGeneratingSlackSummary ? (
+                    <RefreshCw size={13} className="animate-spin" />
+                  ) : copiedSection === 'slack' ? (
+                    <Check size={13} />
+                  ) : (
+                    <MessageSquare size={13} />
+                  )}
+                  {isGeneratingSlackSummary 
+                    ? 'Sintetizando...' 
+                    : copiedSection === 'slack' 
+                      ? '¡Copiado!' 
+                      : 'Resumen Slack'}
                 </button>
 
                 {/* Botón Copiar Ticket */}
