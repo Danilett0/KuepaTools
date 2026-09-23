@@ -9,10 +9,10 @@
  * SIN tener que preguntar al usuario, reduciendo fricciones.
  */
 
-import { findUser, findUsersByIncList, findUsersByMongoIds } from './usuariosService';
-import { supabase } from './supabaseClient';
-import { ALLIANCE_IDS } from '../utils/constants';
-import { cleanTicketNoise } from '../utils/academicTerms';
+import { findUser, findUsersByIncList, findUsersByMongoIds } from './usuariosService.js';
+import { supabase } from './supabaseClient.js';
+import { ALLIANCE_IDS } from '../utils/constants.js';
+import { cleanTicketNoise } from '../utils/academicTerms.js';
 
 /**
  * Detecta todos los números que parecen INCs en el texto.
@@ -21,7 +21,8 @@ import { cleanTicketNoise } from '../utils/academicTerms';
  * @param {string} text - Texto del usuario
  * @returns {string[]} - Array de INCs encontrados como strings
  */
-function extractINCs(text) {
+export function extractINCs(text) {
+  if (!text || typeof text !== 'string') return [];
   // Limpiar ruido de tickets (menciones de Slack, enlaces externos, números de tickets)
   const cleanedText = cleanTicketNoise(text);
 
@@ -49,7 +50,8 @@ function extractINCs(text) {
  * @param {string} text - Texto del usuario
  * @returns {string[]} - Array de ObjectIDs encontrados
  */
-function extractObjectIDs(text) {
+export function extractObjectIDs(text) {
+  if (!text || typeof text !== 'string') return [];
   const matches = text.match(/\b[a-f0-9]{24}\b/gi) || [];
   return [...new Set(matches)];
 }
@@ -166,6 +168,25 @@ export async function hydrateStudents(text, allianceKey, onStateChange) {
 
   const allFoundUsers = [...usersByInc, ...usersByOid];
 
+  // Batch lookup de grupos activos para todos los estudiantes detectados
+  const studentOids = allFoundUsers.map(u => u._id?.$oid).filter(Boolean);
+  const groupsByStudent = new Map();
+  if (studentOids.length > 0) {
+    try {
+      await Promise.all(studentOids.map(async (sId) => {
+        const { data: userStructures } = await supabase
+          .from('structures')
+          .select('mongo_id, name, parent:parent_id(name, level:pensum_level_id(name))')
+          .contains('users', [sId]);
+        if (userStructures && userStructures.length > 0) {
+          groupsByStudent.set(sId, userStructures);
+        }
+      }));
+    } catch (err) {
+      console.warn('Error hidratando grupos de estudiantes:', err.message);
+    }
+  }
+
   for (const user of allFoundUsers) {
     if (user && user._id && user._id.$oid) {
       const studentPrograms = (user.programs || []).map(p => {
@@ -182,6 +203,7 @@ export async function hydrateStudents(text, allianceKey, onStateChange) {
         programs: studentPrograms,
         programCount: studentPrograms.length,
         autoProgram: studentPrograms.length === 1 ? studentPrograms[0] : null,
+        groups: groupsByStudent.get(user._id.$oid) || [],
         rawUser: user
       });
     }
@@ -216,8 +238,8 @@ export async function hydrateStudents(text, allianceKey, onStateChange) {
  * Construye el bloque de texto [CONTEXTO DEL SISTEMA] que se inyectará
  * al mensaje antes de enviarlo al LLM.
  */
-function buildContextBlock(students, objectIds) {
-  if (students.length === 0) return '';
+export function buildContextBlock(students, objectIds = []) {
+  if (!students || !Array.isArray(students) || students.length === 0) return '';
   
   let context = '\n[CONTEXTO DEL SISTEMA - ESTUDIANTES DETECTADOS]:';
   
@@ -228,23 +250,35 @@ function buildContextBlock(students, objectIds) {
     if (s.programCount === 0) {
       context += `\n  Programas: Ninguno registrado.`;
     } else if (s.programCount === 1) {
-      context += `\n  Programa (1): "${s.autoProgram.name}" (ID: ${s.autoProgram.id})`;
+      context += `\n  Programa (1): "${s.autoProgram?.name || 'Programa'}" (ID: ${s.autoProgram?.id || ''})`;
       context += `\n  → Tiene 1 solo programa. USA ESTE DIRECTAMENTE como program_id sin preguntar.`;
     } else {
       context += `\n  Programas (${s.programCount}):`;
-      for (const p of s.programs) {
+      for (const p of (s.programs || [])) {
         context += `\n    • "${p.name}" (ID: ${p.id})`;
       }
       context += `\n  → Tiene múltiples programas. Si la acción requiere program_id, verifica si el usuario ya mencionó cuál quiere (ej: por nombre o palabra clave), y USA su ID directamente. Si no lo especificó, PREGUNTA al usuario cuál necesita listando los nombres con saltos de línea (\\n) como una lista vertical. Si la acción NO requiere program_id (ej. enroll_user, remove_user, fix_deliverable), ignora los programas.`;
     }
+
+    if (s.groups && s.groups.length > 0) {
+      context += `\n  Grupos inscritos (${s.groups.length}):`;
+      for (const g of s.groups) {
+        const levelName = g.parent?.level?.name || g.parent?.name || 'N/A';
+        const gId = g.mongo_id || g._id?.$oid || g._id;
+        context += `\n    • "${g.name}" (ID: ${gId}, Nivel: ${levelName})`;
+      }
+    } else {
+      context += `\n  Grupos inscritos: Ninguno registrado.`;
+    }
   }
   
-  if (objectIds.length > 0) {
+  if (Array.isArray(objectIds) && objectIds.length > 0) {
     context += `\n\nObjectIDs detectados en el mensaje: ${objectIds.join(', ')}`;
     context += `\n(Pueden ser group_id, program_id, u otro ID según el contexto del mensaje.)`;
   }
   
   context += `\n\nUSA ESTOS DATOS DIRECTAMENTE EN TUS ACCIONES. No preguntes por student_id ni program_id si ya están aquí.`;
+  context += `\nSi el usuario solicita retirar de materias/grupos o realizar traslados, USA DIRECTAMENTE los IDs de los grupos inscritos listados arriba para emitir las acciones "remove_user" de cada estudiante SIN hacer QUERY adicional a la base de datos. Si un estudiante no tiene grupos inscritos, no emitas acciones de retiro para él pero procesa a los que sí tengan.`;
   
   return context;
 }

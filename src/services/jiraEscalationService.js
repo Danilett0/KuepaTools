@@ -1,4 +1,4 @@
-import { DEFAULT_AI_MODEL, AVAILABLE_AI_MODELS } from './aiService.js';
+import { DEFAULT_AI_MODEL, AVAILABLE_AI_MODELS, getApiUrl } from './aiService.js';
 import { findUser } from './usuariosService.js';
 import { sanitizeTableOrDump, convertMarkdownTablesToJira } from './tableSanitizerService.js';
 
@@ -117,10 +117,6 @@ Si es COMPLETE:
 }
 `;
 
-const getApiUrl = (model = DEFAULT_AI_MODEL) => {
-  const safeModel = (!model || model === 'gemini-2.5-flash-lite') ? DEFAULT_AI_MODEL : model;
-  return `https://generativelanguage.googleapis.com/v1beta/models/${safeModel}:generateContent`;
-};
 
 /**
  * Normaliza textos donde se hayan pegado tablas o columnas sin espacios:

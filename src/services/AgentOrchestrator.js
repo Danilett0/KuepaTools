@@ -283,11 +283,18 @@ export class AgentOrchestrator {
     const prefix = isFollowUp ? '[CONTINUACIÓN]' : '[NUEVA TAREA]';
     historyForGemini.push({ role: 'user', text: `${prefix}: ${processedText}` });
 
+    if (this.options?.signal?.aborted) {
+      const abortErr = new Error('Operación cancelada por el usuario.');
+      abortErr.name = 'AbortError';
+      throw abortErr;
+    }
+
     try {
       // 2. Llamar a LLM con reintentos automáticos para mitigar errores 503/429
       const geminiResult = await analyzeIntentWithGemini(historyForGemini, this.apiKey, {
         maxRetries: 3,
         model: this.options?.model,
+        signal: this.options?.signal,
         onRetry: ({ attempt, maxRetries }) => {
           if (onThinkingStateChange) {
             onThinkingStateChange(`ai_retry_${attempt}_${maxRetries}`);

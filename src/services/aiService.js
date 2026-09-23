@@ -1,13 +1,23 @@
 export const DEFAULT_AI_MODEL = 'gemini-3.5-flash-lite';
 
 export const AVAILABLE_AI_MODELS = [
-  { id: 'gemini-3.5-flash-lite', label: 'Gemini 3.5 Flash Lite', tag: 'Recomendado Google (Ultrarrápido)', shortName: 'Flash Lite' },
-  { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', tag: 'Equilibrado', shortName: 'Flash' },
-  { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro', tag: 'Máxima Precisión', shortName: 'Pro' }
+  { id: 'gemini-3.5-flash-lite', label: 'Gemini 3.5 Flash Lite', tag: 'Recomendado (Ultrarrápido)', shortName: 'Flash Lite' },
+  { id: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash', tag: 'Equilibrado (Estable)', shortName: 'Flash 3.5' }
 ];
 
-const getApiUrl = (model = DEFAULT_AI_MODEL) => {
-  const safeModel = (model === 'gemini-2.5-flash-lite' || !model) ? DEFAULT_AI_MODEL : model;
+export const resolveSafeAiModel = (model = DEFAULT_AI_MODEL) => {
+  if (!model || model === 'gemini-2.5-flash-lite' || model === 'gemini-3.5-flash-lite') {
+    return 'gemini-3.5-flash-lite';
+  }
+  if (model === 'gemini-3.5-flash') {
+    return 'gemini-3.5-flash';
+  }
+  // Modelos obsoletos o saturados caen al modelo estable
+  return 'gemini-3.5-flash';
+};
+
+export const getApiUrl = (model = DEFAULT_AI_MODEL) => {
+  const safeModel = resolveSafeAiModel(model);
   return `https://generativelanguage.googleapis.com/v1beta/models/${safeModel}:generateContent`;
 };
 
@@ -63,17 +73,22 @@ REGLAS CRÍTICAS sobre el contexto:
 4. Múltiples Acciones Simultáneas (Peticiones Compuestas):
    - Un ticket puede pedir varias operaciones a la vez (ejemplo: "quitar aplazamiento y volver regular, eliminar C3 y trasladar materias de C2").
    - NUNCA te limites a una sola acción. Genera TODAS las acciones requeridas en el arreglo "actions".
+5. RETIROS Y TRASLADOS MASIVOS (Múltiples estudiantes):
+   - Si el mensaje solicita retirar a una lista de estudiantes de todos sus grupos o de un nivel específico, Y los estudiantes tienen sus grupos listados en el [CONTEXTO DEL SISTEMA]:
+     * NO hagas un QUERY a la base de datos.
+     * Genera DIRECTAMENTE una acción "remove_user" con el group_id y student_id para CADA grupo de CADA estudiante.
+     * Evalúa a cada estudiante por separado: si un estudiante tiene 0 grupos ("Ninguno registrado"), no emitas acciones para él, pero genera las acciones para TODOS los estudiantes que sí tengan grupos inscritos. NUNCA respondas que ninguno tiene grupos basándote en que uno de ellos esté sin grupos.
 
 ## Flujo de Trabajo:
 1. IMPORTANTE: Analiza TODA la conversación para mantener el contexto (ej. saber a qué estudiante o programa se refiere el usuario), pero genera las acciones (type: "ACTIONS") ÚNICAMENTE para la ÚLTIMA petición del usuario. NUNCA acumules ni repitas acciones de mensajes anteriores.
-2. Si la petición requiere consultar grupos actuales (por traslado de materias o eliminación de un cuatrimestre entero), emite PRIMERO el \`type: "QUERY"\` con \`table: "grupos_estudiante"\`.
+2. Si la petición requiere consultar grupos actuales (por traslado de materias o eliminación de un cuatrimestre entero) Y los grupos NO están en el contexto del sistema, emite PRIMERO el \`type: "QUERY"\` con \`table: "grupos_estudiante"\`.
 3. Si la petición incluye múltiples acciones (para uno o varios estudiantes), incluye TODAS las acciones correspondientes en el arreglo "actions".
 4. Si falta CUALQUIER DATO estrictamente obligatorio para una acción (ej. student_id o group_id en enroll_user), devuelve \`type: "INCOMPLETE"\` preguntando por él de forma clara con viñetas.
 5. Para acciones donde program_id es opcional (audit_statistics, change_status), si no se proporciona NI está en el contexto, NO lo pidas. El sistema lo autocompletará.
 
 ## Consultas de Información:
 Si el usuario hace una pregunta sobre qué programas o estados existen, devuelve \`type: "QUERY"\` con \`query.table\` ("programas", "alianzas", "estados") y \`query.searchTerm\`.
-Si necesitas saber en qué grupos está inscrito un estudiante (por ejemplo, para retirarlo de un grupo mencionando su nombre, para retirarlo de un cuatrimestre entero como C5, o trasladarlo), devuelve \`type: "QUERY"\` con \`query.table: "grupos_estudiante"\`, \`query.student_id\` (el ID del estudiante en contexto) y opcionalmente \`query.searchTerm\` con el nombre del grupo o nivel a buscar (ej: "Matemáticas", "C5", "cuatrimestre 5"). NUNCA uses nombres de texto crudo en un parámetro \`group_id\`. Si solo tienes el nombre, haz el QUERY primero para obtener su ObjectID (24 caracteres). Luego genera las acciones necesarias.
+Si necesitas saber en qué grupos está inscrito un estudiante y no aparecen en el contexto inyectado, devuelve \`type: "QUERY"\` con \`query.table: "grupos_estudiante"\`, \`query.student_id\` (o \`query.student_ids\` como arreglo para múltiples estudiantes) y opcionalmente \`query.searchTerm\` con el nombre del grupo o nivel a buscar (ej: "Matemáticas", "C5", "cuatrimestre 5"). NUNCA uses nombres de texto crudo en un parámetro \`group_id\`. Si solo tienes el nombre, haz el QUERY primero para obtener su ObjectID (24 caracteres). Luego genera las acciones necesarias.
 Si debes responder texto natural, devuelve \`type: "INFO"\`.
 
 Estructura estricta JSON:
@@ -92,15 +107,44 @@ Estructura estricta JSON:
   "query": {
     "table": "alianzas" | "programas" | "estados" | "grupos_estudiante",
     "searchTerm": "string (opcional)",
-    "student_id": "string (opcional, necesario para grupos_estudiante)"
+    "student_id": "string (opcional)",
+    "student_ids": ["string"]
   }
 }
 `;
 
-const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+const wait = (ms, signal) => new Promise((resolve, reject) => {
+  if (signal?.aborted) {
+    const err = new Error('Operación cancelada por el usuario.');
+    err.name = 'AbortError';
+    return reject(err);
+  }
+  const timer = setTimeout(resolve, ms);
+  if (signal) {
+    signal.addEventListener('abort', () => {
+      clearTimeout(timer);
+      const err = new Error('Operación cancelada por el usuario.');
+      err.name = 'AbortError';
+      reject(err);
+    }, { once: true });
+  }
+});
 
 export const analyzeIntentWithGemini = async (chatHistory, apiKey, options = {}) => {
-  const { maxRetries = 3, baseDelay = 1500, onRetry = null, model = DEFAULT_AI_MODEL } = options;
+  const { 
+    maxRetries = 3, 
+    baseDelay = 1500, 
+    timeoutMs = 40000, 
+    onRetry = null, 
+    model = DEFAULT_AI_MODEL, 
+    signal = null 
+  } = options;
+
+  if (signal?.aborted) {
+    const err = new Error('Operación cancelada por el usuario.');
+    err.name = 'AbortError';
+    throw err;
+  }
 
   if (!apiKey) {
     throw new Error("No API Key provided");
@@ -126,6 +170,33 @@ export const analyzeIntentWithGemini = async (chatHistory, apiKey, options = {})
   let lastError = null;
 
   for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
+    if (signal?.aborted) {
+      const err = new Error('Operación cancelada por el usuario.');
+      err.name = 'AbortError';
+      throw err;
+    }
+
+    const attemptController = new AbortController();
+    let timeoutTimer = null;
+    let didAttemptTimeout = false;
+
+    if (timeoutMs > 0) {
+      timeoutTimer = setTimeout(() => {
+        didAttemptTimeout = true;
+        const timeoutErr = new Error(`TIMEOUT:Intento ${attempt} excedió ${timeoutMs}ms.`);
+        timeoutErr.name = 'TimeoutError';
+        attemptController.abort(timeoutErr);
+      }, timeoutMs);
+    }
+
+    const onUserAbort = () => {
+      attemptController.abort(signal?.reason || new Error('Operación cancelada por el usuario.'));
+    };
+
+    if (signal) {
+      signal.addEventListener('abort', onUserAbort, { once: true });
+    }
+
     try {
       const response = await fetch(`${apiUrl}?key=${apiKey}`, {
         method: "POST",
@@ -133,7 +204,11 @@ export const analyzeIntentWithGemini = async (chatHistory, apiKey, options = {})
           "Content-Type": "application/json",
         },
         body: JSON.stringify(payload),
+        signal: attemptController.signal,
       });
+
+      if (timeoutTimer) clearTimeout(timeoutTimer);
+      if (signal) signal.removeEventListener('abort', onUserAbort);
 
       if (!response.ok) {
         let errorData = null;
@@ -153,7 +228,7 @@ export const analyzeIntentWithGemini = async (chatHistory, apiKey, options = {})
           if (onRetry) {
             onRetry({ attempt, maxRetries, delay, status: statusCode });
           }
-          await wait(delay);
+          await wait(delay, signal);
           continue;
         }
 
@@ -183,8 +258,29 @@ export const analyzeIntentWithGemini = async (chatHistory, apiKey, options = {})
       return JSON.parse(cleanedText);
 
     } catch (error) {
+      if (timeoutTimer) clearTimeout(timeoutTimer);
+      if (signal) signal.removeEventListener('abort', onUserAbort);
+
+      if (signal?.aborted) {
+        throw error;
+      }
+
+      if (didAttemptTimeout && attempt <= maxRetries) {
+        const delay = Math.round(baseDelay * Math.pow(1.8, attempt - 1) + Math.random() * 400);
+        console.warn(`[Gemini API] Timeout de ${timeoutMs / 1000}s en intento ${attempt}. Reintentando (${attempt}/${maxRetries}) en ${delay}ms...`);
+        if (onRetry) {
+          onRetry({ attempt, maxRetries, delay, status: 'TIMEOUT' });
+        }
+        await wait(delay, signal);
+        continue;
+      }
+
+      if (didAttemptTimeout) {
+        throw new Error("El modelo de IA tardó demasiado en responder tras varios intentos. Intenta nuevamente.");
+      }
+
       lastError = error;
-      const isNetworkError = error instanceof TypeError || error.name === 'AbortError';
+      const isNetworkError = error instanceof TypeError;
 
       if (isNetworkError && attempt <= maxRetries) {
         const delay = Math.round(baseDelay * Math.pow(1.8, attempt - 1) + Math.random() * 400);
@@ -192,7 +288,7 @@ export const analyzeIntentWithGemini = async (chatHistory, apiKey, options = {})
         if (onRetry) {
           onRetry({ attempt, maxRetries, delay, status: 'NETWORK_ERROR' });
         }
-        await wait(delay);
+        await wait(delay, signal);
         continue;
       }
 

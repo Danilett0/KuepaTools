@@ -48,9 +48,9 @@ export default function KuepaCommandPalette() {
 
   const currentModelObj = AVAILABLE_AI_MODELS.find(m => m.id === aiModel) || AVAILABLE_AI_MODELS[0];
 
-  // Auto-migrate from deprecated gemini-2.5-flash-lite if present in localStorage
+  // Auto-migrate from deprecated/invalid models if present in localStorage
   useEffect(() => {
-    if (aiModel === 'gemini-2.5-flash-lite' || !AVAILABLE_AI_MODELS.some(m => m.id === aiModel)) {
+    if (!AVAILABLE_AI_MODELS.some(m => m.id === aiModel)) {
       setAiModel(DEFAULT_AI_MODEL);
     }
   }, [aiModel, setAiModel]);
@@ -58,6 +58,23 @@ export default function KuepaCommandPalette() {
   const inputRef = useRef(null);
   const editInputRef = useRef(null);
   const messagesEndRef = useRef(null);
+  const abortControllerRef = useRef(null);
+
+  const handleClearChat = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setAnalyzingState(null);
+    setChatHistory([]);
+    setEditingIndex(null);
+    setEditingText('');
+    setInputValue('');
+    setCopiedCommandKeys({});
+    setTimeout(() => {
+      inputRef.current?.focus();
+    }, 50);
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -80,11 +97,25 @@ export default function KuepaCommandPalette() {
       setTimeout(() => {
         inputRef.current?.focus();
       }, 100);
-      setInputValue('');
-      setChatHistory([]);
+      handleClearChat();
       loadKeyFromDb();
+    } else {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+      setAnalyzingState(null);
     }
   }, [isCommandPaletteOpen]);
+
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (isCommandPaletteOpen) {
@@ -115,10 +146,19 @@ export default function KuepaCommandPalette() {
 
   // Execute Orchestrator Pipeline with given conversation history
   const runAgentPipeline = async (historyToProcess) => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const currentAbortController = new AbortController();
+    abortControllerRef.current = currentAbortController;
+
     try {
       const { AgentOrchestrator } = await import('../../services/AgentOrchestrator');
       const cleanApiKey = apiKey.replace(/['"]/g, '').trim();
-      const orchestrator = new AgentOrchestrator(cleanApiKey, aiAlliance, { model: aiModel });
+      const orchestrator = new AgentOrchestrator(cleanApiKey, aiAlliance, { 
+        model: aiModel,
+        signal: currentAbortController.signal 
+      });
 
       // Loop for QUERY resolutions
       let currentHistory = [...historyToProcess];
@@ -126,12 +166,21 @@ export default function KuepaCommandPalette() {
       let finalResult = null;
 
       while (!isFinalResult) {
+        if (currentAbortController.signal.aborted) return;
+
         const lastMsgText = currentHistory[currentHistory.length - 1].text;
         const historyForOrchestrator = currentHistory.slice(0, -1);
         
-        const result = await orchestrator.processMessage(lastMsgText, historyForOrchestrator, setAnalyzingState);
+        const result = await orchestrator.processMessage(lastMsgText, historyForOrchestrator, (state) => {
+          if (!currentAbortController.signal.aborted) {
+            setAnalyzingState(state);
+          }
+        });
+
+        if (currentAbortController.signal.aborted) return;
 
         if (result.type === 'QUERY' && result.query) {
+          if (currentAbortController.signal.aborted) return;
           setAnalyzingState('db_processing');
           const { table, searchTerm } = result.query;
           let dbResultsStr = "No se encontraron resultados.";
@@ -149,50 +198,76 @@ export default function KuepaCommandPalette() {
                 dbResultsStr = data.map(d => `ID: ${d.mongo_id}, Nombre: ${d.name}`).join(' | ');
               }
             } else if (table === 'grupos_estudiante') {
-              let studentIdToQuery = result.query.student_id;
-              if (studentIdToQuery) {
-                if (/^\d+$/.test(studentIdToQuery) && studentIdToQuery.length < 24) {
-                  const resolvedUser = await orchestrator.getUser(studentIdToQuery);
-                  if (resolvedUser?._id?.$oid) {
-                    studentIdToQuery = resolvedUser._id.$oid;
-                  }
-                }
+              let studentIds = [];
+              if (Array.isArray(result.query.student_ids) && result.query.student_ids.length > 0) {
+                studentIds = result.query.student_ids;
+              } else if (result.query.student_id) {
+                studentIds = String(result.query.student_id).split(/[\s,]+/).filter(Boolean);
+              }
 
-                const { data } = await supabase
-                  .from('structures')
-                  .select('mongo_id, name, parent:parent_id(level:pensum_level_id(name))')
-                  .contains('users', [studentIdToQuery]);
-                  
-                if (data && data.length) {
-                  let mapped = data;
-                  if (searchTerm) {
-                    mapped = data.filter(g => 
-                      matchAcademicTerm(g.name, g.parent?.level?.name, searchTerm)
-                    );
-                  }
-                  if (mapped.length) {
-                    dbResultsStr = mapped.map(d => `GrupoID: ${d.mongo_id} | Nombre: ${d.name} | Nivel: ${d.parent?.level?.name || 'N/A'}`).join('\n');
+              if (studentIds.length > 0) {
+                const resultsPerStudent = await Promise.all(studentIds.map(async (rawId) => {
+                  if (currentAbortController.signal.aborted) return '';
+                  let sId = rawId;
+                  let studentName = rawId;
+                  if (/^\d+$/.test(sId) && sId.length < 24) {
+                    const resolvedUser = await orchestrator.getUser(sId);
+                    if (resolvedUser?._id?.$oid) {
+                      sId = resolvedUser._id.$oid;
+                      studentName = resolvedUser.profile?.full_name || rawId;
+                    }
                   } else {
-                    dbResultsStr = `El estudiante no está en ningún grupo que coincida con el nivel "${searchTerm}".`;
+                    const resolvedUser = await orchestrator.getUser(sId);
+                    if (resolvedUser?.profile?.full_name) {
+                      studentName = resolvedUser.profile.full_name;
+                    }
                   }
-                } else {
-                  dbResultsStr = "El estudiante no tiene grupos inscritos actualmente.";
-                }
+
+                  const { data } = await supabase
+                    .from('structures')
+                    .select('mongo_id, name, parent:parent_id(level:pensum_level_id(name))')
+                    .contains('users', [sId]);
+
+                  if (data && data.length) {
+                    let mapped = data;
+                    if (searchTerm) {
+                      mapped = data.filter(g => 
+                        matchAcademicTerm(g.name, g.parent?.level?.name, searchTerm)
+                      );
+                    }
+                    if (mapped.length) {
+                      const groupsList = mapped.map(d => `    • GrupoID: ${d.mongo_id} | Nombre: ${d.name} | Nivel: ${d.parent?.level?.name || 'N/A'}`).join('\n');
+                      return `- Estudiante "${studentName}" (ID: ${sId}):\n${groupsList}`;
+                    } else {
+                      return `- Estudiante "${studentName}" (ID: ${sId}): Sin grupos que coincidan con "${searchTerm}".`;
+                    }
+                  } else {
+                    return `- Estudiante "${studentName}" (ID: ${sId}): Sin grupos inscritos actualmente.`;
+                  }
+                }));
+
+                if (currentAbortController.signal.aborted) return;
+                dbResultsStr = resultsPerStudent.filter(Boolean).join('\n\n');
               } else {
                 dbResultsStr = "Falta especificar el student_id para consultar los grupos.";
               }
             }
           } catch (e) {
+            if (currentAbortController.signal.aborted) return;
             console.error("Error consultando BD para IA:", e);
             dbResultsStr = "Error técnico al consultar la base de datos.";
           }
 
-          const searchLabel = searchTerm ? `'${searchTerm}'` : 'todos los grupos del estudiante';
+          if (currentAbortController.signal.aborted) return;
+
+          const searchLabel = searchTerm ? `'${searchTerm}'` : 'todos los grupos';
           const systemMsgText = `[RESULTADOS DE BD PARA ${searchLabel}]:
 ${dbResultsStr}
 
 INSTRUCCIONES DE ACCIÓN:
-- Utiliza estos grupos reales de la BD para resolver los IDs de los grupos actuales del estudiante.
+- Utiliza estos grupos reales de la BD para resolver los IDs de los grupos actuales de CADA estudiante.
+- Evalúa a cada estudiante por separado. Si un estudiante no tiene grupos, ignóralo, pero procesa y genera las acciones para todos los estudiantes que sí tengan grupos inscritos. NUNCA canceles la operación completa si uno no tiene grupos.
+- Si el usuario solicitó retirar de todos los grupos o desinscribir, emite la acción remove_user para cada uno de los grupos listados arriba.
 - Si el usuario solicitó trasladar materias, retira (remove_user) al estudiante de los grupos antiguos listados arriba que coincidan con las materias solicitadas, e inscríbelo (enroll_user) en los nuevos grupos indicados en el mensaje original.
 - Si el usuario solicitó eliminar un cuatrimestre o nivel (ej: C3), retira (remove_user) al estudiante de todos los grupos listados arriba pertenecientes a ese nivel.
 - Conserva e incluye cualquier otra acción solicitada en el mensaje original (como cambios de estado).
@@ -209,6 +284,8 @@ INSTRUCCIONES DE ACCIÓN:
         }
       }
 
+      if (currentAbortController.signal.aborted) return;
+
       // Procesar el resultado final del orquestador
       if (finalResult && (finalResult.type === 'INCOMPLETE' || finalResult.type === 'INFO')) {
         const aiMessage = { id: (Date.now() + 2).toString(), role: 'ai', text: finalResult.message, parsedResult: finalResult };
@@ -224,10 +301,16 @@ INSTRUCCIONES DE ACCIÓN:
       }
       
     } catch (error) {
+      if (error.name === 'AbortError' || currentAbortController.signal.aborted) {
+        return;
+      }
       console.error("Agent Error:", error);
       toast.error(error.message || "Ocurrió un error al conectar con la IA");
     } finally {
-      setAnalyzingState(null);
+      if (abortControllerRef.current === currentAbortController) {
+        setAnalyzingState(null);
+        abortControllerRef.current = null;
+      }
     }
   };
 
@@ -548,17 +631,10 @@ INSTRUCCIONES DE ACCIÓN:
                   </button>
                 </div>
                 <div style={{ display: 'flex', gap: '8px', color: 'var(--on-surface-variant)', fontSize: '11px', fontWeight: 600, alignItems: 'center' }}>
-                  {chatHistory.length > 0 && (
+                  {(chatHistory.length > 0 || analyzingState) && (
                     <>
                       <button
-                        onClick={() => {
-                          setChatHistory([]);
-                          setEditingIndex(null);
-                          setEditingText('');
-                          setInputValue('');
-                          setCopiedCommandKeys({});
-                          inputRef.current?.focus();
-                        }}
+                        onClick={handleClearChat}
                         style={{
                           background: 'transparent',
                           border: 'none',
@@ -571,8 +647,9 @@ INSTRUCCIONES DE ACCIÓN:
                         }}
                         onMouseEnter={(e) => e.currentTarget.style.opacity = '0.7'}
                         onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+                        title={analyzingState ? "Cancelar petición en curso y limpiar memoria" : "Limpiar historial"}
                       >
-                        <Trash2 size={12} /> Limpiar Memoria
+                        <Trash2 size={12} /> {analyzingState ? 'Cancelar y Limpiar' : 'Limpiar Memoria'}
                       </button>
                       <div style={{ width: '1px', height: '14px', background: 'var(--glass-border)', margin: '0 4px' }} />
                     </>
