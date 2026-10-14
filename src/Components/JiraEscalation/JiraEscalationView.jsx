@@ -40,7 +40,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { getGlobalSetting } from '../../services/settingsService';
 import { processJiraEscalation, compileDescription, generateSlackSummaryWithAI } from '../../services/jiraEscalationService';
 import { exportTicketAsImage, exportTicketAsPdf } from '../../services/ticketExportService';
-import { DEFAULT_AI_MODEL } from '../../services/aiService';
+import { DEFAULT_AI_MODEL, AVAILABLE_AI_MODELS } from '../../services/aiService';
 import { isTableContent, sanitizeTableOrDump, convertMarkdownTablesToJira, parseMarkdownTable } from '../../services/tableSanitizerService';
 import { processImageFile, copyImageToClipboard, downloadImage, MAX_ATTACHMENTS_PER_TICKET } from '../../services/imageCompressionService';
 
@@ -1353,6 +1353,7 @@ function SectionEditForm({ value, onChange, onSave, onCancel, isCode = false }) 
 export default function JiraEscalationView() {
   const [apiKey, setApiKey] = useLocalStorage('gemini_api_key', '');
   const [aiModel] = useLocalStorage('gemini_model', DEFAULT_AI_MODEL);
+  const activeModelObj = AVAILABLE_AI_MODELS.find(m => m.id === aiModel) || AVAILABLE_AI_MODELS[0];
   
   const [inputValue, setInputValue] = useLocalStorage('jira_escalation_input', '');
   const [conversation, setConversation] = useLocalStorage('jira_escalation_conversation', []);
@@ -2184,7 +2185,7 @@ export default function JiraEscalationView() {
                         alignItems: 'center',
                         gap: '3px'
                       }}>
-                        <Cpu size={11} /> Gemini 2.5
+                        <Cpu size={11} /> {activeModelObj ? `Gemini ${activeModelObj.shortName}` : 'Gemini 3.5 / 3.6'}
                       </span>
                     </div>
 

@@ -358,8 +358,7 @@ ${content}
     },
     contents: formattedContents,
     generationConfig: {
-      responseMimeType: "application/json",
-      temperature: 0.1
+      responseMimeType: "application/json"
     }
   };
 
@@ -581,7 +580,6 @@ REGLAS ESTRICTAS:
         parts: [{ text: prompt }]
       }],
       generationConfig: {
-        temperature: 0.2,
         maxOutputTokens: 250
       }
     };

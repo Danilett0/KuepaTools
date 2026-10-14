@@ -263,9 +263,11 @@ export function buildContextBlock(students, objectIds = []) {
     if (s.groups && s.groups.length > 0) {
       context += `\n  Grupos inscritos (${s.groups.length}):`;
       for (const g of s.groups) {
-        const levelName = g.parent?.level?.name || g.parent?.name || 'N/A';
+        const subjectName = g.parent?.name || '';
+        const levelName = g.parent?.level?.name || (subjectName ? 'N/A' : 'N/A');
         const gId = g.mongo_id || g._id?.$oid || g._id;
-        context += `\n    • "${g.name}" (ID: ${gId}, Nivel: ${levelName})`;
+        const subjectInfo = subjectName ? `, Materia: ${subjectName}` : '';
+        context += `\n    • "${g.name}" (ID: ${gId}${subjectInfo}, Nivel: ${levelName})`;
       }
     } else {
       context += `\n  Grupos inscritos: Ninguno registrado.`;

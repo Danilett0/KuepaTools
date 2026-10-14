@@ -60,6 +60,30 @@ describe('studentHydrator - buildContextBlock con grupos inscritos', () => {
     assert.match(block, /Marketing Relacional/);
   });
 
+  test('debe incluir el nombre de la materia (parent.name) cuando está disponible en la estructura', () => {
+    const students = [
+      {
+        inc: '31620',
+        objectId: '6a3becf08323367429d710ff',
+        name: 'Federic Alexander Ballen Vargas',
+        programCount: 1,
+        autoProgram: { name: 'T.L. en Contabilidad y Finanzas', id: '678e56f347a9c4130b4e4ac7' },
+        programs: [{ name: 'T.L. en Contabilidad y Finanzas', id: '678e56f347a9c4130b4e4ac7' }],
+        groups: [
+          { 
+            mongo_id: '69a5cc9777cfb517f6341117', 
+            name: 'Módulo Alpha TLCF', 
+            parent: { name: 'M0-TLCF JUL I', level: { name: 'Introducción' } } 
+          }
+        ]
+      }
+    ];
+
+    const block = buildContextBlock(students, []);
+    assert.match(block, /Materia: M0-TLCF JUL I/);
+    assert.match(block, /Nivel: Introducción/);
+  });
+
   test('debe indicar "Ninguno registrado" cuando el estudiante no tiene grupos inscritos', () => {
     const students = [
       {

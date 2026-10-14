@@ -292,7 +292,8 @@ export class AgentOrchestrator {
     try {
       // 2. Llamar a LLM con reintentos automáticos para mitigar errores 503/429
       const geminiResult = await analyzeIntentWithGemini(historyForGemini, this.apiKey, {
-        maxRetries: 3,
+        maxRetries: 5,
+        timeoutMs: 90000,
         model: this.options?.model,
         signal: this.options?.signal,
         onRetry: ({ attempt, maxRetries }) => {
@@ -334,7 +335,8 @@ export class AgentOrchestrator {
 
         return {
           type: 'COMMANDS',
-          commands: bashCommands
+          commands: bashCommands,
+          message: geminiResult.message || null
         };
       }
 
