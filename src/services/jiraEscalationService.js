@@ -46,14 +46,10 @@ Datos indispensables a evaluar:
 - ¿Qué acción, comando o flujo se intentó y qué resultado/error dio?
 
 ### 2. ESTADO "COMPLETE" (Información suficiente)
-Genera el ticket formal para JIRA con un estándar de ingeniería riguroso y en este orden exacto de secciones:
-1. context: "Contexto del Caso" (Explicación concisa y directa: qué ocurre y a quién afecta, en 2-3 líneas).
+Genera el ticket formal para JIRA con un estándar de ingeniería riguroso y en este orden exacto de 3 secciones:
+1. context: "Contexto del Caso" (Explicación concisa y directa: qué ocurre, síntoma o error observado y a quién afecta, en 2-3 líneas).
 2. validationData: "Datos de Validación" (Listado limpio de datos para comprobar: Estudiante, INC, C.C., IDs de Solicitud/Registros, Asesor/Agente afectado).
-3. reproductionSteps: "Pasos para Reproducir" (Pasos 1, 2, 3 directos).
-4. behavior: "Comportamiento Observado vs Esperado" (Usa estrictamente los encabezados con iconos "❌ Observado:" y "✅ Esperado:").
-5. solution: "Solución Propuesta / Data Patch" (SOLO si hay una solución propuesta concreta como query en MongoDB o ajuste en caliente con los IDs reales. Si NO hay propuesta o requiere desarrollo, dejar estrictamente como cadena vacía "").
-6. technicalDiagnosis: "Diagnóstico Técnico & Causa Raíz Preliminar" (Hipótesis técnica concreta para el desarrollador en 2-4 líneas).
-7. acceptanceCriteria: "Criterios de Aceptación (DoD)" (Lista de checkboxes [ ] para QA y Dev, entre 2 y 4 puntos).
+3. expectedResult: "Resultado Esperado" (Descripción concreta y directa en 1 o 2 líneas de qué debería ocurrir para considerar resuelto el caso, sin viñetas extensas).
 
 ## DIFERENCIACIÓN ESTRICTA Y OBLIGATORIA DE IDENTIFICADORES (REGLA DE ORO):
 - CÉDULA / DOCUMENTO DE IDENTIDAD (C.C., T.I., C.E., de 7 a 11 dígitos numéricos, ej: 1028885011):
@@ -71,7 +67,7 @@ Genera el ticket formal para JIRA con un estándar de ingeniería riguroso y en 
   1. TU TAREA ES REFINAR Y ACTUALIZAR EL TICKET ACTUAL: Mantén la información válida existente e incorpora o modifica únicamente las secciones afectadas por el nuevo mensaje del usuario.
   2. NUNCA reinicies el ticket desde cero ni borres datos técnicos ya verificados (IDs, INCs, Cédulas) a menos que el usuario lo solicite expresamente.
   3. Devuelve SIEMPRE el ticket completo actualizado en formato JSON con status "COMPLETE".
-  4. En "friendlyMessage", confirma concisamente qué secciones o datos acabas de actualizar (ej: "He actualizado los pasos para reproducir y añadido la nota sobre Safari.").
+  4. En "friendlyMessage", confirma concisamente qué secciones o datos acabas de actualizar (ej: "He actualizado el contexto y el resultado esperado.").
 
 ## INTEGRACIÓN CON BASE DE DATOS INSTITUCIONAL (REGLA ESTRICTA - CERO DISCULPAS DE IA):
 - Operas como el Agente Líder Técnico N3 de KuepaTools y estás PLENAMENTE CONECTADO a la base de datos de estudiantes (Supabase / MongoDB).
@@ -107,11 +103,7 @@ Si es COMPLETE:
     "sections": {
       "context": "string",
       "validationData": "string",
-      "reproductionSteps": "string",
-      "behavior": "string",
-      "solution": "string (opcional, cadena vacía si no aplica)",
-      "technicalDiagnosis": "string",
-      "acceptanceCriteria": "string"
+      "expectedResult": "string"
     }
   }
 }
@@ -198,27 +190,23 @@ export function compileDescription(sections, format = 'markdown', attachments = 
 
   const context = sections.context || '';
   const validationData = sections.validationData || sections.affectedEntities || '';
-  const reproductionSteps = sections.reproductionSteps || '';
   
-  // Normalizar comportamiento para incluir siempre los iconos ❌ y ✅
-  let behavior = sections.behavior || '';
-  if (!behavior && (sections.observedBehavior || sections.expectedBehavior)) {
-    const parts = [];
-    if (sections.observedBehavior) parts.push(`❌ Observado:\n${sections.observedBehavior}`);
-    if (sections.expectedBehavior) parts.push(`✅ Esperado:\n${sections.expectedBehavior}`);
-    behavior = parts.join('\n\n');
-  } else if (behavior) {
-    if (!behavior.includes('❌') && /observado/i.test(behavior)) {
-      behavior = behavior.replace(/(?:Comportamiento\s*)?Observado\s*:?/i, '❌ Observado:');
-    }
-    if (!behavior.includes('✅') && /esperado/i.test(behavior)) {
-      behavior = behavior.replace(/(?:Comportamiento\s*)?Esperado\s*:?/i, '✅ Esperado:');
+  // Obtener resultado esperado (con compatibilidad retroactiva)
+  let expectedResult = sections.expectedResult || '';
+  if (!expectedResult) {
+    if (sections.acceptanceCriteria) {
+      expectedResult = sections.acceptanceCriteria.replace(/^\[\s*[x ]?\s*\]\s*/gim, '').trim();
+    } else if (sections.expectedBehavior) {
+      expectedResult = sections.expectedBehavior.trim();
+    } else if (sections.behavior) {
+      const expMatch = sections.behavior.match(/✅\s*Esperado\s*:?\s*([^\n]+)/i);
+      if (expMatch && expMatch[1]) {
+        expectedResult = expMatch[1].trim();
+      } else {
+        expectedResult = sections.behavior.trim();
+      }
     }
   }
-
-  const solution = sections.solution || sections.dataPatch || '';
-  const technicalDiagnosis = sections.technicalDiagnosis || '';
-  const acceptanceCriteria = sections.acceptanceCriteria || '';
 
   if (format === 'jiraMarkup') {
     const toJira = (txt) => {
@@ -233,11 +221,7 @@ export function compileDescription(sections, format = 'markdown', attachments = 
     const parts = [];
     if (context) parts.push(`h3. 📄 Contexto del Caso`, toJira(context), ``);
     if (validationData) parts.push(`h3. 💾 Datos de Validación`, toJira(validationData), ``);
-    if (reproductionSteps) parts.push(`h3. 🔄 Pasos para Reproducir`, toJira(reproductionSteps), ``);
-    if (behavior) parts.push(`h3. ⚠️ Comportamiento Observado vs Esperado`, toJira(behavior), ``);
-    if (solution && solution.trim()) parts.push(`h3. 🛠️ Solución Propuesta / Data Patch`, toJira(solution), ``);
-    if (technicalDiagnosis) parts.push(`h3. 🧠 Diagnóstico Técnico & Causa Raíz Preliminar`, toJira(technicalDiagnosis), ``);
-    if (acceptanceCriteria) parts.push(`h3. 🎯 Criterios de Aceptación (DoD)`, toJira(acceptanceCriteria));
+    if (expectedResult) parts.push(`h3. 🎯 Resultado Esperado`, toJira(expectedResult));
     if (attachments && attachments.length > 0) {
       parts.push(``, `h3. 📸 Evidencias y Capturas Adjuntas`);
       attachments.forEach(att => {
@@ -252,11 +236,7 @@ export function compileDescription(sections, format = 'markdown', attachments = 
   const parts = [];
   if (context) parts.push(`### 📄 Contexto del Caso`, context, ``);
   if (validationData) parts.push(`### 💾 Datos de Validación`, validationData, ``);
-  if (reproductionSteps) parts.push(`### 🔄 Pasos para Reproducir`, reproductionSteps, ``);
-  if (behavior) parts.push(`### ⚠️ Comportamiento Observado vs Esperado`, behavior, ``);
-  if (solution && solution.trim()) parts.push(`### 🛠️ Solución Propuesta / Data Patch`, solution, ``);
-  if (technicalDiagnosis) parts.push(`### 🧠 Diagnóstico Técnico & Causa Raíz Preliminar`, technicalDiagnosis, ``);
-  if (acceptanceCriteria) parts.push(`### 🎯 Criterios de Aceptación (DoD)`, acceptanceCriteria);
+  if (expectedResult) parts.push(`### 🎯 Resultado Esperado`, expectedResult);
   if (attachments && attachments.length > 0) {
     parts.push(``, `### 📸 Evidencias y Capturas Adjuntas`);
     attachments.forEach(att => {
@@ -265,6 +245,90 @@ export function compileDescription(sections, format = 'markdown', attachments = 
   }
 
   return parts.join('\n').trim();
+}
+
+/**
+ * Convierte un texto con saltos de línea a estructura de párrafos HTML seguros
+ */
+function textToHtmlParagraphs(text) {
+  if (!text) return '';
+  const escaped = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+  const blocks = escaped.split(/\n\s*\n/);
+  return blocks
+    .map(block => `<p>${block.trim().replace(/\n/g, '<br />')}</p>`)
+    .join('\n');
+}
+
+/**
+ * Compila la descripción del ticket en formato HTML enriquecido
+ * incluyendo encabezados semánticos y etiquetas <img> con sus datos en Base64/DataURL
+ * para que Jira Cloud u otros editores ricos peguen el texto y las capturas simultáneamente.
+ */
+export function compileDescriptionHtml(sections, attachments = []) {
+  if (!sections) return '';
+  const normalizedSections = typeof sections === 'string' ? { context: sections } : sections;
+
+  const context = normalizedSections.context || '';
+  const validationData = normalizedSections.validationData || normalizedSections.affectedEntities || '';
+  
+  // Obtener resultado esperado (con compatibilidad retroactiva)
+  let expectedResult = normalizedSections.expectedResult || '';
+  if (!expectedResult) {
+    if (sections.acceptanceCriteria) {
+      expectedResult = sections.acceptanceCriteria.replace(/^\[\s*[x ]?\s*\]\s*/gim, '').trim();
+    } else if (sections.expectedBehavior) {
+      expectedResult = sections.expectedBehavior.trim();
+    } else if (sections.behavior) {
+      const expMatch = sections.behavior.match(/✅\s*Esperado\s*:?\s*([^\n]+)/i);
+      if (expMatch && expMatch[1]) {
+        expectedResult = expMatch[1].trim();
+      } else {
+        expectedResult = sections.behavior.trim();
+      }
+    }
+  }
+
+  if (!context && !validationData && !expectedResult) return '';
+
+  const htmlParts = [];
+
+  if (context) {
+    htmlParts.push(`<h3>📄 Contexto del Caso</h3>`);
+    htmlParts.push(textToHtmlParagraphs(context));
+  }
+
+  if (validationData) {
+    htmlParts.push(`<h3>💾 Datos de Validación</h3>`);
+    htmlParts.push(textToHtmlParagraphs(validationData));
+  }
+
+  if (expectedResult) {
+    htmlParts.push(`<h3>🎯 Resultado Esperado</h3>`);
+    htmlParts.push(textToHtmlParagraphs(expectedResult));
+  }
+
+  if (attachments && attachments.length > 0) {
+    htmlParts.push(`<h3>📸 Evidencias y Capturas Adjuntas</h3>`);
+    attachments.forEach(att => {
+      const src = att.dataUrl || (att.base64 && att.mimeType ? `data:${att.mimeType};base64,${att.base64}` : '');
+      const cleanName = (att.name || 'Captura de evidencia')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+      const sizeText = att.sizeKb ? ` (${att.sizeKb} KB)` : '';
+
+      htmlParts.push(`<p><strong>🖼️ ${cleanName}${sizeText}</strong></p>`);
+      if (src) {
+        htmlParts.push(`<p><img src="${src}" alt="${cleanName}" style="max-width: 100%; height: auto; border-radius: 4px; margin-top: 4px; margin-bottom: 8px;" /></p>`);
+      }
+    });
+  }
+
+  return htmlParts.join('\n');
 }
 
 /**
@@ -503,7 +567,10 @@ export function generateSlackSummaryFallback(ticket) {
   }
 
   let why = '';
-  if (ticket.sections?.acceptanceCriteria && typeof ticket.sections.acceptanceCriteria === 'string') {
+  if (ticket.sections?.expectedResult && typeof ticket.sections.expectedResult === 'string') {
+    why = ticket.sections.expectedResult.split('\n')[0].replace(/\*/g, '').trim();
+  }
+  if (!why && ticket.sections?.acceptanceCriteria && typeof ticket.sections.acceptanceCriteria === 'string') {
     const crit = ticket.sections.acceptanceCriteria
       .split('\n')
       .find(line => line.trim().length > 0 && !line.startsWith('#'));
@@ -515,11 +582,6 @@ export function generateSlackSummaryFallback(ticket) {
     const expMatch = ticket.sections.behavior.match(/✅\s*Esperado\s*:?\s*([^\n]+)/i);
     if (expMatch && expMatch[1]) {
       why = expMatch[1].replace(/\*/g, '').trim();
-    }
-  }
-  if (!why && ticket.sections?.solution && typeof ticket.sections.solution === 'string') {
-    if (!ticket.sections.solution.includes('```') && !ticket.sections.solution.includes('db.')) {
-      why = ticket.sections.solution.split('\n')[0].replace(/\*/g, '').trim();
     }
   }
 

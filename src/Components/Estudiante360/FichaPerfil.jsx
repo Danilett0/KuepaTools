@@ -3,10 +3,6 @@ import {
   User,
   Copy,
   Check,
-  Mail,
-  Phone,
-  ExternalLink,
-  ClipboardList,
   GraduationCap,
   CheckCircle2,
   Circle,
@@ -15,8 +11,7 @@ import {
   X,
 } from 'lucide-react';
 import { toast } from 'react-toastify';
-import { ALLIANCE_IDS } from '../../utils/constants';
-import { formatStudentTicketSummary, getStatusTheme } from '../../services/student360Service';
+import { getStatusTheme } from '../../services/student360Service';
 
 export default function FichaPerfil({
   student,
@@ -26,9 +21,7 @@ export default function FichaPerfil({
   onSelectProgram = () => { },
 }) {
   const [copiedId, setCopiedId] = useState(false);
-  const [copiedEmail, setCopiedEmail] = useState(false);
-  const [copiedPhone, setCopiedPhone] = useState(false);
-  const [copiedTicket, setCopiedTicket] = useState(false);
+  const [copiedInc, setCopiedInc] = useState(false);
   const [copiedProgId, setCopiedProgId] = useState(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -54,21 +47,12 @@ export default function FichaPerfil({
     });
   };
 
-  const copyEmail = () => {
-    if (!student.email) return;
-    navigator.clipboard.writeText(student.email).then(() => {
-      setCopiedEmail(true);
-      toast.success('Correo copiado al portapapeles');
-      setTimeout(() => setCopiedEmail(false), 1500);
-    });
-  };
-
-  const copyPhone = () => {
-    if (!student.phone) return;
-    navigator.clipboard.writeText(student.phone).then(() => {
-      setCopiedPhone(true);
-      toast.success('Teléfono copiado al portapapeles');
-      setTimeout(() => setCopiedPhone(false), 1500);
+  const copyInc = () => {
+    if (!student.inc) return;
+    navigator.clipboard.writeText(String(student.inc)).then(() => {
+      setCopiedInc(true);
+      toast.success('Código INC copiado al portapapeles');
+      setTimeout(() => setCopiedInc(false), 1500);
     });
   };
 
@@ -81,22 +65,9 @@ export default function FichaPerfil({
     });
   };
 
-  const isNA = student.allianceId === ALLIANCE_IDS.na;
-  const allianceName = isNA ? 'Nueva América' : 'Kuepa';
-  const sisUrl = student.mongoId ? `https://sis.kuepa.com/students/details/${student.mongoId}` : '#';
   const activeProgram = programs.find((p) => p.programId === selectedProgramId) || programs[0];
   const activeProgramStatus = activeProgram?.statusName || currentStatusName || '';
   const activeStatusTheme = getStatusTheme(activeProgramStatus);
-
-  const copyTicketSummary = () => {
-    const summary = formatStudentTicketSummary(student, allianceName, activeProgram?.name);
-
-    navigator.clipboard.writeText(summary).then(() => {
-      setCopiedTicket(true);
-      toast.success('Resumen para ticket copiado al portapapeles');
-      setTimeout(() => setCopiedTicket(false), 2000);
-    });
-  };
 
   return (
     <div
@@ -106,31 +77,31 @@ export default function FichaPerfil({
         zIndex: isDropdownOpen ? 100 : 10,
         background: 'var(--surface-low)',
         border: '1px solid var(--glass-border)',
-        borderRadius: '12px',
-        padding: '12px 18px',
+        borderRadius: '16px',
+        padding: '18px 24px',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
         flexWrap: 'wrap',
-        gap: '16px',
-        boxShadow: '0 4px 16px rgba(0, 0, 0, 0.25)',
+        gap: '18px',
+        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.25)',
       }}
     >
       {/* ── Columna Izquierda: Identidad y Contacto del Estudiante ── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: 0, flex: '1 1 auto' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '18px', minWidth: 0, flex: '1 1 auto' }}>
         {/* Avatar */}
         <div
           style={{
-            width: '40px',
-            height: '40px',
-            borderRadius: '10px',
+            width: '44px',
+            height: '44px',
+            borderRadius: '11px',
             background: 'linear-gradient(135deg, var(--primary) 0%, #06a080 100%)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             color: '#090909',
             fontWeight: 800,
-            fontSize: '16px',
+            fontSize: '17px',
             boxShadow: '0 2px 12px rgba(18, 163, 131, 0.35)',
             flexShrink: 0,
           }}
@@ -138,208 +109,92 @@ export default function FichaPerfil({
           {student.fullName ? student.fullName.charAt(0).toUpperCase() : <User size={18} />}
         </div>
 
-        {/* Bloque de Información en 2 Filas Estructuradas */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', minWidth: 0 }}>
-          {/* Fila 1: Nombre, Alianza y Ticket INC */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-            <h2
-              style={{
-                fontSize: '16px',
-                fontWeight: 800,
-                color: 'var(--on-surface)',
-                margin: 0,
-                lineHeight: 1.2,
-                letterSpacing: '-0.01em',
-              }}
-            >
-              {student.fullName || 'Estudiante sin nombre'}
-            </h2>
+        {/* Identidad del Estudiante e Identificadores en la Misma Fila */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap', minWidth: 0 }}>
+          <h2
+            style={{
+              fontSize: '16.5px',
+              fontWeight: 800,
+              color: 'var(--on-surface)',
+              margin: 0,
+              lineHeight: 1.2,
+              letterSpacing: '-0.01em',
+            }}
+          >
+            {student.fullName || 'Estudiante sin nombre'}
+          </h2>
 
+          {student.inc && (
             <span
+              onClick={copyInc}
               style={{
+                fontSize: '11.5px',
+                color: 'var(--primary)',
+                fontWeight: 800,
+                background: 'rgba(18, 163, 131, 0.12)',
+                padding: '3px 10px',
+                borderRadius: '6px',
+                border: `1px solid ${copiedInc ? 'var(--primary)' : 'rgba(18, 163, 131, 0.25)'}`,
+                whiteSpace: 'nowrap',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                transition: 'all 0.15s ease',
+              }}
+              title={`Código INC: ${student.inc} (Clic para copiar)`}
+            >
+              <span>INC: {student.inc}</span>
+              {copiedInc && <Check size={11} color="var(--primary)" />}
+            </span>
+          )}
+
+          {/* Chip Mongo ObjectId */}
+          {student.mongoId && (
+            <div
+              className="micro-chip-enter"
+              onClick={copyMongoId}
+              style={{
+                animationDelay: '60ms',
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '5px',
-                background: isNA ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                color: isNA ? '#4ade80' : '#f87171',
-                border: `1px solid ${isNA ? 'rgba(34, 197, 94, 0.25)' : 'rgba(239, 68, 68, 0.25)'}`,
-                padding: '2px 8px',
-                borderRadius: '100px',
-                fontSize: '11px',
-                fontWeight: 700,
+                background: 'rgba(255, 255, 255, 0.03)',
+                padding: '3px 10px',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                border: `1px solid ${copiedId ? 'var(--primary)' : 'var(--glass-border)'}`,
+                fontSize: '11.5px',
+                color: copiedId ? 'var(--primary)' : '#94a3b8',
+                fontFamily: "'Space Grotesk', monospace",
+                transition: 'all 0.15s ease',
                 whiteSpace: 'nowrap',
               }}
+              title={`Mongo ObjectId: ${student.mongoId} (Clic para copiar)`}
+              onMouseEnter={(e) => {
+                if (!copiedId) {
+                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+                  e.currentTarget.style.color = 'var(--on-surface)';
+                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!copiedId) {
+                  e.currentTarget.style.borderColor = 'var(--glass-border)';
+                  e.currentTarget.style.color = '#94a3b8';
+                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)';
+                }
+              }}
             >
-              <span
-                style={{
-                  width: '5px',
-                  height: '5px',
-                  borderRadius: '50%',
-                  background: isNA ? '#4ade80' : '#f87171',
-                }}
-              />
-              {allianceName}
-            </span>
-
-            {student.inc && (
-              <span
-                style={{
-                  fontSize: '11px',
-                  color: 'var(--primary)',
-                  fontWeight: 800,
-                  background: 'rgba(18, 163, 131, 0.12)',
-                  padding: '2px 8px',
-                  borderRadius: '6px',
-                  border: '1px solid rgba(18, 163, 131, 0.25)',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                INC: {student.inc}
-              </span>
-            )}
-          </div>
-
-          {/* Fila 2: Chips Interactivos (Mongo ID, Email, Teléfono) */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-            {/* Chip Mongo ObjectId */}
-            {student.mongoId && (
-              <div
-                className="micro-chip-enter"
-                onClick={copyMongoId}
-                style={{
-                  animationDelay: '60ms',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '5px',
-                  background: 'rgba(255, 255, 255, 0.03)',
-                  padding: '2px 8px',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
-                  border: `1px solid ${copiedId ? 'var(--primary)' : 'var(--glass-border)'}`,
-                  fontSize: '11px',
-                  color: copiedId ? 'var(--primary)' : '#94a3b8',
-                  fontFamily: "'Space Grotesk', monospace",
-                  transition: 'all 0.15s ease',
-                  whiteSpace: 'nowrap',
-                }}
-                title={`Mongo ObjectId: ${student.mongoId} (Clic para copiar)`}
-                onMouseEnter={(e) => {
-                  if (!copiedId) {
-                    e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.2)';
-                    e.currentTarget.style.color = 'var(--on-surface)';
-                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!copiedId) {
-                    e.currentTarget.style.borderColor = 'var(--glass-border)';
-                    e.currentTarget.style.color = '#94a3b8';
-                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)';
-                  }
-                }}
-              >
-                <Database size={11} color="var(--primary)" style={{ flexShrink: 0 }} />
-                <span>{student.mongoId}</span>
-                {copiedId ? (
-                  <Check size={11} color="var(--primary)" style={{ flexShrink: 0 }} />
-                ) : (
-                  <Copy size={11} style={{ opacity: 0.6, flexShrink: 0 }} />
-                )}
-              </div>
-            )}
-
-            {/* Chip Email */}
-            {student.email && (
-              <div
-                className="micro-chip-enter"
-                onClick={copyEmail}
-                style={{
-                  animationDelay: '120ms',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '5px',
-                  background: 'rgba(255, 255, 255, 0.03)',
-                  padding: '2px 8px',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
-                  border: `1px solid ${copiedEmail ? 'var(--primary)' : 'var(--glass-border)'}`,
-                  fontSize: '11px',
-                  color: copiedEmail ? 'var(--primary)' : '#94a3b8',
-                  transition: 'all 0.15s ease',
-                  whiteSpace: 'nowrap',
-                }}
-                title={`Correo: ${student.email} (Clic para copiar)`}
-                onMouseEnter={(e) => {
-                  if (!copiedEmail) {
-                    e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.2)';
-                    e.currentTarget.style.color = 'var(--on-surface)';
-                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!copiedEmail) {
-                    e.currentTarget.style.borderColor = 'var(--glass-border)';
-                    e.currentTarget.style.color = '#94a3b8';
-                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)';
-                  }
-                }}
-              >
-                <Mail size={11} color="var(--primary)" style={{ flexShrink: 0 }} />
-                <span>{student.email}</span>
-                {copiedEmail ? (
-                  <Check size={11} color="var(--primary)" style={{ flexShrink: 0 }} />
-                ) : (
-                  <Copy size={11} style={{ opacity: 0.6, flexShrink: 0 }} />
-                )}
-              </div>
-            )}
-
-            {/* Chip Teléfono */}
-            {student.phone && (
-              <div
-                className="micro-chip-enter"
-                onClick={copyPhone}
-                style={{
-                  animationDelay: '180ms',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '5px',
-                  background: 'rgba(255, 255, 255, 0.03)',
-                  padding: '2px 8px',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
-                  border: `1px solid ${copiedPhone ? 'var(--primary)' : 'var(--glass-border)'}`,
-                  fontSize: '11px',
-                  color: copiedPhone ? 'var(--primary)' : '#94a3b8',
-                  transition: 'all 0.15s ease',
-                  whiteSpace: 'nowrap',
-                }}
-                title={`Teléfono: ${student.phone} (Clic para copiar)`}
-                onMouseEnter={(e) => {
-                  if (!copiedPhone) {
-                    e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.2)';
-                    e.currentTarget.style.color = 'var(--on-surface)';
-                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!copiedPhone) {
-                    e.currentTarget.style.borderColor = 'var(--glass-border)';
-                    e.currentTarget.style.color = '#94a3b8';
-                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)';
-                  }
-                }}
-              >
-                <Phone size={11} color="var(--primary)" style={{ flexShrink: 0 }} />
-                <span>{student.phone}</span>
-                {copiedPhone ? (
-                  <Check size={11} color="var(--primary)" style={{ flexShrink: 0 }} />
-                ) : (
-                  <Copy size={11} style={{ opacity: 0.6, flexShrink: 0 }} />
-                )}
-              </div>
-            )}
-          </div>
+              <Database size={11} color="var(--primary)" style={{ flexShrink: 0 }} />
+              <span>{student.mongoId}</span>
+              {copiedId ? (
+                <Check size={11} color="var(--primary)" style={{ flexShrink: 0 }} />
+              ) : (
+                <Copy size={11} style={{ opacity: 0.6, flexShrink: 0 }} />
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -390,8 +245,8 @@ export default function FichaPerfil({
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '8px',
-                  height: '32px',
-                  padding: '0 12px',
+                  height: '34px',
+                  padding: '0 14px',
                   borderRadius: '8px',
                   border: isDropdownOpen ? '1px solid var(--primary)' : '1px solid rgba(18, 163, 131, 0.35)',
                   background: isDropdownOpen ? 'rgba(18, 163, 131, 0.2)' : 'rgba(18, 163, 131, 0.08)',
@@ -653,62 +508,6 @@ export default function FichaPerfil({
             </div>
           </div>
         )}
-
-        {/* Fila 2 Derecha: Acciones Rápidas Copiar Ticket y Ver en SIS */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <button
-            type="button"
-            onClick={copyTicketSummary}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '5px',
-              height: '26px',
-              padding: '0 9px',
-              borderRadius: '6px',
-              background: copiedTicket ? 'rgba(18, 163, 131, 0.2)' : 'rgba(255, 255, 255, 0.05)',
-              border: `1px solid ${copiedTicket ? 'var(--primary)' : 'var(--glass-border)'}`,
-              color: copiedTicket ? 'var(--primary)' : 'var(--on-surface)',
-              fontSize: '11px',
-              fontWeight: 700,
-              cursor: 'pointer',
-              transition: 'all 0.15s ease',
-              fontFamily: "'Nunito', sans-serif",
-              whiteSpace: 'nowrap',
-            }}
-            title="Copiar datos del estudiante formateados para ticket de soporte"
-          >
-            {copiedTicket ? <Check size={11} color="var(--primary)" /> : <ClipboardList size={11} />}
-            <span>{copiedTicket ? '¡Copiado!' : 'Copiar Ticket'}</span>
-          </button>
-
-          <a
-            href={sisUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-              height: '26px',
-              padding: '0 9px',
-              borderRadius: '6px',
-              background: 'rgba(255, 255, 255, 0.05)',
-              border: '1px solid var(--glass-border)',
-              color: 'var(--on-surface)',
-              fontSize: '11px',
-              fontWeight: 700,
-              textDecoration: 'none',
-              transition: 'all 0.15s ease',
-              boxSizing: 'border-box',
-              whiteSpace: 'nowrap',
-            }}
-            title="Abrir perfil del estudiante en SIS"
-          >
-            <span>Ver en SIS</span>
-            <ExternalLink size={11} />
-          </a>
-        </div>
       </div>
     </div>
   );

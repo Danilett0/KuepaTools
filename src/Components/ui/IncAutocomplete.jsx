@@ -30,6 +30,8 @@ export default function IncAutocomplete({
   placeholder = "Ej: 292828",
   style,
   inputStyle,
+  className = "inscripciones-input",
+  iconRight = "14px",
 }) {
   const { findUser, searchByIncPrefix } = useUsuariosCompletos();
   const [suggestions, setSuggestions] = useState([]);
@@ -140,7 +142,7 @@ export default function IncAutocomplete({
       {/* ── Input ── */}
       <div style={{ position: "relative" }}>
         <input
-          className="inscripciones-input"
+          className={className}
           type="text"
           value={value}
           onChange={(e) => {
@@ -167,7 +169,7 @@ export default function IncAutocomplete({
             className="animate-spin"
             style={{
               position: "absolute",
-              right: "14px",
+              right: iconRight,
               top: "50%",
               transform: "translateY(-50%)",
               color: "var(--primary)",
@@ -179,7 +181,7 @@ export default function IncAutocomplete({
             size={14}
             style={{
               position: "absolute",
-              right: "14px",
+              right: iconRight,
               top: "50%",
               transform: "translateY(-50%)",
               color: "var(--on-surface-variant)",

@@ -12,6 +12,7 @@ import {
   extractBaseSubjectName,
   detectDuplicateGroupIds,
   buildSisGroupUrl,
+  getLatestAcademicLevel,
 } from '../src/services/student360Service.js';
 
 describe('generate360Commands', () => {
@@ -317,6 +318,36 @@ describe('sortAcademicLevels', () => {
       'Cuatrimestre 2',
       'Sin nivel',
     ]);
+  });
+});
+
+describe('getLatestAcademicLevel', () => {
+  test('debe retornar el último nivel pedagógico cuando hay varios cuatrimestres', () => {
+    const levels = ['Cuatrimestre 1', 'Cuatrimestre 2'];
+    assert.equal(getLatestAcademicLevel(levels), 'Cuatrimestre 2');
+  });
+
+  test('debe ignorar Sin nivel u Otros si existen niveles pedagógicos ordenados', () => {
+    const levels = ['Módulo 0', 'Cuatrimestre 1', 'Cuatrimestre 2', 'Sin nivel'];
+    assert.equal(getLatestAcademicLevel(levels), 'Cuatrimestre 2');
+  });
+
+  test('debe retornar el último nivel en ciclos o semestres', () => {
+    const ciclos = ['Inducción', 'Ciclo 3', 'Ciclo 4'];
+    assert.equal(getLatestAcademicLevel(ciclos), 'Ciclo 4');
+
+    const semestres = ['Semestre I', 'Semestre II', 'Semestre III'];
+    assert.equal(getLatestAcademicLevel(semestres), 'Semestre III');
+  });
+
+  test('debe retornar Sin nivel si es el único nivel disponible', () => {
+    assert.equal(getLatestAcademicLevel(['Sin nivel']), 'Sin nivel');
+  });
+
+  test('casos límite: arreglo vacío, nulo o undefined debe retornar ALL', () => {
+    assert.equal(getLatestAcademicLevel([]), 'ALL');
+    assert.equal(getLatestAcademicLevel(null), 'ALL');
+    assert.equal(getLatestAcademicLevel(undefined), 'ALL');
   });
 });
 

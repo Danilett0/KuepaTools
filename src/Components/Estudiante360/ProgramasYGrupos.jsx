@@ -20,6 +20,7 @@ import {
   compareAcademicLevels,
   detectDuplicateGroupIds,
   buildSisGroupUrl,
+  getLatestAcademicLevel,
 } from '../../services/student360Service';
 
 export default function ProgramasYGrupos({
@@ -30,11 +31,28 @@ export default function ProgramasYGrupos({
   onDeselectAllGroups,
   onAction,
 }) {
+  const levels = useMemo(() => {
+    const counts = {};
+    groups.forEach((g) => {
+      const lvl = g.levelName || 'Sin nivel';
+      if (!counts[lvl]) {
+        counts[lvl] = 0;
+      }
+      counts[lvl]++;
+    });
+    const list = sortAcademicLevels(Object.keys(counts));
+    return { list, counts };
+  }, [groups]);
+
   const [groupFilter, setGroupFilter] = useState('');
-  const [selectedLevel, setSelectedLevel] = useState('ALL');
+  const [selectedLevel, setSelectedLevel] = useState(() => getLatestAcademicLevel(levels.list));
   const [copiedGroupId, setCopiedGroupId] = useState(null);
   const [isLevelDropdownOpen, setIsLevelDropdownOpen] = useState(false);
   const levelDropdownRef = useRef(null);
+
+  useEffect(() => {
+    setSelectedLevel(getLatestAcademicLevel(levels.list));
+  }, [groups]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -55,19 +73,6 @@ export default function ProgramasYGrupos({
       setTimeout(() => setCopiedGroupId(null), 1500);
     });
   };
-
-  const levels = useMemo(() => {
-    const counts = {};
-    groups.forEach((g) => {
-      const lvl = g.levelName || 'Sin nivel';
-      if (!counts[lvl]) {
-        counts[lvl] = 0;
-      }
-      counts[lvl]++;
-    });
-    const list = sortAcademicLevels(Object.keys(counts));
-    return { list, counts };
-  }, [groups]);
 
   const filteredGroups = useMemo(() => {
     let list = groups;
@@ -105,19 +110,20 @@ export default function ProgramasYGrupos({
         zIndex: 1,
         background: 'var(--surface-low)',
         border: '1px solid var(--glass-border)',
-        borderRadius: '12px',
-        padding: '14px 18px',
+        borderRadius: '16px',
+        padding: '20px 24px',
         display: 'flex',
         flexDirection: 'column',
-        gap: '10px',
+        gap: '18px',
+        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.25)',
       }}
     >
         {/* Cabecera: Título, Dropdown de Niveles, Alerta de Duplicados y Buscador */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <GraduationCap size={18} color="var(--primary)" />
-              <span style={{ fontWeight: 700, fontSize: '15.5px', color: 'var(--on-surface)', whiteSpace: 'nowrap' }}>
+              <span style={{ fontWeight: 700, fontSize: '16px', color: 'var(--on-surface)', whiteSpace: 'nowrap' }}>
                 Grupos y Asignaturas ({filteredGroups.length}{filteredGroups.length !== groups.length ? ` de ${groups.length}` : ''})
               </span>
             </div>
@@ -132,9 +138,9 @@ export default function ProgramasYGrupos({
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: '6px',
-                    height: '30px',
-                    padding: '0 10px',
-                    borderRadius: '6px',
+                    height: '34px',
+                    padding: '0 12px',
+                    borderRadius: '8px',
                     border: `1px solid ${isLevelDropdownOpen || (selectedLevel !== 'ALL' && selectedLevel !== 'DUPLICATES') ? 'var(--primary)' : 'var(--glass-border)'}`,
                     background: isLevelDropdownOpen || (selectedLevel !== 'ALL' && selectedLevel !== 'DUPLICATES') ? 'rgba(18, 163, 131, 0.15)' : 'rgba(255, 255, 255, 0.04)',
                     color: selectedLevel !== 'ALL' && selectedLevel !== 'DUPLICATES' ? 'var(--primary)' : 'var(--on-surface)',
@@ -314,19 +320,19 @@ export default function ProgramasYGrupos({
             {duplicateGroupIds.size > 0 && (
               <button
                 type="button"
-                onClick={() => setSelectedLevel((prev) => (prev === 'DUPLICATES' ? 'ALL' : 'DUPLICATES'))}
+                onClick={() => setSelectedLevel((prev) => (prev === 'DUPLICATES' ? getLatestAcademicLevel(levels.list) : 'DUPLICATES'))}
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '5px',
-                  height: '30px',
-                  fontSize: '11px',
+                  gap: '6px',
+                  height: '34px',
+                  fontSize: '11.5px',
                   fontWeight: 800,
                   color: '#f87171',
                   background: selectedLevel === 'DUPLICATES' ? 'rgba(239, 68, 68, 0.25)' : 'rgba(239, 68, 68, 0.1)',
                   border: `1px solid ${selectedLevel === 'DUPLICATES' ? '#f87171' : 'rgba(239, 68, 68, 0.35)'}`,
-                  padding: '0 10px',
-                  borderRadius: '6px',
+                  padding: '0 12px',
+                  borderRadius: '8px',
                   cursor: 'pointer',
                   transition: 'all 0.15s ease',
                   whiteSpace: 'nowrap',
@@ -358,9 +364,9 @@ export default function ProgramasYGrupos({
               placeholder="Buscar materia o código..."
               className="inscripciones-input"
               style={{
-                height: '34px',
-                fontSize: '12px',
-                padding: '0 32px 0 10px',
+                height: '36px',
+                fontSize: '12.5px',
+                padding: '0 34px 0 12px',
                 background: 'rgba(0, 0, 0, 0.3)',
                 borderColor: groupFilter.trim() ? 'var(--primary)' : 'var(--glass-border)',
                 width: '100%',
@@ -386,12 +392,12 @@ export default function ProgramasYGrupos({
             background: selectedGroupIds.length > 0 ? 'rgba(18, 163, 131, 0.08)' : 'rgba(255, 255, 255, 0.03)',
             border: `1px solid ${selectedGroupIds.length > 0 ? 'rgba(18, 163, 131, 0.3)' : 'var(--glass-border)'}`,
             borderRadius: '10px',
-            padding: '8px 14px',
+            padding: '10px 16px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             flexWrap: 'wrap',
-            gap: '10px',
+            gap: '12px',
             transition: 'all 0.2s ease',
           }}
         >
@@ -488,7 +494,7 @@ export default function ProgramasYGrupos({
                   onClick={() => onToggleGroup(g.groupId)}
                   style={{
                     animationDelay: `${Math.min(idx * 30, 450)}ms`,
-                    padding: '8px 12px',
+                    padding: '11px 16px',
                     borderRadius: '10px',
                     border: `1px solid ${
                       isChecked
@@ -510,7 +516,7 @@ export default function ProgramasYGrupos({
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    gap: '10px',
+                    gap: '12px',
                     cursor: 'pointer',
                     transition: 'all 0.15s ease',
                   }}
@@ -528,12 +534,12 @@ export default function ProgramasYGrupos({
                   }}
                 >
                   {/* Checkbox y Nombre (con espacio ampliado para evitar cortes) */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
                     <div
                       style={{
-                        width: '18px',
-                        height: '18px',
-                        borderRadius: '5px',
+                        width: '20px',
+                        height: '20px',
+                        borderRadius: '6px',
                         border: `1.5px solid ${isChecked ? 'var(--primary)' : isDuplicate ? 'rgba(239, 68, 68, 0.6)' : 'rgba(255,255,255,0.3)'}`,
                         background: isChecked ? 'var(--primary)' : 'transparent',
                         display: 'flex',
@@ -544,15 +550,15 @@ export default function ProgramasYGrupos({
                         transition: 'all 0.15s ease',
                       }}
                     >
-                      {isChecked && <Check size={12} strokeWidth={3} />}
+                      {isChecked && <Check size={13} strokeWidth={3} />}
                     </div>
 
                     <span
                       style={{
                         fontWeight: 700,
-                        fontSize: '12px',
+                        fontSize: '12.5px',
                         color: isChecked ? 'var(--primary)' : 'var(--on-surface)',
-                        lineHeight: 1.25,
+                        lineHeight: 1.3,
                         display: '-webkit-box',
                         WebkitLineClamp: 2,
                         WebkitBoxOrient: 'vertical',

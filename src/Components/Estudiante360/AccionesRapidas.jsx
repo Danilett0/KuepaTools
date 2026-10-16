@@ -3,8 +3,6 @@ import {
   Activity,
   RefreshCw,
   Sparkles,
-  Database,
-  Layers,
   CheckSquare,
   Wrench,
   UserMinus,
@@ -73,16 +71,9 @@ export default function AccionesRapidas({
   return (
     <div
       style={{
-        background: 'var(--surface-low)',
-        border: `1px solid ${isBatchMode ? 'var(--primary)' : 'var(--glass-border)'}`,
-        borderRadius: '12px',
-        padding: '8px 14px',
         display: 'flex',
         flexDirection: 'column',
-        justifyContent: 'space-between',
         gap: '6px',
-        boxShadow: isBatchMode ? '0 0 16px rgba(18, 163, 131, 0.15)' : '0 4px 16px rgba(0, 0, 0, 0.2)',
-        transition: 'all 0.25s ease',
         minWidth: 0,
       }}
     >
@@ -91,20 +82,20 @@ export default function AccionesRapidas({
         {isBatchMode ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
             <CheckSquare size={13} color="var(--primary)" style={{ flexShrink: 0 }} />
-            <span style={{ fontWeight: 800, fontSize: '11px', color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <span style={{ fontWeight: 800, fontSize: '10px', color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               Acciones en lote ({selectedGroupIds.length} materias)
             </span>
           </div>
         ) : (
           <>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Sparkles size={13} color="var(--primary)" />
-              <span style={{ fontWeight: 800, fontSize: '11px', color: 'var(--on-surface)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              <Sparkles size={12} color="var(--primary)" />
+              <span style={{ fontWeight: 800, fontSize: '10px', color: 'rgba(255, 255, 255, 0.55)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                 Acciones Rápidas
               </span>
             </div>
             {!hasStudent && (
-              <span style={{ fontSize: '10px', color: 'var(--on-surface-variant)', opacity: 0.7 }}>
+              <span style={{ fontSize: '10px', color: 'var(--on-surface-variant)', opacity: 0.6 }}>
                 Requiere estudiante
               </span>
             )}
@@ -113,7 +104,7 @@ export default function AccionesRapidas({
       </div>
 
       {/* ── Botonera: Modo Lote vs Modo Global ── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
         {isBatchMode ? (
           <>
             {/* Auditar Seleccionadas */}
@@ -306,13 +297,13 @@ export default function AccionesRapidas({
               onClick={() => onAction('audit')}
               disabled={!hasStudent || !hasProgram}
               style={{
-                height: '32px',
-                padding: '0 12px',
+                height: '34px',
+                padding: '0 14px',
                 fontSize: '11px',
                 fontWeight: 800,
                 display: 'flex',
                 alignItems: 'center',
-                gap: '6px',
+                gap: '7px',
                 borderRadius: '8px',
                 border: 'none',
                 background: !hasStudent || !hasProgram
@@ -350,13 +341,13 @@ export default function AccionesRapidas({
                 }}
                 disabled={!hasStudent || !hasProgram}
                 style={{
-                  height: '32px',
-                  padding: '0 10px',
+                  height: '34px',
+                  padding: '0 12px',
                   fontSize: '11px',
                   fontWeight: 700,
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '5px',
+                  gap: '6px',
                   borderRadius: '8px',
                   background: statusMenuOpen
                     ? 'rgba(245, 158, 11, 0.22)'
@@ -594,13 +585,13 @@ export default function AccionesRapidas({
               onClick={() => onAction('recalculate_all_grades')}
               disabled={!hasStudent || groupsCount === 0}
               style={{
-                height: '32px',
-                padding: '0 10px',
+                height: '34px',
+                padding: '0 12px',
                 fontSize: '11px',
                 fontWeight: 700,
                 display: 'flex',
                 alignItems: 'center',
-                gap: '5px',
+                gap: '6px',
                 borderRadius: '8px',
                 background: 'rgba(18, 163, 131, 0.12)',
                 border: '1px solid rgba(18, 163, 131, 0.4)',
@@ -628,90 +619,6 @@ export default function AccionesRapidas({
             >
               <RefreshCw size={13} />
               <span>Recalcular ({groupsCount})</span>
-            </button>
-
-            {/* Limpiar Caché LMS */}
-            <button
-              type="button"
-              onClick={() => onAction('clean_cache_lms')}
-              disabled={!hasStudent}
-              style={{
-                height: '32px',
-                padding: '0 10px',
-                fontSize: '11px',
-                fontWeight: 700,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '5px',
-                borderRadius: '8px',
-                background: 'rgba(56, 189, 248, 0.12)',
-                border: '1px solid rgba(56, 189, 248, 0.35)',
-                color: '#38bdf8',
-                opacity: !hasStudent ? 0.35 : 1,
-                cursor: !hasStudent ? 'not-allowed' : 'pointer',
-                transition: 'all 0.2s ease',
-                fontFamily: "'Nunito', sans-serif",
-                whiteSpace: 'nowrap',
-                flexShrink: 0,
-              }}
-              title={!hasStudent ? 'Carga un estudiante primero' : 'Generar comando para limpiar caché de SIS/LMS'}
-              onMouseEnter={(e) => {
-                if (hasStudent) {
-                  e.currentTarget.style.background = 'rgba(56, 189, 248, 0.25)';
-                  e.currentTarget.style.borderColor = '#38bdf8';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (hasStudent) {
-                  e.currentTarget.style.background = 'rgba(56, 189, 248, 0.12)';
-                  e.currentTarget.style.borderColor = 'rgba(56, 189, 248, 0.35)';
-                }
-              }}
-            >
-              <Database size={13} />
-              <span>Caché LMS</span>
-            </button>
-
-            {/* Limpiar Caché CRM */}
-            <button
-              type="button"
-              onClick={() => onAction('clean_cache_crm')}
-              disabled={!hasStudent}
-              style={{
-                height: '32px',
-                padding: '0 10px',
-                fontSize: '11px',
-                fontWeight: 700,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '5px',
-                borderRadius: '8px',
-                background: 'rgba(192, 132, 252, 0.12)',
-                border: '1px solid rgba(192, 132, 252, 0.35)',
-                color: '#c084fc',
-                opacity: !hasStudent ? 0.35 : 1,
-                cursor: !hasStudent ? 'not-allowed' : 'pointer',
-                transition: 'all 0.2s ease',
-                fontFamily: "'Nunito', sans-serif",
-                whiteSpace: 'nowrap',
-                flexShrink: 0,
-              }}
-              title={!hasStudent ? 'Carga un estudiante primero' : 'Generar comando para limpiar caché de CRM'}
-              onMouseEnter={(e) => {
-                if (hasStudent) {
-                  e.currentTarget.style.background = 'rgba(192, 132, 252, 0.25)';
-                  e.currentTarget.style.borderColor = '#c084fc';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (hasStudent) {
-                  e.currentTarget.style.background = 'rgba(192, 132, 252, 0.12)';
-                  e.currentTarget.style.borderColor = 'rgba(192, 132, 252, 0.35)';
-                }
-              }}
-            >
-              <Layers size={13} />
-              <span>Caché CRM</span>
             </button>
           </>
         )}

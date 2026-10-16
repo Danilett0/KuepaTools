@@ -343,160 +343,181 @@ export default function Estudiante360() {
 
   return (
     <div
-      className="content-container animate-slide-down"
+      className="animate-slide-down"
       style={{
         display: 'flex',
         flexDirection: 'column',
-        gap: '10px',
+        gap: '26px',
         width: '100%',
         maxWidth: '1440px',
         margin: '0 auto',
-        padding: '12px 18px',
         boxSizing: 'border-box',
       }}
     >
-      {/* ── Header y Barra de Búsqueda ── */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+      {/* ── SECCIÓN 1: ENCABEZADO (Header) ── */}
+      <header
+        className="estudiante360-header-card"
+        style={{
+          background: 'var(--surface-low)',
+          border: '1px solid var(--glass-border)',
+          borderRadius: '16px',
+          padding: '20px 24px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '18px',
+          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.25)',
+        }}
+      >
+        {/* Fila Superior: Título y Selector de Alianza / Limpiar */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div
+              style={{
+                width: '32px',
+                height: '32px',
+                borderRadius: '9px',
+                background: 'linear-gradient(135deg, var(--primary) 0%, #06a080 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#090909',
+                boxShadow: '0 2px 10px rgba(18, 163, 131, 0.3)',
+              }}
+            >
+              <UserCheck size={18} />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <h1 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--on-surface)', margin: 0, lineHeight: 1.2 }}>
+                Estudiante 360°
+              </h1>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <AllianceSwitcher
+              value={alianza}
+              size="sm"
+              onChange={(val) => {
+                if (alianza !== val) {
+                  setAlianza(val);
+                  setGeneratedCommands([]);
+                }
+              }}
+            />
+            <ClearButton onClick={handleClear} title="Limpiar consulta" />
+          </div>
+        </div>
+
+        {/* Fila Inferior: Input de Búsqueda y Acciones Rápidas (Estilo limpio sin cajas anidadas) */}
+        <div className="estudiante360-topbar">
+          {/* Columna Búsqueda Underline */}
           <div
             style={{
-              width: '28px',
-              height: '28px',
-              borderRadius: '8px',
-              background: 'linear-gradient(135deg, var(--primary) 0%, #06a080 100%)',
               display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#090909',
+              flexDirection: 'column',
+              gap: '6px',
+              minWidth: 0,
             }}
           >
-            <UserCheck size={16} />
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+              <label
+                style={{
+                  marginBottom: 0,
+                  fontSize: '10px',
+                  fontWeight: 800,
+                  color: 'rgba(255, 255, 255, 0.55)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.06em',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Buscar Estudiante por Código INC, Cédula o Mongo ObjectId
+              </label>
+              {loading && (
+                <span style={{ fontSize: '10px', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
+                  <Loader2 size={11} className="animate-spin" />
+                  <span>Cargando...</span>
+                </span>
+              )}
+            </div>
+            <IncAutocomplete
+              alianzaId={allianceId}
+              value={studentInput}
+              onChange={handleInputChange}
+              onKeyDown={handleInputKeyDown}
+              onSelect={handleSelectSuggestion}
+              autoSelectExact={false}
+              debounceMs={1000}
+              placeholder="Pega Mongo ObjectId, Cédula o escribe código INC..."
+              className="estudiante360-search-underline"
+              iconRight="6px"
+              inputStyle={{ height: '34px', outline: 'none', boxShadow: 'none' }}
+            />
           </div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', flexWrap: 'wrap' }}>
-            <h1 style={{ fontSize: '17px', fontWeight: 800, color: 'var(--on-surface)', margin: 0, lineHeight: 1.2 }}>
-              Ficha Técnica Estudiante 360°
-            </h1>
-            <span style={{ fontSize: '11px', color: 'var(--on-surface-variant)' }}>
-              Diagnóstico, materias y remediación operativa en un clic
-            </span>
-          </div>
-        </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <AllianceSwitcher
-            value={alianza}
-            size="sm"
-            onChange={(val) => {
-              if (alianza !== val) {
-                setAlianza(val);
-                setGeneratedCommands([]);
+          {/* Acciones Rápidas de Diagnóstico y Remediación */}
+          <AccionesRapidas
+            hasStudent={Boolean(studentData)}
+            hasProgram={Boolean(selectedProgramId)}
+            selectedProgramName={selectedProgramName}
+            currentStatusName={currentStatusName}
+            statusOptions={statusOptions}
+            groupsCount={studentData?.groups?.length || 0}
+            selectedGroupIds={selectedGroupIds}
+            onClearSelection={handleClearGroupSelection}
+            onAction={handleAction}
+          />
+        </div>
+      </header>
+
+      {/* ── SECCIÓN 2: CUERPO (Body) ── */}
+      <main className="estudiante360-body-section" style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>
+        {/* ── Estado de Carga Tecnológico & Animado ── */}
+        {loading && <Student360Loader identifier={studentInput} />}
+
+        {/* ── Estado Inicial / Sin Estudiante ── */}
+        {!loading && !studentData && (
+          <HubVacio
+            onSelectExample={(code) => {
+              if (typingDebounceRef.current) {
+                clearTimeout(typingDebounceRef.current);
+                typingDebounceRef.current = null;
               }
+              setStudentInput(code);
+              loadStudent(code, true);
             }}
           />
-          <ClearButton onClick={handleClear} title="Limpiar consulta" />
-        </div>
-      </div>
+        )}
 
-      {/* ── Barra Superior de Búsqueda y Acciones Rápidas ── */}
-      <div className="estudiante360-topbar">
-        {/* Input Autocomplete de INC / ID */}
-        <div
-          style={{
-            background: 'var(--surface-low)',
-            border: '1px solid var(--glass-border)',
-            borderRadius: '12px',
-            padding: '8px 14px',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
-            gap: '6px',
-            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.2)',
-            minWidth: 0,
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-            <label className="input-label" style={{ marginBottom: 0, fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>
-              Buscar Estudiante por Código INC, Cédula o Mongo ObjectId
-            </label>
-            {loading && (
-              <span style={{ fontSize: '10px', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
-                <Loader2 size={11} className="animate-spin" />
-                <span>Cargando...</span>
-              </span>
-            )}
+        {/* ── Vista Detallada 360° ── */}
+        {!loading && studentData && (
+          <div className="animate-slide-down" style={{ display: 'flex', flexDirection: 'column', gap: '20px', position: 'relative' }}>
+            <div style={{ position: 'relative', zIndex: 30 }}>
+              <FichaPerfil
+                student={studentData.student}
+                programs={enrichedPrograms}
+                selectedProgramId={selectedProgramId}
+                currentStatusName={currentStatusName}
+                onSelectProgram={handleSelectProgram}
+              />
+            </div>
+
+            <div style={{ position: 'relative', zIndex: 1 }}>
+              <ProgramasYGrupos
+                groups={studentData.groups}
+                selectedGroupIds={selectedGroupIds}
+                onToggleGroup={handleToggleGroup}
+                onSelectAllGroups={handleSelectAllGroups}
+                onDeselectAllGroups={handleClearGroupSelection}
+                onAction={handleAction}
+              />
+            </div>
           </div>
-          <IncAutocomplete
-            alianzaId={allianceId}
-            value={studentInput}
-            onChange={handleInputChange}
-            onKeyDown={handleInputKeyDown}
-            onSelect={handleSelectSuggestion}
-            autoSelectExact={false}
-            debounceMs={1000}
-            placeholder="Pega Mongo ObjectId, Cédula o escribe código INC..."
-            inputStyle={{ height: '32px', fontSize: '12px' }}
-          />
-        </div>
+        )}
 
-        {/* Acciones Rápidas de Diagnóstico y Remediación */}
-        <AccionesRapidas
-          hasStudent={Boolean(studentData)}
-          hasProgram={Boolean(selectedProgramId)}
-          selectedProgramName={selectedProgramName}
-          currentStatusName={currentStatusName}
-          statusOptions={statusOptions}
-          groupsCount={studentData?.groups?.length || 0}
-          selectedGroupIds={selectedGroupIds}
-          onClearSelection={handleClearGroupSelection}
-          onAction={handleAction}
-        />
-      </div>
-
-      {/* ── Estado de Carga Tecnológico & Animado ── */}
-      {loading && <Student360Loader identifier={studentInput} />}
-
-      {/* ── Estado Inicial / Sin Estudiante ── */}
-      {!loading && !studentData && (
-        <HubVacio
-          onSelectExample={(code) => {
-            if (typingDebounceRef.current) {
-              clearTimeout(typingDebounceRef.current);
-              typingDebounceRef.current = null;
-            }
-            setStudentInput(code);
-            loadStudent(code, true);
-          }}
-        />
-      )}
-
-      {/* ── Vista Detallada 360° ── */}
-      {!loading && studentData && (
-        <div className="animate-slide-down" style={{ display: 'flex', flexDirection: 'column', gap: '12px', position: 'relative' }}>
-          <div style={{ position: 'relative', zIndex: 30 }}>
-            <FichaPerfil
-              student={studentData.student}
-              programs={enrichedPrograms}
-              selectedProgramId={selectedProgramId}
-              currentStatusName={currentStatusName}
-              onSelectProgram={handleSelectProgram}
-            />
-          </div>
-
-          <div style={{ position: 'relative', zIndex: 1 }}>
-            <ProgramasYGrupos
-              groups={studentData.groups}
-              selectedGroupIds={selectedGroupIds}
-              onToggleGroup={handleToggleGroup}
-              onSelectAllGroups={handleSelectAllGroups}
-              onDeselectAllGroups={handleClearGroupSelection}
-              onAction={handleAction}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* ── Visor de Comandos Generados ── */}
-      <CommandsDisplay commands={generatedCommands} onClear={() => setGeneratedCommands([])} />
+        {/* ── Visor de Comandos Generados ── */}
+        <CommandsDisplay commands={generatedCommands} onClear={() => setGeneratedCommands([])} />
+      </main>
     </div>
   );
 }
