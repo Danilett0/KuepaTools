@@ -249,6 +249,149 @@ export class AgentOrchestrator {
   }
 
   /**
+   * Genera una respuesta concisa y profesional lista para copiar y pegar en tickets o Slack.
+   */
+  async generateTicketResponse(actions) {
+    if (!actions || actions.length === 0) return null;
+
+    const studentIds = [...new Set(actions.map(a => a.student_id).filter(Boolean))];
+    const groupIds = [...new Set(actions.map(a => a.group_id).filter(Boolean))];
+    const programIds = [...new Set(actions.map(a => a.program_id).filter(Boolean))];
+
+    // Consultar nombres de grupos
+    const groupMap = {};
+    if (groupIds.length > 0) {
+      try {
+        const { data: groups } = await supabase
+          .from('structures')
+          .select('mongo_id, name')
+          .in('mongo_id', groupIds);
+        if (groups) {
+          groups.forEach(g => { groupMap[g.mongo_id] = g.name; });
+        }
+      } catch (err) {
+        console.warn('Error fetching group names for ticket response:', err);
+      }
+    }
+
+    // Consultar nombres de programas
+    const programMap = {};
+    if (programIds.length > 0) {
+      try {
+        const { data: progs } = await supabase
+          .from('programas')
+          .select('mongo_id, name')
+          .in('mongo_id', programIds);
+        if (progs) {
+          progs.forEach(p => { programMap[p.mongo_id] = p.name; });
+        }
+      } catch (err) {
+        console.warn('Error fetching program names for ticket response:', err);
+      }
+    }
+
+    // Mapear datos de estudiantes usando el cache en memoria
+    const students = studentIds.map(sId => {
+      const u = this.userCache.get(sId);
+      return {
+        id: sId,
+        name: u?.profile?.full_name || u?.full_name || 'el estudiante',
+        inc: u?.incremental_user_code || u?.raw_data?.incremental_user_code || ''
+      };
+    });
+
+    const actionTypes = new Set(actions.map(a => a.action_type));
+
+    // 1. Cambio de estado
+    if (actionTypes.has('change_status')) {
+      const statusActions = actions.filter(a => a.action_type === 'change_status');
+      if (statusActions.length === 1) {
+        const act = statusActions[0];
+        const student = students.find(s => s.id === act.student_id) || students[0] || {};
+        const stName = act.status_name || 'solicitado';
+        const progName = programMap[act.program_id] ? ` en su programa ${programMap[act.program_id]}` : '';
+        const incTag = student.inc ? ` (ID: ${student.inc})` : '';
+        return `✅ Estado actualizado con éxito.\n\nEl estudiante ${student.name}${incTag} ha sido actualizado a estado ${stName}${progName}.\n\nQuedamos atentos ante cualquier novedad. 🚀`;
+      } else {
+        const listStr = statusActions.map(act => {
+          const s = students.find(st => st.id === act.student_id) || {};
+          const incTag = s.inc ? ` (ID: ${s.inc})` : '';
+          return `• ${s.name || 'Estudiante'}${incTag}: Estado ${act.status_name || 'Actualizado'}`;
+        }).join('\n');
+        return `✅ Estados actualizados con éxito.\n\nSe procesó la actualización de estado para los siguientes estudiantes:\n\n${listStr}\n\nQuedamos atentos a cualquier novedad. 🚀`;
+      }
+    }
+
+    // 2. Auditoría de estadísticas
+    if (actionTypes.has('audit_statistics')) {
+      const student = students[0] || {};
+      const incTag = student.inc ? ` (ID: ${student.inc})` : '';
+      const gNames = actions.map(a => groupMap[a.group_id]).filter(Boolean);
+      const groupStr = gNames.length > 0 ? ` en el grupo ${gNames.join(', ')}` : '';
+      return `✅ Progreso y estadísticas auditados con éxito.\n\nSe ejecutó la auditoría y sincronización completa para el estudiante ${student.name}${incTag}${groupStr}. Los recursos completados y avances han sido recalculados y sincronizados en la plataforma.\n\nQuedamos a su disposición. 🚀`;
+    }
+
+    // 3. Inscripciones y Retiros
+    const hasEnroll = actionTypes.has('enroll_user');
+    const hasRemove = actionTypes.has('remove_user');
+
+    if (hasEnroll && hasRemove) {
+      const student = students[0] || {};
+      const incTag = student.inc ? ` (ID: ${student.inc})` : '';
+      const enrollGroups = [...new Set(actions.filter(a => a.action_type === 'enroll_user').map(a => groupMap[a.group_id] || a.group_id).filter(Boolean))];
+      return `✅ Traslado de materias gestionado con éxito.\n\nSe realizaron los movimientos correspondientes para el estudiante ${student.name}${incTag}, desinscribiendo de los grupos anteriores e inscribiendo en los nuevos grupos solicitados (${enrollGroups.join(', ')}).\n\nQuedamos atentos ante cualquier novedad. 🚀`;
+    }
+
+    if (hasEnroll) {
+      const enrollGroups = [...new Set(actions.map(a => groupMap[a.group_id] || a.group_id).filter(Boolean))];
+      if (students.length === 1) {
+        const student = students[0] || {};
+        const incTag = student.inc ? ` (ID: ${student.inc})` : '';
+        const groupStr = enrollGroups.length > 0 ? ` al grupo ${enrollGroups.join(', ')}` : '';
+        return `✅ Estudiante inscrito con éxito.\n\nEl estudiante ${student.name}${incTag} ha sido inscrito satisfactoriamente${groupStr}.\n\nQuedamos atentos ante cualquier novedad. 🚀`;
+      } else {
+        return `✅ Inscripciones realizadas con éxito.\n\nSe inscribieron ${students.length} estudiantes en los grupos correspondientes (${enrollGroups.join(', ')}).\n\nQuedamos a su disposición. 🚀`;
+      }
+    }
+
+    if (hasRemove) {
+      const removeGroups = [...new Set(actions.map(a => groupMap[a.group_id] || a.group_id).filter(Boolean))];
+      if (students.length === 1) {
+        const student = students[0] || {};
+        const incTag = student.inc ? ` (ID: ${student.inc})` : '';
+        const groupStr = removeGroups.length > 0 ? ` del grupo ${removeGroups.join(', ')}` : '';
+        return `✅ Retiro procesado con éxito.\n\nSe retiró al estudiante ${student.name}${incTag}${groupStr}.\n\nQuedamos atentos. 🚀`;
+      } else {
+        return `✅ Retiro masivo procesado.\n\nSe retiraron ${students.length} estudiantes de los grupos indicados (${removeGroups.join(', ')}).\n\nQuedamos atentos. 🚀`;
+      }
+    }
+
+    // 4. Recálculo de notas
+    if (actionTypes.has('recalculate_grades')) {
+      const student = students[0] || {};
+      const incTag = student.inc ? ` (ID: ${student.inc})` : '';
+      return `✅ Calificaciones recalculadas con éxito.\n\nSe forzó el recálculo de la nota final para ${student.name}${incTag}.\n\nQuedamos atentos. 🚀`;
+    }
+
+    // 5. Corregir entregable
+    if (actionTypes.has('fix_deliverable')) {
+      const student = students[0] || {};
+      const incTag = student.inc ? ` (ID: ${student.inc})` : '';
+      return `✅ Entregable corregido.\n\nSe habilitó y corrigió el intento de entrega para el estudiante ${student.name}${incTag}.\n\nQuedamos atentos. 🚀`;
+    }
+
+    // 6. Limpieza de cache
+    if (actionTypes.has('clean_cache_sislms') || actionTypes.has('clean_cache_crm')) {
+      return `✅ Caché del sistema limpiada con éxito.\n\nSe ejecutó la purga del caché solicitado.\n\nQuedamos atentos. 🚀`;
+    }
+
+    // Fallback genérico
+    const student = students[0] || {};
+    const incTag = student.inc ? ` (ID: ${student.inc})` : '';
+    return `✅ Solicitud gestionada con éxito.\n\nSe procesaron los comandos correspondientes para ${student.name || 'el estudiante'}${incTag}.\n\nQuedamos atentos ante cualquier duda. 🚀`;
+  }
+
+  /**
    * Método principal para procesar un mensaje del usuario.
    */
   async processMessage(userText, chatHistory, onThinkingStateChange) {
@@ -332,9 +475,13 @@ export class AgentOrchestrator {
           };
         }
 
+        // 6. Generar respuesta sintetizada para Tickets / Slack
+        const ticketResponse = await this.generateTicketResponse(finalActions);
+
         return {
           type: 'COMMANDS',
-          commands: bashCommands
+          commands: bashCommands,
+          ticketResponse
         };
       }
 

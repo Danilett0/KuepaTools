@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Command, ArrowRight, Bot, Zap, Settings, Loader2, Key, Trash2, Edit2, RefreshCw, Check, X, Copy, Sparkles, Cpu, Ticket } from 'lucide-react';
+import { Search, Command, ArrowRight, Bot, Zap, Settings, Loader2, Key, Trash2, Edit2, RefreshCw, Check, X, Copy, Sparkles, Cpu, Ticket, MessageSquare } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { supabase } from '../../services/supabaseClient';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
@@ -44,6 +44,7 @@ export default function KuepaCommandPalette() {
   const [isFetchingKey, setIsFetchingKey] = useState(false);
   const [aiAlliance, setAiAlliance] = useLocalStorage('ai_alliance', 'na');
   const [copiedCommandKeys, setCopiedCommandKeys] = useState({});
+  const [copiedTicketKeys, setCopiedTicketKeys] = useState({});
   const [aiModel, setAiModel] = useLocalStorage('gemini_model', DEFAULT_AI_MODEL);
 
   const currentModelObj = AVAILABLE_AI_MODELS.find(m => m.id === aiModel) || AVAILABLE_AI_MODELS[0];
@@ -399,6 +400,13 @@ INSTRUCCIONES DE ACCIÓN:
     navigator.clipboard.writeText(cmd).then(() => {
       setCopiedCommandKeys(prev => ({ ...prev, [key]: true }));
       toast.success("Comando copiado al portapapeles ✨");
+    });
+  };
+
+  const handleCopyTicketResponse = (text, key) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedTicketKeys(prev => ({ ...prev, [key]: true }));
+      toast.success("Respuesta para el ticket copiada al portapapeles ✨");
     });
   };
 
@@ -1127,6 +1135,67 @@ INSTRUCCIONES DE ACCIÓN:
                                       );
                                     })}
                                   </div>
+
+                                  {/* Ticket / Slack response card */}
+                                  {parsedResult.ticketResponse && (
+                                    <div style={{
+                                      marginTop: '8px',
+                                      padding: '14px 16px',
+                                      background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(6, 78, 59, 0.16) 100%)',
+                                      border: '1px solid rgba(52, 211, 153, 0.3)',
+                                      borderRadius: '12px',
+                                      boxShadow: '0 4px 16px rgba(0, 0, 0, 0.25)',
+                                      display: 'flex',
+                                      flexDirection: 'column',
+                                      gap: '10px'
+                                    }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                          <div style={{ width: '22px', height: '22px', borderRadius: '6px', background: 'rgba(52, 211, 153, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                            <MessageSquare size={13} color="#34d399" />
+                                          </div>
+                                          <span style={{ fontSize: '12px', fontWeight: 700, color: '#a7f3d0', letterSpacing: '0.04em', textTransform: 'uppercase', fontFamily: "'Space Grotesk', sans-serif" }}>
+                                            Respuesta para el Ticket / Slack
+                                          </span>
+                                        </div>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleCopyTicketResponse(parsedResult.ticketResponse, index)}
+                                          style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '6px',
+                                            background: copiedTicketKeys[index] ? 'rgba(34, 197, 94, 0.25)' : 'rgba(52, 211, 153, 0.15)',
+                                            border: copiedTicketKeys[index] ? '1px solid rgba(34, 197, 94, 0.5)' : '1px solid rgba(52, 211, 153, 0.3)',
+                                            color: copiedTicketKeys[index] ? '#86efac' : '#34d399',
+                                            padding: '5px 12px',
+                                            borderRadius: '7px',
+                                            fontSize: '11.5px',
+                                            fontWeight: 700,
+                                            cursor: 'pointer',
+                                            transition: 'all 0.18s ease'
+                                          }}
+                                          title="Copiar respuesta al portapapeles"
+                                        >
+                                          {copiedTicketKeys[index] ? <Check size={12} strokeWidth={2.5} /> : <Copy size={12} />}
+                                          {copiedTicketKeys[index] ? 'Copiada' : 'Copiar Respuesta'}
+                                        </button>
+                                      </div>
+                                      <div style={{
+                                        fontSize: '13.5px',
+                                        color: '#f8fafc',
+                                        lineHeight: '1.6',
+                                        whiteSpace: 'pre-wrap',
+                                        fontFamily: "'Space Grotesk', sans-serif",
+                                        borderLeft: '3px solid #10b981',
+                                        padding: '10px 14px',
+                                        background: 'rgba(0, 0, 0, 0.3)',
+                                        borderRadius: '4px 8px 8px 4px'
+                                      }}>
+                                        {parsedResult.ticketResponse}
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
                               ) : parsedResult?.type === 'ROUTE' && parsedResult.targetComponent ? (
                                 <div

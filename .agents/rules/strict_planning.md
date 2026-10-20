@@ -17,6 +17,7 @@
 * Entregar el código exacto, diff o comando inmediatamente.
 * Eliminar explicaciones teóricas extensas, resúmenes redundantes o preámbulos. Detallar únicamente advertencias técnicas críticas o breaking changes.
 * Todo el código, nombres de variables y comentarios en código en **Inglés**. Explicaciones mínimas en **Español**.
+* En requerimientos operativos y soporte (Magik CLI/Supabase), adjuntar siempre al final la sección `### 💬 Respuesta para el Ticket` lista para copiar y pegar según las directivas de comunicación.
 
 ## 4. Cero Ejecución de Tests Innecesarios (Zero Waste Testing)
 * **PROHIBIDO** crear scripts de prueba ad-hoc, correr suites de tests (`npm test`, `node test.js`) o ejecutar comandos de compilación preventiva (`npm run build`) tras cambios rutinarios de UI o lógica.
