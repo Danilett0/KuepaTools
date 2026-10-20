@@ -8,7 +8,7 @@ import { toast } from 'react-toastify';
 import AllianceSwitcher from './AllianceSwitcher';
 import { ALLIANCE_IDS } from '../../utils/constants';
 import { setGlobalSetting, getGlobalSetting } from '../../services/settingsService';
-import { AVAILABLE_AI_MODELS, DEFAULT_AI_MODEL } from '../../services/aiService';
+import { AVAILABLE_AI_MODELS, DEFAULT_AI_MODEL, prepareRetryHistory } from '../../services/aiService';
 import AiAssistantHero from './AiAssistantHero';
 import { matchAcademicTerm } from '../../utils/academicTerms';
 
@@ -292,7 +292,7 @@ INSTRUCCIONES DE ACCIÓN:
         const aiMessage = { id: (Date.now() + 2).toString(), role: 'ai', text: finalResult.message, parsedResult: finalResult };
         setChatHistory([...currentHistory, aiMessage]);
       } else if (finalResult && finalResult.type === 'COMMANDS') {
-        const aiMessage = { id: (Date.now() + 2).toString(), role: 'ai', text: '', parsedResult: finalResult };
+        const aiMessage = { id: (Date.now() + 2).toString(), role: 'ai', text: finalResult.message || '', parsedResult: finalResult };
         setChatHistory([...currentHistory, aiMessage]);
       } else if (finalResult && finalResult.type === 'ROUTE') {
         const aiMessage = { id: (Date.now() + 2).toString(), role: 'ai', text: '', parsedResult: finalResult };
@@ -361,6 +361,20 @@ INSTRUCCIONES DE ACCIÓN:
     setEditingText('');
     setChatHistory(updatedHistory);
 
+    await runAgentPipeline(updatedHistory);
+  };
+
+  const handleRetry = async (targetIndex) => {
+    if (!apiKey || analyzingState) return;
+    const updatedHistory = prepareRetryHistory(chatHistory, targetIndex);
+    if (!updatedHistory.length) return;
+
+    if (editingIndex !== null) {
+      setEditingIndex(null);
+      setEditingText('');
+    }
+
+    setChatHistory(updatedHistory);
     await runAgentPipeline(updatedHistory);
   };
 
@@ -868,36 +882,68 @@ INSTRUCCIONES DE ACCIÓN:
                                     <Copy size={12} />
                                   </button>
                                   {!analyzingState && editingIndex === null && (
-                                    <button
-                                      type="button"
-                                      onClick={() => handleStartEdit(index, msg.text)}
-                                      style={{
-                                        background: 'rgba(255, 255, 255, 0.08)',
-                                        border: '1px solid rgba(255, 255, 255, 0.1)',
-                                        color: 'rgba(255, 255, 255, 0.7)',
-                                        borderRadius: '6px',
-                                        width: '24px',
-                                        height: '24px',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        cursor: 'pointer',
-                                        transition: 'all 0.15s'
-                                      }}
-                                      title="Editar y reenviar"
-                                      onMouseEnter={(e) => {
-                                        e.currentTarget.style.background = 'rgba(18, 163, 131, 0.25)';
-                                        e.currentTarget.style.color = 'var(--primary)';
-                                        e.currentTarget.style.borderColor = 'rgba(18, 163, 131, 0.4)';
-                                      }}
-                                      onMouseLeave={(e) => {
-                                        e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
-                                        e.currentTarget.style.color = 'rgba(255, 255, 255, 0.7)';
-                                        e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
-                                      }}
-                                    >
-                                      <Edit2 size={12} />
-                                    </button>
+                                    <>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleRetry(index)}
+                                        style={{
+                                          background: 'rgba(255, 255, 255, 0.08)',
+                                          border: '1px solid rgba(255, 255, 255, 0.1)',
+                                          color: 'rgba(255, 255, 255, 0.7)',
+                                          borderRadius: '6px',
+                                          width: '24px',
+                                          height: '24px',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          cursor: 'pointer',
+                                          transition: 'all 0.15s'
+                                        }}
+                                        title="Reintentar"
+                                        onMouseEnter={(e) => {
+                                          e.currentTarget.style.background = 'rgba(56, 189, 248, 0.25)';
+                                          e.currentTarget.style.color = '#38bdf8';
+                                          e.currentTarget.style.borderColor = 'rgba(56, 189, 248, 0.4)';
+                                        }}
+                                        onMouseLeave={(e) => {
+                                          e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+                                          e.currentTarget.style.color = 'rgba(255, 255, 255, 0.7)';
+                                          e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+                                        }}
+                                      >
+                                        <RefreshCw size={12} />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleStartEdit(index, msg.text)}
+                                        style={{
+                                          background: 'rgba(255, 255, 255, 0.08)',
+                                          border: '1px solid rgba(255, 255, 255, 0.1)',
+                                          color: 'rgba(255, 255, 255, 0.7)',
+                                          borderRadius: '6px',
+                                          width: '24px',
+                                          height: '24px',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          cursor: 'pointer',
+                                          transition: 'all 0.15s'
+                                        }}
+                                        title="Editar y reenviar"
+                                        onMouseEnter={(e) => {
+                                          e.currentTarget.style.background = 'rgba(18, 163, 131, 0.25)';
+                                          e.currentTarget.style.color = 'var(--primary)';
+                                          e.currentTarget.style.borderColor = 'rgba(18, 163, 131, 0.4)';
+                                        }}
+                                        onMouseLeave={(e) => {
+                                          e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+                                          e.currentTarget.style.color = 'rgba(255, 255, 255, 0.7)';
+                                          e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+                                        }}
+                                      >
+                                        <Edit2 size={12} />
+                                      </button>
+                                    </>
                                   )}
                                 </div>
                               </div>
@@ -1034,6 +1080,21 @@ INSTRUCCIONES DE ACCIÓN:
                                       Copiar {parsedResult.commands.length > 1 ? `Todos (${parsedResult.commands.length})` : ''}
                                     </button>
                                   </div>
+
+                                  {Boolean(parsedResult.message || msg.text) && (
+                                    <div style={{
+                                      padding: '9px 13px',
+                                      borderRadius: '10px',
+                                      background: 'rgba(56, 189, 248, 0.08)',
+                                      border: '1px solid rgba(56, 189, 248, 0.25)',
+                                      color: '#93c5fd',
+                                      fontSize: '12.5px',
+                                      lineHeight: '1.45',
+                                      fontFamily: "'Space Grotesk', sans-serif"
+                                    }}>
+                                      {parsedResult.message || msg.text}
+                                    </div>
+                                  )}
 
                                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                     {parsedResult.commands.map((cmd, i) => {
@@ -1254,7 +1315,7 @@ INSTRUCCIONES DE ACCIÓN:
                     const isRetryState = typeof analyzingState === 'string' && analyzingState.startsWith('ai_retry');
                     const retryMatch = isRetryState ? analyzingState.match(/ai_retry_(\d+)_(\d+)/) : null;
                     const retryAttempt = retryMatch ? retryMatch[1] : 1;
-                    const retryMax = retryMatch ? retryMatch[2] : 3;
+                    const retryMax = retryMatch ? retryMatch[2] : 5;
 
                     return (
                       <motion.div 

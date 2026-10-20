@@ -38,148 +38,13 @@ import { toast } from 'react-toastify';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 import { useAppStore } from '../../store/useAppStore';
 import { getGlobalSetting } from '../../services/settingsService';
-import { processJiraEscalation, compileDescription, generateSlackSummaryWithAI } from '../../services/jiraEscalationService';
+import { processJiraEscalation, compileDescription, compileDescriptionHtml, generateSlackSummaryWithAI } from '../../services/jiraEscalationService';
 import { exportTicketAsImage, exportTicketAsPdf } from '../../services/ticketExportService';
-import { DEFAULT_AI_MODEL } from '../../services/aiService';
+import { DEFAULT_AI_MODEL, AVAILABLE_AI_MODELS } from '../../services/aiService';
 import { isTableContent, sanitizeTableOrDump, convertMarkdownTablesToJira, parseMarkdownTable } from '../../services/tableSanitizerService';
 import { processImageFile, copyImageToClipboard, downloadImage, MAX_ATTACHMENTS_PER_TICKET } from '../../services/imageCompressionService';
 
 // ── Jira UI Helper Components & Formatters (Estilo Idéntico a Jira Cloud) ──────
-
-function JiraCodeBlock({ code, onCopy, isCopied }) {
-  const cleanCode = (code || '')
-    .replace(/^```(?:javascript|json|mongo|bash|sh|sql)?\n?/i, '')
-    .replace(/\n?```$/i, '')
-    .trim();
-
-  const lines = cleanCode.split('\n');
-
-  const highlightLine = (line) => {
-    const parts = [];
-    let lastIdx = 0;
-    const regex = /(".*?"|'.*?'|\bObjectId\b|\b\d+\b)/g;
-    let match;
-    while ((match = regex.exec(line)) !== null) {
-      if (match.index > lastIdx) {
-        parts.push(<span key={lastIdx}>{line.substring(lastIdx, match.index)}</span>);
-      }
-      const token = match[0];
-      if (token.startsWith('"') || token.startsWith("'")) {
-        // String en verde idéntico a Jira
-        parts.push(<span key={match.index} style={{ color: '#57ab5a' }}>{token}</span>);
-      } else if (token === 'ObjectId') {
-        parts.push(<span key={match.index} style={{ color: '#539bf5' }}>{token}</span>);
-      } else {
-        parts.push(<span key={match.index} style={{ color: '#f0883e' }}>{token}</span>);
-      }
-      lastIdx = regex.lastIndex;
-    }
-    if (lastIdx < line.length) {
-      parts.push(<span key={lastIdx}>{line.substring(lastIdx)}</span>);
-    }
-    return parts.length > 0 ? parts : line;
-  };
-
-  return (
-    <div style={{
-      background: '#161a1d',
-      border: '1px solid #282e33',
-      borderRadius: '5px',
-      overflow: 'hidden',
-      margin: '10px 0',
-      fontFamily: "'Space Grotesk', 'Fira Code', 'Consolas', monospace"
-    }}>
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        padding: '4px 10px',
-        background: '#111417',
-        borderBottom: '1px solid #282e33'
-      }}>
-        <span style={{ fontSize: '11px', color: '#8c9bab', fontWeight: 600 }}>
-          Script MongoDB / Data Patch
-        </span>
-        <button
-          onClick={() => onCopy(cleanCode, 'solutionCode')}
-          className="no-export"
-          style={{
-            background: 'transparent',
-            border: 'none',
-            color: isCopied ? '#4ade80' : '#8c9bab',
-            cursor: 'pointer',
-            fontSize: '11px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '4px',
-            fontWeight: 600
-          }}
-          title="Copiar solo el código"
-        >
-          {isCopied ? <Check size={11} /> : <Copy size={11} />}
-          {isCopied ? 'Copiado' : 'Copiar código'}
-        </button>
-      </div>
-      <div style={{ display: 'flex', fontSize: '12px', lineHeight: 1.6 }}>
-        <div style={{
-          padding: '8px 10px',
-          background: 'rgba(0,0,0,0.3)',
-          borderRight: '1px solid #282e33',
-          color: '#636e7b',
-          userSelect: 'none',
-          textAlign: 'right',
-          minWidth: '22px'
-        }}>
-          {lines.map((_, i) => (
-            <div key={i}>{i + 1}</div>
-          ))}
-        </div>
-        <div style={{ padding: '8px 12px', flex: 1, overflowX: 'auto', color: '#dee4ea' }}>
-          {lines.map((line, i) => (
-            <div key={i} style={{ whiteSpace: 'pre' }}>{highlightLine(line)}</div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-const renderSolutionContent = (solutionText, onCopyCode, isCopied) => {
-  if (!solutionText) return null;
-  const codeRegex = /```(?:javascript|json|mongo|bash|sh|sql)?\n([\s\S]*?)```/i;
-  const match = solutionText.match(codeRegex);
-
-  if (match) {
-    const beforeCode = solutionText.substring(0, match.index).trim();
-    const code = match[1].trim();
-    const afterCode = solutionText.substring(match.index + match[0].length).trim();
-
-    return (
-      <div>
-        {beforeCode && <p style={{ margin: '0 0 8px', color: '#b6c2cf', lineHeight: 1.6 }}>{beforeCode}</p>}
-        <JiraCodeBlock code={code} onCopy={onCopyCode} isCopied={isCopied} />
-        {afterCode && <p style={{ margin: '6px 0 0', color: '#8c9bab', fontStyle: 'italic', fontSize: '12px' }}>{afterCode}</p>}
-      </div>
-    );
-  }
-
-  const lines = solutionText.split('\n');
-  const codeLineIdx = lines.findIndex(l => l.trim().startsWith('db.'));
-  if (codeLineIdx !== -1) {
-    const before = lines.slice(0, codeLineIdx).join('\n').trim();
-    const code = lines[codeLineIdx].trim();
-    const after = lines.slice(codeLineIdx + 1).join('\n').trim();
-    return (
-      <div>
-        {before && <p style={{ margin: '0 0 8px', color: '#b6c2cf', lineHeight: 1.6 }}>{before}</p>}
-        <JiraCodeBlock code={code} onCopy={onCopyCode} isCopied={isCopied} />
-        {after && <p style={{ margin: '6px 0 0', color: '#8c9bab', fontStyle: 'italic', fontSize: '12px' }}>{after}</p>}
-      </div>
-    );
-  }
-
-  return <div style={{ color: '#b6c2cf', whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{solutionText}</div>;
-};
 
 const renderValidationData = (valData, onNavigateToStudent, onNavigateToBuscarId) => {
   if (!valData) return null;
@@ -370,97 +235,7 @@ const renderValidationData = (valData, onNavigateToStudent, onNavigateToBuscarId
   );
 };
 
-const renderReproductionSteps = (stepsText) => {
-  if (!stepsText) return null;
-  const lines = stepsText.split('\n').filter(l => l.trim().length > 0);
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-      {lines.map((line, idx) => {
-        const cleanLine = line.trim();
-        return (
-          <div key={idx} style={{ fontSize: '12.5px', lineHeight: 1.55, color: '#b6c2cf' }}>
-            {cleanLine}
-          </div>
-        );
-      })}
-    </div>
-  );
-};
 
-const renderBehaviorContent = (sections) => {
-  let observed = sections.observedBehavior || '';
-  let expected = sections.expectedBehavior || '';
-
-  if (!observed && !expected && sections.behavior) {
-    const text = sections.behavior;
-    const splitRegex = /(?:❌|Comportamiento)?\s*Observado\s*:?/i;
-    const expectedRegex = /(?:✅|Comportamiento)?\s*Esperado\s*:?/i;
-
-    if (splitRegex.test(text) && expectedRegex.test(text)) {
-      const expIdx = text.search(expectedRegex);
-      observed = text.substring(0, expIdx).replace(splitRegex, '').trim();
-      expected = text.substring(expIdx).replace(expectedRegex, '').trim();
-    }
-  }
-
-  if (observed || expected) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-        {observed && (
-          <div>
-            <div style={{ fontSize: '12.5px', fontWeight: 700, color: '#f87171', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span>❌</span> Observado:
-            </div>
-            <div style={{ fontSize: '12.5px', lineHeight: 1.6, color: '#dee4ea' }}>
-              {observed}
-            </div>
-          </div>
-        )}
-        {expected && (
-          <div>
-            <div style={{ fontSize: '12.5px', fontWeight: 700, color: '#4ade80', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span>✅</span> Esperado:
-            </div>
-            <div style={{ fontSize: '12.5px', lineHeight: 1.6, color: '#dee4ea' }}>
-              {expected}
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  return <div style={{ color: '#dee4ea', whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{sections.behavior}</div>;
-};
-
-const renderAcceptanceCriteria = (dodText) => {
-  if (!dodText) return null;
-  const lines = dodText.split('\n').filter(l => l.trim().length > 0);
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-      {lines.map((line, idx) => {
-        const clean = line.replace(/^[-*]\s*(\[[ xX]\])?\s*/, '').trim();
-        return (
-          <div key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '12.5px', lineHeight: 1.5, color: '#dee4ea' }}>
-            <span style={{
-              width: '13px',
-              height: '13px',
-              borderRadius: '3px',
-              border: '1.5px solid #2dd4bf',
-              background: 'rgba(45, 212, 191, 0.12)',
-              marginTop: '3px',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0
-            }} />
-            <span>{clean}</span>
-          </div>
-        );
-      })}
-    </div>
-  );
-};
 
 const EXAMPLE_TEMPLATES = [
   {
@@ -823,50 +598,17 @@ function TicketSynthesisSkeleton({ stage = 0 }) {
             </div>
           </div>
 
-          {/* Skeleton Section: Pasos para Reproducir */}
+          {/* Skeleton Section: Resultado Esperado */}
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
-              <RefreshCw size={13} color="#22c55e" />
-              <span style={{ fontSize: '11.5px', fontWeight: 800, color: '#22c55e', letterSpacing: '0.04em' }}>
-                PASOS PARA REPRODUCIR
+              <CheckSquare size={13} color="#2dd4bf" />
+              <span style={{ fontSize: '11.5px', fontWeight: 800, color: '#2dd4bf', letterSpacing: '0.04em' }}>
+                RESULTADO ESPERADO
               </span>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div style={{ width: '16px', height: '16px', borderRadius: '50%', background: 'rgba(255,255,255,0.08)', flexShrink: 0 }} />
-                <div className="jira-shimmer-bar" style={{ height: '14px', width: '88%', borderRadius: '3px' }} />
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div style={{ width: '16px', height: '16px', borderRadius: '50%', background: 'rgba(255,255,255,0.08)', flexShrink: 0 }} />
-                <div className="jira-shimmer-bar" style={{ height: '14px', width: '75%', borderRadius: '3px' }} />
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div style={{ width: '16px', height: '16px', borderRadius: '50%', background: 'rgba(255,255,255,0.08)', flexShrink: 0 }} />
-                <div className="jira-shimmer-bar" style={{ height: '14px', width: '60%', borderRadius: '3px' }} />
-              </div>
-            </div>
-          </div>
-
-          {/* Skeleton Section: Mock Terminal Code Block */}
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
-              <Terminal size={13} color="#12a383" />
-              <span style={{ fontSize: '11.5px', fontWeight: 800, color: '#12a383', letterSpacing: '0.04em' }}>
-                SOLUCIÓN PROPUESTA / DATA PATCH (MONGODB)
-              </span>
-            </div>
-            <div style={{
-              background: '#161a1d',
-              border: '1px solid #282e33',
-              borderRadius: '6px',
-              padding: '12px 14px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '8px'
-            }}>
-              <div className="jira-shimmer-bar-code" style={{ height: '13px', width: '55%', borderRadius: '2px' }} />
-              <div className="jira-shimmer-bar-code" style={{ height: '13px', width: '78%', borderRadius: '2px' }} />
-              <div className="jira-shimmer-bar-code" style={{ height: '13px', width: '42%', borderRadius: '2px' }} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <div className="jira-shimmer-bar" style={{ height: '14px', width: '92%', borderRadius: '3px' }} />
+              <div className="jira-shimmer-bar" style={{ height: '14px', width: '68%', borderRadius: '3px' }} />
             </div>
           </div>
 
@@ -1204,41 +946,33 @@ function TicketDraftRadar({ conversation, lastQuestions, onInsertHint }) {
             <FileText size={13} /> Blueprint de Ticket (Estructura en Compilación)
           </span>
           <span style={{ fontSize: '10px', color: '#38bdf8', fontWeight: 700 }}>
-            4 de 7 Secciones Listas
+            Estructura Base (3 Secciones)
           </span>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
           <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid #282e33', borderRadius: '6px', padding: '8px 10px' }}>
             <span style={{ fontSize: '10.5px', fontWeight: 700, color: '#38bdf8', display: 'block', marginBottom: '2px' }}>
-              1. Contexto & Diagnóstico
+              1. Contexto del Caso
             </span>
             <span style={{ fontSize: '9.5px', color: '#8c9bab' }}>
-              Listo para compilar
+              Incidente y síntoma
             </span>
           </div>
           <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid #282e33', borderRadius: '6px', padding: '8px 10px' }}>
-            <span style={{ fontSize: '10.5px', fontWeight: 700, color: '#22c55e', display: 'block', marginBottom: '2px' }}>
-              2. Pasos de Reproducción
+            <span style={{ fontSize: '10.5px', fontWeight: 700, color: '#c084fc', display: 'block', marginBottom: '2px' }}>
+              2. Datos de Validación
             </span>
             <span style={{ fontSize: '9.5px', color: '#8c9bab' }}>
-              Extraídos del incidente
+              INC, Cédula y MongoIDs
             </span>
           </div>
           <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid #282e33', borderRadius: '6px', padding: '8px 10px' }}>
-            <span style={{ fontSize: '10.5px', fontWeight: 700, color: '#f59e0b', display: 'block', marginBottom: '2px' }}>
-              3. Data Patch MongoDB
-            </span>
-            <span style={{ fontSize: '9.5px', color: '#f59e0b' }}>
-              Requiere ObjectId exacto
-            </span>
-          </div>
-          <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid #282e33', borderRadius: '6px', padding: '8px 10px' }}>
-            <span style={{ fontSize: '10.5px', fontWeight: 700, color: '#a855f7', display: 'block', marginBottom: '2px' }}>
-              4. Criterios DoD Jira
+            <span style={{ fontSize: '10.5px', fontWeight: 700, color: '#2dd4bf', display: 'block', marginBottom: '2px' }}>
+              3. Resultado Esperado
             </span>
             <span style={{ fontSize: '9.5px', color: '#8c9bab' }}>
-              Generación automática
+              Criterio de resolución
             </span>
           </div>
         </div>
@@ -1255,7 +989,7 @@ function TicketDraftRadar({ conversation, lastQuestions, onInsertHint }) {
         }}>
           <Sparkles size={14} color="#38bdf8" />
           <span style={{ fontSize: '11px', color: '#dee4ea', lineHeight: 1.3 }}>
-            Al responder los puntos faltantes a la izquierda, la IA completará el Data Patch de base de datos y desbloqueará las tarjetas interactivas de Jira.
+            Al responder los puntos faltantes a la izquierda, la IA estructurará el ticket final listo para Jira.
           </span>
         </div>
       </div>
@@ -1353,6 +1087,7 @@ function SectionEditForm({ value, onChange, onSave, onCancel, isCode = false }) 
 export default function JiraEscalationView() {
   const [apiKey, setApiKey] = useLocalStorage('gemini_api_key', '');
   const [aiModel] = useLocalStorage('gemini_model', DEFAULT_AI_MODEL);
+  const activeModelObj = AVAILABLE_AI_MODELS.find(m => m.id === aiModel) || AVAILABLE_AI_MODELS[0];
   
   const [inputValue, setInputValue] = useLocalStorage('jira_escalation_input', '');
   const [conversation, setConversation] = useLocalStorage('jira_escalation_conversation', []);
@@ -1727,10 +1462,41 @@ export default function JiraEscalationView() {
   const copyToClipboard = async (text, sectionKey) => {
     if (!text) return;
     try {
+      const hasAttachments = currentTicket?.attachments?.length > 0;
+
+      // Si se copia el ticket completo y existen capturas adjuntas,
+      // generamos un portapapeles enriquecido dual (HTML + Texto Plano).
+      // Al hacer Ctrl+V en Jira Cloud, el editor visual Atlassian incrusta
+      // automáticamente la descripción formateada y todas las imágenes juntas.
+      if (sectionKey === 'full' && hasAttachments && window.ClipboardItem && navigator.clipboard?.write) {
+        try {
+          const htmlContent = compileDescriptionHtml(
+            currentTicket.sections || currentTicket.description,
+            currentTicket.attachments
+          );
+          const plainBlob = new Blob([text], { type: 'text/plain' });
+          const htmlBlob = new Blob([htmlContent], { type: 'text/html' });
+
+          await navigator.clipboard.write([
+            new ClipboardItem({
+              'text/plain': plainBlob,
+              'text/html': htmlBlob
+            })
+          ]);
+
+          setCopiedSection(sectionKey);
+          toast.success("¡Ticket y capturas copiados! Al presionar Ctrl+V en Jira se pegarán el texto y todas las imágenes juntas.");
+          setTimeout(() => setCopiedSection(null), 2000);
+          return;
+        } catch (clipboardHtmlErr) {
+          console.warn("Fallo al escribir HTML en portapapeles, usando fallback de texto:", clipboardHtmlErr);
+        }
+      }
+
       await navigator.clipboard.writeText(text);
       setCopiedSection(sectionKey);
-      if (sectionKey === 'full' && currentTicket?.attachments?.length > 0) {
-        toast.success("Texto del ticket copiado. Usa el botón 'Copiar' de cada imagen para pegarlas en Jira.");
+      if (sectionKey === 'full' && hasAttachments) {
+        toast.info("Texto del ticket copiado. Usa el botón 'Copiar' de cada imagen si tu navegador no soporta pegado conjunto.");
       } else {
         toast.success("Copiado al portapapeles");
       }
@@ -1757,40 +1523,16 @@ export default function JiraEscalationView() {
         return `${h3} 💾 Datos de Validación\n\n${valText}`;
       }
       
-      case 'reproductionSteps':
-        return `${h3} 🔄 Pasos para Reproducir\n\n${currentTicket.sections.reproductionSteps || ''}`;
-      
-      case 'behavior': {
-        let b = currentTicket.sections.behavior || '';
-        if (!b && (currentTicket.sections.observedBehavior || currentTicket.sections.expectedBehavior)) {
-          const parts = [];
-          if (currentTicket.sections.observedBehavior) parts.push(`❌ Observado:\n${currentTicket.sections.observedBehavior}`);
-          if (currentTicket.sections.expectedBehavior) parts.push(`✅ Esperado:\n${currentTicket.sections.expectedBehavior}`);
-          b = parts.join('\n\n');
-        } else if (b) {
-          if (!b.includes('❌') && /observado/i.test(b)) {
-            b = b.replace(/(?:Comportamiento\s*)?Observado\s*:?/i, '❌ Observado:');
-          }
-          if (!b.includes('✅') && /esperado/i.test(b)) {
-            b = b.replace(/(?:Comportamiento\s*)?Esperado\s*:?/i, '✅ Esperado:');
-          }
-        }
-        return `${h3} ⚠️ Comportamiento Observado vs Esperado\n\n${b}`;
-      }
-
-      case 'solution': {
-        let sol = currentTicket.sections.solution || currentTicket.sections.dataPatch || '';
-        if (isJira) {
-          sol = sol.replace(/```(?:javascript|json|bash|sh|sql)?\n([\s\S]*?)```/g, '{code}\n$1{code}');
-        }
-        return `${h3} 🛠️ Solución Propuesta / Data Patch\n\n${sol}`;
-      }
-
-      case 'technicalDiagnosis':
-        return `${h3} 🧠 Diagnóstico Técnico & Causa Raíz Preliminar\n\n${currentTicket.sections.technicalDiagnosis || ''}`;
-
+      case 'expectedResult':
       case 'acceptanceCriteria':
-        return `${h3} 🎯 Criterios de Aceptación (DoD)\n\n${currentTicket.sections.acceptanceCriteria || ''}`;
+      case 'behavior': {
+        const exp = currentTicket.sections.expectedResult
+          || (currentTicket.sections.acceptanceCriteria ? currentTicket.sections.acceptanceCriteria.replace(/^\[\s*[x ]?\s*\]\s*/gim, '') : '')
+          || currentTicket.sections.expectedBehavior
+          || currentTicket.sections.behavior
+          || '';
+        return `${h3} 🎯 Resultado Esperado\n\n${exp}`;
+      }
 
       default:
         return currentTicket.sections[sectionKey] || '';
@@ -1808,12 +1550,7 @@ export default function JiraEscalationView() {
 
   const getFullTicketText = () => {
     if (!currentTicket) return '';
-    const description = getRawDescription();
-    if (jiraFormat === 'markdown') {
-      return `# ${currentTicket.summary}\n\n${description}`;
-    } else {
-      return `h1. ${currentTicket.summary}\n\n${description}`;
-    }
+    return getRawDescription();
   };
 
   return (
@@ -2184,7 +1921,7 @@ export default function JiraEscalationView() {
                         alignItems: 'center',
                         gap: '3px'
                       }}>
-                        <Cpu size={11} /> Gemini 2.5
+                        <Cpu size={11} /> {activeModelObj ? `Gemini ${activeModelObj.shortName}` : 'Gemini 3.5 / 3.6'}
                       </span>
                     </div>
 
@@ -3147,7 +2884,9 @@ export default function JiraEscalationView() {
                     cursor: 'pointer',
                     transition: 'all 0.2s'
                   }}
-                  title="Copiar texto completo formateado para Jira"
+                  title={currentTicket?.attachments?.length > 0
+                    ? `Copiar ticket completo con ${currentTicket.attachments.length} captura(s) juntas para Jira`
+                    : "Copiar contenido de la descripción para Jira (sin título)"}
                 >
                   {copiedSection === 'full' ? <Check size={13} /> : <Copy size={13} />}
                   {copiedSection === 'full' ? '¡Copiado!' : 'Copiar Ticket'}
@@ -3510,307 +3249,9 @@ export default function JiraEscalationView() {
                       </div>
                     )}
 
-                    {/* Section 3: Pasos para Reproducir */}
-                    {(currentTicket.sections?.reproductionSteps || editingSection === 'reproductionSteps') && (
-                      <div style={{
-                        background: '#161a1d',
-                        border: '1px solid #282e33',
-                        borderRadius: '6px',
-                        padding: '12px 14px'
-                      }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <RefreshCw size={15} color="#34d399" />
-                            <span style={{ color: '#34d399', fontWeight: 800, fontSize: '11.5px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                              Pasos para Reproducir
-                            </span>
-                          </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }} className="no-export">
-                            <button
-                              onClick={() => editingSection === 'reproductionSteps' ? handleCancelEdit() : handleStartEdit('reproductionSteps', currentTicket.sections?.reproductionSteps || '')}
-                              style={{
-                                background: editingSection === 'reproductionSteps' ? 'rgba(52, 211, 153, 0.2)' : 'rgba(255, 255, 255, 0.05)',
-                                border: '1px solid #282e33',
-                                borderRadius: '4px',
-                                padding: '2px 7px',
-                                color: editingSection === 'reproductionSteps' ? '#34d399' : '#8c9bab',
-                                fontSize: '11px',
-                                fontWeight: 600,
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                transition: 'all 0.15s'
-                              }}
-                              title="Editar pasos para reproducir"
-                            >
-                              <Pencil size={10} /> Editar
-                            </button>
-                            <button
-                              onClick={() => copyToClipboard(getSectionCopyText('reproductionSteps'), 'reproductionSteps')}
-                              style={{
-                                background: 'transparent',
-                                border: 'none',
-                                color: copiedSection === 'reproductionSteps' ? '#4ade80' : '#8c9bab',
-                                cursor: 'pointer',
-                                fontSize: '11px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                fontWeight: 600,
-                                padding: '2px 6px',
-                                borderRadius: '3px'
-                              }}
-                              title="Copiar Pasos con Icono"
-                            >
-                              {copiedSection === 'reproductionSteps' ? <Check size={11} /> : <Copy size={11} />}
-                              {copiedSection === 'reproductionSteps' ? 'Copiado' : 'Copiar'}
-                            </button>
-                          </div>
-                        </div>
-                        {editingSection === 'reproductionSteps' ? (
-                          <SectionEditForm
-                            value={editDraftValue}
-                            onChange={setEditDraftValue}
-                            onSave={() => handleSaveEdit('reproductionSteps')}
-                            onCancel={handleCancelEdit}
-                          />
-                        ) : (
-                          renderReproductionSteps(currentTicket.sections?.reproductionSteps)
-                        )}
-                      </div>
-                    )}
 
-                    {/* Section 4: Comportamiento Observado vs Esperado */}
-                    {(currentTicket.sections?.behavior || currentTicket.sections?.observedBehavior || currentTicket.sections?.expectedBehavior || editingSection === 'behavior') && (
-                      <div style={{
-                        background: '#161a1d',
-                        border: '1px solid #282e33',
-                        borderRadius: '6px',
-                        padding: '12px 14px'
-                      }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <AlertCircle size={15} color="#f87171" />
-                            <span style={{ color: '#f87171', fontWeight: 800, fontSize: '11.5px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                              Comportamiento Observado vs Esperado
-                            </span>
-                          </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }} className="no-export">
-                            <button
-                              onClick={() => {
-                                if (editingSection === 'behavior') {
-                                  handleCancelEdit();
-                                } else {
-                                  const text = currentTicket.sections?.behavior || 
-                                    `Observado:\n${currentTicket.sections?.observedBehavior || ''}\n\nEsperado:\n${currentTicket.sections?.expectedBehavior || ''}`;
-                                  handleStartEdit('behavior', text);
-                                }
-                              }}
-                              style={{
-                                background: editingSection === 'behavior' ? 'rgba(248, 113, 113, 0.2)' : 'rgba(255, 255, 255, 0.05)',
-                                border: '1px solid #282e33',
-                                borderRadius: '4px',
-                                padding: '2px 7px',
-                                color: editingSection === 'behavior' ? '#f87171' : '#8c9bab',
-                                fontSize: '11px',
-                                fontWeight: 600,
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                transition: 'all 0.15s'
-                              }}
-                              title="Editar comportamiento observado vs esperado"
-                            >
-                              <Pencil size={10} /> Editar
-                            </button>
-                            <button
-                              onClick={() => copyToClipboard(getSectionCopyText('behavior'), 'behavior')}
-                              style={{
-                                background: 'transparent',
-                                border: 'none',
-                                color: copiedSection === 'behavior' ? '#4ade80' : '#8c9bab',
-                                cursor: 'pointer',
-                                fontSize: '11px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                fontWeight: 600,
-                                padding: '2px 6px',
-                                borderRadius: '3px'
-                              }}
-                              title="Copiar Comportamiento con Iconos"
-                            >
-                              {copiedSection === 'behavior' ? <Check size={11} /> : <Copy size={11} />}
-                              {copiedSection === 'behavior' ? 'Copiado' : 'Copiar'}
-                            </button>
-                          </div>
-                        </div>
-                        {editingSection === 'behavior' ? (
-                          <SectionEditForm
-                            value={editDraftValue}
-                            onChange={setEditDraftValue}
-                            onSave={() => handleSaveEdit('behavior')}
-                            onCancel={handleCancelEdit}
-                          />
-                        ) : (
-                          renderBehaviorContent(currentTicket.sections)
-                        )}
-                      </div>
-                    )}
-
-                    {/* Section 5: Solución Propuesta / Data Patch */}
-                    {((currentTicket.sections?.solution || currentTicket.sections?.dataPatch)?.trim() || editingSection === 'solution') && (
-                      <div style={{
-                        background: '#161a1d',
-                        border: '1px solid #282e33',
-                        borderRadius: '6px',
-                        padding: '12px 14px'
-                      }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <Wrench size={15} color="#fbbf24" />
-                            <span style={{ color: '#fbbf24', fontWeight: 800, fontSize: '11.5px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                              Solución Propuesta / Data Patch
-                            </span>
-                          </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }} className="no-export">
-                            <button
-                              onClick={() => editingSection === 'solution' ? handleCancelEdit() : handleStartEdit('solution', currentTicket.sections?.solution || currentTicket.sections?.dataPatch || '')}
-                              style={{
-                                background: editingSection === 'solution' ? 'rgba(251, 191, 36, 0.2)' : 'rgba(255, 255, 255, 0.05)',
-                                border: '1px solid #282e33',
-                                borderRadius: '4px',
-                                padding: '2px 7px',
-                                color: editingSection === 'solution' ? '#fbbf24' : '#8c9bab',
-                                fontSize: '11px',
-                                fontWeight: 600,
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                transition: 'all 0.15s'
-                              }}
-                              title="Editar solución y script de patch"
-                            >
-                              <Pencil size={10} /> Editar
-                            </button>
-                            <button
-                              onClick={() => copyToClipboard(getSectionCopyText('solution'), 'solution')}
-                              style={{
-                                background: 'transparent',
-                                border: 'none',
-                                color: copiedSection === 'solution' ? '#4ade80' : '#fbbf24',
-                                cursor: 'pointer',
-                                fontSize: '11px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                fontWeight: 600,
-                                padding: '2px 6px',
-                                borderRadius: '3px'
-                              }}
-                              title="Copiar Solución Completa con Icono"
-                            >
-                              {copiedSection === 'solution' ? <Check size={11} /> : <Copy size={11} />}
-                              {copiedSection === 'solution' ? 'Copiado' : 'Copiar Solución'}
-                            </button>
-                          </div>
-                        </div>
-                        {editingSection === 'solution' ? (
-                          <SectionEditForm
-                            value={editDraftValue}
-                            onChange={setEditDraftValue}
-                            onSave={() => handleSaveEdit('solution')}
-                            onCancel={handleCancelEdit}
-                            isCode={true}
-                          />
-                        ) : (
-                          renderSolutionContent(
-                            currentTicket.sections?.solution || currentTicket.sections?.dataPatch,
-                            (code) => copyToClipboard(code, 'solutionCode'),
-                            copiedSection === 'solutionCode'
-                          )
-                        )}
-                      </div>
-                    )}
-
-                    {/* Section 6: Diagnóstico Técnico & Causa Raíz Preliminar */}
-                    {(currentTicket.sections?.technicalDiagnosis || editingSection === 'technicalDiagnosis') && (
-                      <div style={{
-                        background: '#161a1d',
-                        border: '1px solid #282e33',
-                        borderRadius: '6px',
-                        padding: '12px 14px'
-                      }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <Code2 size={15} color="#818cf8" />
-                            <span style={{ color: '#818cf8', fontWeight: 800, fontSize: '11.5px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                              Diagnóstico Técnico & Causa Raíz Preliminar
-                            </span>
-                          </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }} className="no-export">
-                            <button
-                              onClick={() => editingSection === 'technicalDiagnosis' ? handleCancelEdit() : handleStartEdit('technicalDiagnosis', currentTicket.sections?.technicalDiagnosis || '')}
-                              style={{
-                                background: editingSection === 'technicalDiagnosis' ? 'rgba(129, 140, 248, 0.2)' : 'rgba(255, 255, 255, 0.05)',
-                                border: '1px solid #282e33',
-                                borderRadius: '4px',
-                                padding: '2px 7px',
-                                color: editingSection === 'technicalDiagnosis' ? '#818cf8' : '#8c9bab',
-                                fontSize: '11px',
-                                fontWeight: 600,
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                transition: 'all 0.15s'
-                              }}
-                              title="Editar diagnóstico técnico"
-                            >
-                              <Pencil size={10} /> Editar
-                            </button>
-                            <button
-                              onClick={() => copyToClipboard(getSectionCopyText('technicalDiagnosis'), 'technicalDiagnosis')}
-                              style={{
-                                background: 'transparent',
-                                border: 'none',
-                                color: copiedSection === 'technicalDiagnosis' ? '#4ade80' : '#8c9bab',
-                                cursor: 'pointer',
-                                fontSize: '11px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                fontWeight: 600,
-                                padding: '2px 6px',
-                                borderRadius: '3px'
-                              }}
-                              title="Copiar Diagnóstico con Icono"
-                            >
-                              {copiedSection === 'technicalDiagnosis' ? <Check size={11} /> : <Copy size={11} />}
-                              {copiedSection === 'technicalDiagnosis' ? 'Copiado' : 'Copiar'}
-                            </button>
-                          </div>
-                        </div>
-                        {editingSection === 'technicalDiagnosis' ? (
-                          <SectionEditForm
-                            value={editDraftValue}
-                            onChange={setEditDraftValue}
-                            onSave={() => handleSaveEdit('technicalDiagnosis')}
-                            onCancel={handleCancelEdit}
-                          />
-                        ) : (
-                          <div style={{ fontSize: '13px', lineHeight: 1.6, color: '#dee4ea' }}>
-                            {currentTicket.sections?.technicalDiagnosis}
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Section 7: Criterios de Aceptación (DoD) */}
-                    {(currentTicket.sections?.acceptanceCriteria || editingSection === 'acceptanceCriteria') && (
+                    {/* Section 3: Resultado Esperado */}
+                    {(currentTicket.sections?.expectedResult || currentTicket.sections?.acceptanceCriteria || currentTicket.sections?.expectedBehavior || currentTicket.sections?.behavior || editingSection === 'expectedResult') && (
                       <div style={{
                         background: '#161a1d',
                         border: '1px solid #282e33',
@@ -3821,18 +3262,18 @@ export default function JiraEscalationView() {
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <CheckSquare size={15} color="#2dd4bf" />
                             <span style={{ color: '#2dd4bf', fontWeight: 800, fontSize: '11.5px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                              Criterios de Aceptación (DoD)
+                              Resultado Esperado
                             </span>
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }} className="no-export">
                             <button
-                              onClick={() => editingSection === 'acceptanceCriteria' ? handleCancelEdit() : handleStartEdit('acceptanceCriteria', currentTicket.sections?.acceptanceCriteria || '')}
+                              onClick={() => editingSection === 'expectedResult' ? handleCancelEdit() : handleStartEdit('expectedResult', currentTicket.sections?.expectedResult || (currentTicket.sections?.acceptanceCriteria ? currentTicket.sections.acceptanceCriteria.replace(/^\[\s*[x ]?\s*\]\s*/gim, '') : '') || currentTicket.sections?.expectedBehavior || currentTicket.sections?.behavior || '')}
                               style={{
-                                background: editingSection === 'acceptanceCriteria' ? 'rgba(45, 212, 191, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+                                background: editingSection === 'expectedResult' ? 'rgba(45, 212, 191, 0.2)' : 'rgba(255, 255, 255, 0.05)',
                                 border: '1px solid #282e33',
                                 borderRadius: '4px',
                                 padding: '2px 7px',
-                                color: editingSection === 'acceptanceCriteria' ? '#2dd4bf' : '#8c9bab',
+                                color: editingSection === 'expectedResult' ? '#2dd4bf' : '#8c9bab',
                                 fontSize: '11px',
                                 fontWeight: 600,
                                 cursor: 'pointer',
@@ -3841,16 +3282,16 @@ export default function JiraEscalationView() {
                                 gap: '4px',
                                 transition: 'all 0.15s'
                               }}
-                              title="Editar criterios de aceptación DoD"
+                              title="Editar resultado esperado"
                             >
                               <Pencil size={10} /> Editar
                             </button>
                             <button
-                              onClick={() => copyToClipboard(getSectionCopyText('acceptanceCriteria'), 'acceptanceCriteria')}
+                              onClick={() => copyToClipboard(getSectionCopyText('expectedResult'), 'expectedResult')}
                               style={{
                                 background: 'transparent',
                                 border: 'none',
-                                color: copiedSection === 'acceptanceCriteria' ? '#4ade80' : '#8c9bab',
+                                color: copiedSection === 'expectedResult' ? '#4ade80' : '#8c9bab',
                                 cursor: 'pointer',
                                 fontSize: '11px',
                                 display: 'flex',
@@ -3860,22 +3301,27 @@ export default function JiraEscalationView() {
                                 padding: '2px 6px',
                                 borderRadius: '3px'
                               }}
-                              title="Copiar DoD con Icono"
+                              title="Copiar Resultado Esperado con Icono"
                             >
-                              {copiedSection === 'acceptanceCriteria' ? <Check size={11} /> : <Copy size={11} />}
-                              {copiedSection === 'acceptanceCriteria' ? 'Copiado' : 'Copiar'}
+                              {copiedSection === 'expectedResult' ? <Check size={11} /> : <Copy size={11} />}
+                              {copiedSection === 'expectedResult' ? 'Copiado' : 'Copiar'}
                             </button>
                           </div>
                         </div>
-                        {editingSection === 'acceptanceCriteria' ? (
+                        {editingSection === 'expectedResult' ? (
                           <SectionEditForm
                             value={editDraftValue}
                             onChange={setEditDraftValue}
-                            onSave={() => handleSaveEdit('acceptanceCriteria')}
+                            onSave={() => handleSaveEdit('expectedResult')}
                             onCancel={handleCancelEdit}
                           />
                         ) : (
-                          renderAcceptanceCriteria(currentTicket.sections?.acceptanceCriteria)
+                          <div style={{ fontSize: '13px', lineHeight: 1.6, color: '#dee4ea' }}>
+                            {currentTicket.sections?.expectedResult
+                              || currentTicket.sections?.acceptanceCriteria?.replace(/^\[\s*[x ]?\s*\]\s*/gim, '')
+                              || currentTicket.sections?.expectedBehavior
+                              || currentTicket.sections?.behavior}
+                          </div>
                         )}
                       </div>
                     )}
@@ -3896,7 +3342,7 @@ export default function JiraEscalationView() {
                             </span>
                           </div>
                           <span style={{ fontSize: '10.5px', color: '#8c9bab' }} className="no-export">
-                            Usa <strong>Copiar</strong> para pegarlas directo en Jira con <kbd style={{ background: '#282e33', padding: '1px 4px', borderRadius: '3px', fontSize: '9.5px', color: '#38bdf8' }}>Ctrl+V</kbd>
+                            Al pulsar <strong>Copiar Ticket</strong> se incluyen todas las capturas, o usa <strong>Copiar</strong> para pegarlas individualmente.
                           </span>
                         </div>
 

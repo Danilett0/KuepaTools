@@ -1,24 +1,32 @@
 export const DEFAULT_AI_MODEL = 'gemini-3.5-flash-lite';
+export const DEFAULT_AI_TIMEOUT_MS = 90000;
+export const DEFAULT_MAX_RETRIES = 5;
 
 export const AVAILABLE_AI_MODELS = [
-  { id: 'gemini-3.5-flash-lite', label: 'Gemini 3.5 Flash Lite', tag: 'Recomendado (Ultrarrápido)', shortName: 'Flash Lite' },
-  { id: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash', tag: 'Equilibrado (Estable)', shortName: 'Flash 3.5' }
+  { id: 'gemini-3.5-flash-lite', label: 'Gemini 3.5 Flash Lite', tag: 'Único Activo (Ultrarrápido)', shortName: 'Flash Lite' }
 ];
 
-export const resolveSafeAiModel = (model = DEFAULT_AI_MODEL) => {
-  if (!model || model === 'gemini-2.5-flash-lite' || model === 'gemini-3.5-flash-lite') {
-    return 'gemini-3.5-flash-lite';
-  }
-  if (model === 'gemini-3.5-flash') {
-    return 'gemini-3.5-flash';
-  }
-  // Modelos obsoletos o saturados caen al modelo estable
-  return 'gemini-3.5-flash';
+export const resolveSafeAiModel = (_model = DEFAULT_AI_MODEL) => {
+  return DEFAULT_AI_MODEL;
 };
 
 export const getApiUrl = (model = DEFAULT_AI_MODEL) => {
   const safeModel = resolveSafeAiModel(model);
   return `https://generativelanguage.googleapis.com/v1beta/models/${safeModel}:generateContent`;
+};
+
+export const prepareRetryHistory = (history, targetIndex) => {
+  if (!Array.isArray(history) || history.length === 0) {
+    return [];
+  }
+  if (typeof targetIndex !== 'number' || targetIndex < 0 || targetIndex >= history.length) {
+    return [];
+  }
+  const targetMsg = history[targetIndex];
+  if (!targetMsg || typeof targetMsg !== 'object' || targetMsg.role !== 'user') {
+    return [];
+  }
+  return history.slice(0, targetIndex + 1);
 };
 
 const SYSTEM_PROMPT = `
@@ -79,6 +87,11 @@ REGLAS CRÍTICAS sobre el contexto:
      * Genera DIRECTAMENTE una acción "remove_user" con el group_id y student_id para CADA grupo de CADA estudiante.
      * Evalúa a cada estudiante por separado: si un estudiante tiene 0 grupos ("Ninguno registrado"), no emitas acciones para él, pero genera las acciones para TODOS los estudiantes que sí tengan grupos inscritos. NUNCA respondas que ninguno tiene grupos basándote en que uno de ellos esté sin grupos.
 
+6. MÓDULO 0 / M0 / ALFA / ALPHA / INTRODUCCIÓN:
+   - "Módulo 0" suele nombrarse "Módulo 0", "Módulo Alfa", "Módulo Alpha", tener código de materia que comienza con "M0-" (ej. "M0-TLAA", "M0-TLCF", "AE-C0-") o pertenecer al nivel "Introducción" o "Módulo 0".
+   - Al retirar o buscar "módulo 0", examina el nombre del grupo, la "Materia" ("M0-...", etc.) y el "Nivel" ("Introducción", "Módulo 0").
+   - Si el usuario solicita una acción sobre una lista de estudiantes y algunos de ellos no tienen la materia/grupo inscrita en la alianza actual, emite las acciones para los que sí la tengan e incluye en "message" una nota explicativa clara indicando cuáles estudiantes no tenían dicha materia inscrita en la alianza activa.
+
 ## Flujo de Trabajo:
 1. IMPORTANTE: Analiza TODA la conversación para mantener el contexto (ej. saber a qué estudiante o programa se refiere el usuario), pero genera las acciones (type: "ACTIONS") ÚNICAMENTE para la ÚLTIMA petición del usuario. NUNCA acumules ni repitas acciones de mensajes anteriores.
 2. Si la petición requiere consultar grupos actuales (por traslado de materias o eliminación de un cuatrimestre entero) Y los grupos NO están en el contexto del sistema, emite PRIMERO el \`type: "QUERY"\` con \`table: "grupos_estudiante"\`.
@@ -103,7 +116,7 @@ Estructura estricta JSON:
       "status_name": "string (opcional)"
     }
   ],
-  "message": "string (obligatorio si type es INCOMPLETE o INFO)",
+  "message": "string (obligatorio si type es INCOMPLETE o INFO, opcional en ACTIONS para notas o advertencias al usuario)",
   "query": {
     "table": "alianzas" | "programas" | "estados" | "grupos_estudiante",
     "searchTerm": "string (opcional)",
@@ -132,9 +145,9 @@ const wait = (ms, signal) => new Promise((resolve, reject) => {
 
 export const analyzeIntentWithGemini = async (chatHistory, apiKey, options = {}) => {
   const { 
-    maxRetries = 3, 
+    maxRetries = DEFAULT_MAX_RETRIES, 
     baseDelay = 1500, 
-    timeoutMs = 40000, 
+    timeoutMs = DEFAULT_AI_TIMEOUT_MS, 
     onRetry = null, 
     model = DEFAULT_AI_MODEL, 
     signal = null 
@@ -161,12 +174,12 @@ export const analyzeIntentWithGemini = async (chatHistory, apiKey, options = {})
     },
     contents: formattedContents,
     generationConfig: {
-      responseMimeType: "application/json",
-      temperature: 0.0
+      responseMimeType: "application/json"
     }
   };
 
-  const apiUrl = getApiUrl(model);
+  let currentModel = resolveSafeAiModel(model);
+  let apiUrl = getApiUrl(currentModel);
   let lastError = null;
 
   for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
@@ -226,7 +239,7 @@ export const analyzeIntentWithGemini = async (chatHistory, apiKey, options = {})
           const delay = Math.round(baseDelay * Math.pow(1.8, attempt - 1) + Math.random() * 400);
           console.warn(`[Gemini API] Error ${statusCode} (Alta demanda/saturación). Reintentando (${attempt}/${maxRetries}) en ${delay}ms...`);
           if (onRetry) {
-            onRetry({ attempt, maxRetries, delay, status: statusCode });
+            onRetry({ attempt, maxRetries, delay, status: statusCode, fallbackModel: currentModel });
           }
           await wait(delay, signal);
           continue;

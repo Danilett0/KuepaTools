@@ -371,6 +371,25 @@ export function sortAcademicLevels(levels = []) {
 }
 
 /**
+ * Retorna el último nivel académico alcanzado por el estudiante a partir de una lista ordenada de niveles.
+ * Prioriza niveles pedagógicos numerados (Cuatrimestres, Ciclos, Semestres, Módulos)
+ * descartando categorías no pedagógicas como 'Sin nivel' u 'Otros' si existen niveles formales.
+ *
+ * @param {string[]} levelsList - Lista de niveles (idealmente ordenada por sortAcademicLevels)
+ * @returns {string} El último nivel académico o 'ALL' si no hay niveles.
+ */
+export function getLatestAcademicLevel(levelsList = []) {
+  if (!Array.isArray(levelsList) || levelsList.length === 0) return 'ALL';
+  const pedagogicalLevels = levelsList.filter(
+    (lvl) => lvl && !/(sin nivel|general|otros|otro)/i.test(normalizeText(lvl))
+  );
+  if (pedagogicalLevels.length > 0) {
+    return pedagogicalLevels[pedagogicalLevels.length - 1];
+  }
+  return levelsList[levelsList.length - 1] || 'ALL';
+}
+
+/**
  * Genera el resumen del estudiante con formato e iconos limpios para tickets de soporte.
  *
  * @param {object} student

@@ -493,25 +493,57 @@ h1, h2, h3, h4, h5, h6 {
 .estudiante360-topbar {
   display: grid;
   grid-template-columns: minmax(0, 1fr) max-content;
-  gap: 16px;
-  align-items: stretch;
+  gap: 32px;
+  align-items: flex-start;
 }
 
 @media (max-width: 960px) {
   .estudiante360-topbar {
     grid-template-columns: 1fr;
+    gap: 18px;
   }
+}
+
+/* ─── Input Underline Minimalista Estudiante 360 ─── */
+.estudiante360-search-underline {
+  width: 100%;
+  background: transparent !important;
+  border: none !important;
+  border-bottom: 2px solid var(--primary) !important;
+  border-radius: 0 !important;
+  color: var(--on-surface) !important;
+  font-size: 13.5px !important;
+  font-family: 'Space Grotesk', monospace !important;
+  padding: 6px 32px 6px 2px !important;
+  box-shadow: none !important;
+  outline: none !important;
+  box-sizing: border-box !important;
+}
+
+.estudiante360-search-underline:focus,
+.estudiante360-search-underline:active,
+.estudiante360-search-underline:focus-visible {
+  outline: none !important;
+  border: none !important;
+  border-bottom: 2px solid var(--primary) !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+
+.estudiante360-search-underline::placeholder {
+  color: rgba(255, 255, 255, 0.28) !important;
+  font-family: 'Space Grotesk', monospace !important;
 }
 
 /* ─── Grid de Grupos y Asignaturas en 2 Columnas (Estudiante 360) ─── */
 .estudiante360-groups-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  gap: 12px;
   overflow-y: auto;
-  max-height: min(360px, calc(100vh - 390px));
+  max-height: min(440px, calc(100vh - 380px));
   padding-right: 6px;
-  padding-bottom: 2px;
+  padding-bottom: 4px;
   scrollbar-width: thin;
   scrollbar-color: var(--primary) rgba(255, 255, 255, 0.05);
 }
