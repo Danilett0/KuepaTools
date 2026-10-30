@@ -39,7 +39,7 @@ import { useLocalStorage } from '../../hooks/useLocalStorage';
 import { useAppStore } from '../../store/useAppStore';
 import { getGlobalSetting } from '../../services/settingsService';
 import { processJiraEscalation, compileDescription, compileDescriptionHtml, generateSlackSummaryWithAI } from '../../services/jiraEscalationService';
-import { exportTicketAsImage, exportTicketAsPdf } from '../../services/ticketExportService';
+import { exportTicketAsImage, exportTicketAsPdf, copyTextToClipboard } from '../../services/ticketExportService';
 import { DEFAULT_AI_MODEL, AVAILABLE_AI_MODELS } from '../../services/aiService';
 import { isTableContent, sanitizeTableOrDump, convertMarkdownTablesToJira, parseMarkdownTable } from '../../services/tableSanitizerService';
 import { processImageFile, copyImageToClipboard, downloadImage, MAX_ATTACHMENTS_PER_TICKET } from '../../services/imageCompressionService';
@@ -1104,6 +1104,7 @@ export default function JiraEscalationView() {
   const [isExporting, setIsExporting] = useState(null); // null | 'image' | 'pdf'
   const [isGeneratingSlackSummary, setIsGeneratingSlackSummary] = useState(false);
   const ticketExportRef = useRef(null);
+  const cachedSlackSummaryRef = useRef({ key: null, text: '' });
 
   // Cerrar modal de imagen con tecla Escape
   useEffect(() => {
@@ -1201,18 +1202,34 @@ export default function JiraEscalationView() {
 
   const handleCopySlackSummary = async () => {
     if (!currentTicket || isGeneratingSlackSummary) return;
-    try {
-      setIsGeneratingSlackSummary(true);
-      const summaryText = await generateSlackSummaryWithAI(currentTicket, apiKey, { model: aiModel });
-      await navigator.clipboard.writeText(summaryText);
+
+    const ticketKey = `${currentTicket.summary || ''}_${currentTicket.sections?.context || ''}`;
+    let summaryText = '';
+
+    // Si ya fue sintetizado previamente para este ticket, reutilizamos el texto directamente
+    if (cachedSlackSummaryRef.current?.key === ticketKey && cachedSlackSummaryRef.current?.text) {
+      summaryText = cachedSlackSummaryRef.current.text;
+    } else {
+      try {
+        setIsGeneratingSlackSummary(true);
+        summaryText = await generateSlackSummaryWithAI(currentTicket, apiKey, { model: aiModel });
+        cachedSlackSummaryRef.current = { key: ticketKey, text: summaryText };
+      } catch (err) {
+        console.error("Error al generar resumen para Slack con IA:", err);
+        toast.error("Error al generar el resumen para Slack.");
+        return;
+      } finally {
+        setIsGeneratingSlackSummary(false);
+      }
+    }
+
+    const copied = await copyTextToClipboard(summaryText);
+    if (copied) {
       setCopiedSection('slack');
       toast.success("Resumen para Slack copiado al portapapeles.");
       setTimeout(() => setCopiedSection(null), 2000);
-    } catch (err) {
-      console.error("Error al generar resumen para Slack:", err);
-      toast.error("Error al generar el resumen para Slack.");
-    } finally {
-      setIsGeneratingSlackSummary(false);
+    } else {
+      toast.warn("Resumen generado. Haz clic en la ventana y presiona de nuevo para copiar al portapapeles.");
     }
   };
   
@@ -1493,14 +1510,18 @@ export default function JiraEscalationView() {
         }
       }
 
-      await navigator.clipboard.writeText(text);
-      setCopiedSection(sectionKey);
-      if (sectionKey === 'full' && hasAttachments) {
-        toast.info("Texto del ticket copiado. Usa el botón 'Copiar' de cada imagen si tu navegador no soporta pegado conjunto.");
+      const copied = await copyTextToClipboard(text);
+      if (copied) {
+        setCopiedSection(sectionKey);
+        if (sectionKey === 'full' && hasAttachments) {
+          toast.info("Texto del ticket copiado. Usa el botón 'Copiar' de cada imagen si tu navegador no soporta pegado conjunto.");
+        } else {
+          toast.success("Copiado al portapapeles");
+        }
+        setTimeout(() => setCopiedSection(null), 2000);
       } else {
-        toast.success("Copiado al portapapeles");
+        toast.error("Error al copiar al portapapeles");
       }
-      setTimeout(() => setCopiedSection(null), 2000);
     } catch {
       toast.error("Error al copiar");
     }

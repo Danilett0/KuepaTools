@@ -1,4 +1,4 @@
-import { toPng } from 'html-to-image';
+import { toPng, toBlob } from 'html-to-image';
 import { jsPDF } from 'jspdf';
 
 /**
@@ -28,6 +28,7 @@ export async function exportTicketAsImage(node, summary = '') {
     cacheBust: true,
     pixelRatio: 2,
     backgroundColor: '#1d2125',
+    skipFonts: true,
     filter: (domNode) => {
       // Ocultar botones interactivos de copiado en la imagen final
       if (domNode?.classList?.contains('no-export') || domNode?.dataset?.noExport === 'true') {
@@ -48,6 +49,85 @@ export async function exportTicketAsImage(node, summary = '') {
 }
 
 /**
+ * Copia un elemento DOM directamente al portapapeles como una imagen PNG de alta resolución (2x)
+ * excluyendo botones interactivos u otros elementos marcados con .no-export o data-no-export="true".
+ *
+ * @param {HTMLElement} node - Elemento DOM a capturar
+ * @param {Object} [options={}]
+ * @param {string} [options.backgroundColor='#090d16'] - Fondo sólido para evitar transparencias extrañas
+ * @param {number} [options.pixelRatio=2] - Factor de resolución nítido (2x)
+ * @param {boolean} [options.skipFonts=true] - Omite embeber fuentes remotas para evitar SecurityError en CSSStyleSheet
+ * @param {Function} [options.filter] - Función filtro opcional
+ * @param {Function} [options.toBlobFn] - Inyección opcional de toBlob para tests
+ * @returns {Promise<boolean>}
+ */
+export async function copyElementAsImage(node, options = {}) {
+  if (!node || typeof node !== 'object') {
+    throw new Error("No se proporcionó el elemento DOM a exportar.");
+  }
+
+  if (typeof navigator === 'undefined' || !navigator.clipboard?.write || typeof window === 'undefined' || !window.ClipboardItem) {
+    throw new Error("El portapapeles de imágenes no es compatible con este entorno.");
+  }
+
+  const {
+    backgroundColor = '#090d16',
+    pixelRatio = 2,
+    skipFonts = true,
+    filter = (domNode) => {
+      if (domNode?.classList?.contains('no-export') || domNode?.dataset?.noExport === 'true') {
+        return false;
+      }
+      return true;
+    },
+    toBlobFn = toBlob
+  } = options;
+
+  let blob = null;
+  if (typeof toBlobFn === 'function') {
+    blob = await toBlobFn(node, {
+      cacheBust: true,
+      pixelRatio,
+      backgroundColor,
+      skipFonts,
+      filter,
+      style: {
+        margin: '0',
+        ...(options.style || {})
+      }
+    });
+  }
+
+  if (!blob && typeof toPng === 'function') {
+    const dataUrl = await toPng(node, {
+      cacheBust: true,
+      pixelRatio,
+      backgroundColor,
+      skipFonts,
+      filter,
+      style: {
+        margin: '0',
+        ...(options.style || {})
+      }
+    });
+    if (dataUrl) {
+      const res = await fetch(dataUrl);
+      blob = await res.blob();
+    }
+  }
+
+  if (!blob) {
+    throw new Error("No se pudo generar la imagen a partir del elemento.");
+  }
+
+  await navigator.clipboard.write([
+    new window.ClipboardItem({ 'image/png': blob })
+  ]);
+
+  return true;
+}
+
+/**
  * Exporta el contenedor del ticket como un documento PDF profesional
  */
 export async function exportTicketAsPdf(node, summary = '') {
@@ -60,6 +140,7 @@ export async function exportTicketAsPdf(node, summary = '') {
     cacheBust: true,
     pixelRatio: 2,
     backgroundColor: '#1d2125',
+    skipFonts: true,
     filter: (domNode) => {
       if (domNode?.classList?.contains('no-export') || domNode?.dataset?.noExport === 'true') {
         return false;
@@ -105,4 +186,96 @@ export async function exportTicketAsPdf(node, summary = '') {
   pdf.save(filename);
 
   return filename;
+}
+
+/**
+ * Copia texto plano al portapapeles de manera resiliente.
+ * Soporta navigator.clipboard.writeText moderno con recuperación de foco
+ * y fallback automático mediante document.execCommand('copy') para entornos
+ * donde el foco de la ventana se perdió durante una operación asíncrona o
+ * restricciones del navegador (e.g. NotAllowedError: Document is not focused).
+ *
+ * @param {string|number} text - Texto a copiar
+ * @param {Object} [options={}]
+ * @param {Function} [options.writeTextFn] - Inyección opcional para testing de navigator.clipboard.writeText
+ * @param {Function} [options.execCommandFn] - Inyección opcional para testing de document.execCommand
+ * @returns {Promise<boolean>} true si se copió exitosamente, false en caso contrario
+ */
+export async function copyTextToClipboard(text, options = {}) {
+  const textToCopy = text === null || text === undefined ? '' : String(text);
+  if (!textToCopy) return false;
+
+  const { writeTextFn, execCommandFn } = options;
+
+  // 1. Intentar recuperar el foco de la ventana si no está enfocada
+  if (typeof window !== 'undefined' && typeof window.focus === 'function') {
+    try {
+      if (typeof document !== 'undefined' && typeof document.hasFocus === 'function' && !document.hasFocus()) {
+        window.focus();
+      }
+    } catch {
+      // Ignorar restricciones del navegador sobre window.focus()
+    }
+  }
+
+  // 2. Método principal: navigator.clipboard.writeText
+  const hasClipboardApi = typeof writeTextFn === 'function' || (
+    typeof navigator !== 'undefined' &&
+    navigator.clipboard &&
+    typeof navigator.clipboard.writeText === 'function'
+  );
+
+  if (hasClipboardApi) {
+    try {
+      if (typeof writeTextFn === 'function') {
+        await writeTextFn(textToCopy);
+      } else {
+        await navigator.clipboard.writeText(textToCopy);
+      }
+      return true;
+    } catch (clipboardErr) {
+      if (typeof console !== 'undefined' && console.warn) {
+        console.warn("navigator.clipboard.writeText falló (posible falta de foco o permisos). Probando fallback:", clipboardErr?.message || clipboardErr);
+      }
+    }
+  }
+
+  // 3. Fallback: elemento textarea temporal + document.execCommand('copy')
+  if (typeof document !== 'undefined' && typeof document.createElement === 'function' && document.body) {
+    try {
+      const textArea = document.createElement('textarea');
+      textArea.value = textToCopy;
+      textArea.setAttribute('readonly', '');
+      textArea.style.position = 'fixed';
+      textArea.style.top = '0';
+      textArea.style.left = '-9999px';
+      textArea.style.opacity = '0';
+      textArea.style.pointerEvents = 'none';
+
+      document.body.appendChild(textArea);
+      if (typeof textArea.focus === 'function') {
+        textArea.focus({ preventScroll: true });
+      }
+      if (typeof textArea.select === 'function') {
+        textArea.select();
+      }
+      if (typeof textArea.setSelectionRange === 'function') {
+        textArea.setSelectionRange(0, textToCopy.length);
+      }
+
+      const execCopy = execCommandFn || ((cmd) => document.execCommand(cmd));
+      const successful = Boolean(execCopy('copy'));
+      document.body.removeChild(textArea);
+
+      if (successful) {
+        return true;
+      }
+    } catch (fallbackErr) {
+      if (typeof console !== 'undefined' && console.warn) {
+        console.warn("Fallback execCommand('copy') no disponible o denegado:", fallbackErr?.message || fallbackErr);
+      }
+    }
+  }
+
+  return false;
 }

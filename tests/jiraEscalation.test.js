@@ -130,4 +130,57 @@ describe('Jira Escalation — Portapapeles Enriquecido HTML con Imágenes (compi
     const htmlWithoutAtts = compileDescriptionHtml(sampleSections, []);
     assert.equal(htmlWithoutAtts.includes('<img'), false);
   });
+
+  test('compila tablas Markdown a etiquetas semánticas <table> en HTML en vez de dejarlas como texto plano en <p>', () => {
+    const tableSections = {
+      context: 'Fallo de acceso',
+      validationData: '| Parámetro | Valor |\n| --- | --- |\n| URL Afectada | https://sis.kuepa.com/test |\n| ObjectID Evaluado | 6a1f067d4306bf1859c759d6 |',
+      expectedResult: 'Acceso restringido'
+    };
+
+    const html = compileDescriptionHtml(tableSections);
+    
+    // Debe incluir etiquetas de tabla HTML reales
+    assert.ok(html.includes('<table'), 'Debe contener la etiqueta <table');
+    assert.ok(html.includes('<thead'), 'Debe contener <thead');
+    assert.ok(html.includes('<th'), 'Debe contener celdas de encabezado <th');
+    assert.ok(html.includes('>Parámetro</th>'), 'Debe contener el encabezado Parámetro');
+    assert.ok(html.includes('>Valor</th>'), 'Debe contener el encabezado Valor');
+    assert.ok(html.includes('<tbody'), 'Debe contener <tbody');
+    assert.ok(html.includes('<td'), 'Debe contener celdas de datos <td');
+    assert.ok(html.includes('>URL Afectada</td>'), 'Debe contener la celda URL Afectada');
+    assert.ok(html.includes('https://sis.kuepa.com/test'), 'Debe contener el valor de la celda');
+    assert.ok(html.includes('6a1f067d4306bf1859c759d6'), 'Debe contener el ObjectId');
+
+    // NO debe envolver la tabla Markdown cruda dentro de un párrafo <p>|
+    assert.equal(html.includes('<p>| Parámetro'), false, 'No debe encerrar la tabla Markdown dentro de una etiqueta <p>');
+  });
+
+  test('compila contenido mixto (texto introductorio + tabla Markdown) correctamente', () => {
+    const mixedSections = {
+      context: 'Descripción del contexto.',
+      validationData: 'Valores recolectados en la consola:\n\n| Variable | Estado |\n| --- | --- |\n| RBAC | Fallido |\n| Auth | OK |',
+      expectedResult: 'Resultado esperado.'
+    };
+
+    const html = compileDescriptionHtml(mixedSections);
+    assert.ok(html.includes('<p>Valores recolectados en la consola:</p>'));
+    assert.ok(html.includes('<table'));
+    assert.ok(html.includes('>Variable</th>'));
+    assert.ok(html.includes('>RBAC</td>'));
+  });
+
+  test('escapa caracteres especiales en celdas de la tabla para prevenir inyección HTML', () => {
+    const xssSections = {
+      context: 'Prueba seguridad',
+      validationData: '| Parámetro | Valor |\n| --- | --- |\n| Script | <script>alert("xss")</script> |\n| Comparación | a < b & c > d |',
+      expectedResult: 'Validado'
+    };
+
+    const html = compileDescriptionHtml(xssSections);
+    assert.ok(html.includes('&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;'));
+    assert.ok(html.includes('a &lt; b &amp; c &gt; d'));
+    assert.equal(html.includes('<script>'), false);
+  });
 });
+

@@ -1,6 +1,6 @@
 import { DEFAULT_AI_MODEL, AVAILABLE_AI_MODELS, getApiUrl } from './aiService.js';
 import { findUser } from './usuariosService.js';
-import { sanitizeTableOrDump, convertMarkdownTablesToJira } from './tableSanitizerService.js';
+import { sanitizeTableOrDump, convertMarkdownTablesToJira, parseMarkdownTable } from './tableSanitizerService.js';
 
 const JIRA_SYSTEM_PROMPT = `
 Eres un Líder Técnico de Soporte N3 y QA Lead especializado en plataformas educativas y sistemas empresariales.
@@ -248,19 +248,107 @@ export function compileDescription(sections, format = 'markdown', attachments = 
 }
 
 /**
- * Convierte un texto con saltos de línea a estructura de párrafos HTML seguros
+ * Escapa caracteres HTML para inyección segura
  */
-function textToHtmlParagraphs(text) {
-  if (!text) return '';
-  const escaped = text
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 
-  const blocks = escaped.split(/\n\s*\n/);
-  return blocks
-    .map(block => `<p>${block.trim().replace(/\n/g, '<br />')}</p>`)
-    .join('\n');
+/**
+ * Convierte una tabla Markdown (| col1 | col2 |) en una tabla HTML semántica <table>
+ * con estilos inline compatibles con Jira Cloud y editores enriquecidos.
+ */
+function markdownTableToHtml(markdownTableStr) {
+  const parsed = parseMarkdownTable(markdownTableStr);
+  if (!parsed || !parsed.headers || parsed.headers.length === 0) return '';
+
+  const { headers, rows } = parsed;
+  const ths = headers
+    .map(h => `<th style="border: 1px solid #dfe1e6; padding: 6px 10px; background-color: #f4f5f7; font-weight: bold; text-align: left;">${escapeHtml(h)}</th>`)
+    .join('');
+
+  const trs = rows.map(row => {
+    const tds = row.map(cell => `<td style="border: 1px solid #dfe1e6; padding: 6px 10px;">${escapeHtml(cell)}</td>`).join('');
+    return `<tr>${tds}</tr>`;
+  }).join('\n');
+
+  return `<table style="border-collapse: collapse; width: 100%; border: 1px solid #dfe1e6; margin: 8px 0; font-size: 12px;">\n<thead>\n<tr>${ths}</tr>\n</thead>\n<tbody>\n${trs}\n</tbody>\n</table>`;
+}
+
+/**
+ * Convierte un texto con saltos de línea y potenciales tablas Markdown
+ * a estructura HTML semántica (párrafos <p> y tablas <table> según corresponda).
+ */
+function sectionContentToHtml(text) {
+  if (!text) return '';
+  const rawLines = text.split(/\r?\n/);
+  const blocks = [];
+  let currentTableLines = [];
+  let currentTextLines = [];
+
+  const flushText = () => {
+    if (currentTextLines.length > 0) {
+      const blockStr = currentTextLines.join('\n').trim();
+      if (blockStr) {
+        const subBlocks = blockStr.split(/\n\s*\n/);
+        for (const sb of subBlocks) {
+          const trimmed = sb.trim();
+          if (trimmed) {
+            blocks.push(`<p>${escapeHtml(trimmed).replace(/\n/g, '<br />')}</p>`);
+          }
+        }
+      }
+      currentTextLines = [];
+    }
+  };
+
+  const flushTable = () => {
+    if (currentTableLines.length > 0) {
+      const tableStr = currentTableLines.join('\n');
+      const tableHtml = markdownTableToHtml(tableStr);
+      if (tableHtml) {
+        blocks.push(tableHtml);
+      } else {
+        currentTextLines.push(...currentTableLines);
+        flushText();
+      }
+      currentTableLines = [];
+    }
+  };
+
+  for (let i = 0; i < rawLines.length; i++) {
+    const line = rawLines[i];
+    const trimmed = line.trim();
+
+    const isTableLine = (trimmed.startsWith('|') && trimmed.endsWith('|')) ||
+                        (/^\|?\s*[-:\s|]+\s*\|?$/.test(trimmed) && trimmed.includes('-') && currentTableLines.length > 0);
+
+    if (isTableLine) {
+      flushText();
+      currentTableLines.push(trimmed);
+    } else {
+      flushTable();
+      currentTextLines.push(line);
+    }
+  }
+
+  flushTable();
+  flushText();
+
+  return blocks.join('\n');
+}
+
+/**
+ * Alias de compatibilidad hacia atrás
+ */
+function textToHtmlParagraphs(text) {
+  return sectionContentToHtml(text);
 }
 
 /**
@@ -298,17 +386,17 @@ export function compileDescriptionHtml(sections, attachments = []) {
 
   if (context) {
     htmlParts.push(`<h3>📄 Contexto del Caso</h3>`);
-    htmlParts.push(textToHtmlParagraphs(context));
+    htmlParts.push(sectionContentToHtml(context));
   }
 
   if (validationData) {
     htmlParts.push(`<h3>💾 Datos de Validación</h3>`);
-    htmlParts.push(textToHtmlParagraphs(validationData));
+    htmlParts.push(sectionContentToHtml(validationData));
   }
 
   if (expectedResult) {
     htmlParts.push(`<h3>🎯 Resultado Esperado</h3>`);
-    htmlParts.push(textToHtmlParagraphs(expectedResult));
+    htmlParts.push(sectionContentToHtml(expectedResult));
   }
 
   if (attachments && attachments.length > 0) {

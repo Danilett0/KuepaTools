@@ -1,10 +1,23 @@
-import { analyzeIntentWithGemini } from './aiService';
-import { findUser, findUsersByIncList, findUsersByMongoIds } from './usuariosService';
-import { supabase } from './supabaseClient';
-import { ALLIANCE_IDS } from '../utils/constants';
-import { generateCommandsFromActions } from '../agent/skills';
-import { hydrateStudents } from './studentHydrator';
-import { extractMultipleSisUrls } from '../utils/academicTerms';
+import { analyzeIntentWithGemini } from './aiService.js';
+import { findUser, findUsersByIncList, findUsersByMongoIds } from './usuariosService.js';
+import { supabase } from './supabaseClient.js';
+import { ALLIANCE_IDS } from '../utils/constants.js';
+import { generateCommandsFromActions } from '../agent/skills/index.js';
+import { hydrateStudents } from './studentHydrator.js';
+import { extractMultipleSisUrls } from '../utils/academicTerms.js';
+export const DEFAULT_TICKET_CLOSINGS = [
+  'Listo por aquí. Por favor valida y nos avisas si surge cualquier duda. 🙌',
+  'Quedó listo de nuestra parte. Por favor revisa y nos comentas si necesitas algo más. ✨',
+  'Gestión finalizada con éxito. Favor verificar en plataforma y quedamos súper atentos. 🚀',
+  'Todo en orden por aquí. Por favor confirma que todo se visualice bien de tu lado. 👍',
+  'Caso resuelto. Revisa con calma y nos avisas si hace falta algún ajuste adicional. 🙌',
+  'Listo el ajuste. Cualquier novedad o inquietud, quedamos muy atentos. ✨'
+];
+
+export function getRandomTicketClosing() {
+  const index = Math.floor(Math.random() * DEFAULT_TICKET_CLOSINGS.length);
+  return DEFAULT_TICKET_CLOSINGS[index];
+}
 
 export class AgentOrchestrator {
   constructor(apiKey, alliance, options = {}) {
@@ -250,8 +263,9 @@ export class AgentOrchestrator {
 
   /**
    * Genera una respuesta concisa y profesional lista para copiar y pegar en tickets o Slack.
+   * Entrega únicamente la solución técnica ejecutada sin frases de despedida ni relleno adicional.
    */
-  async generateTicketResponse(actions) {
+  async generateTicketResponse(actions, customClosing = null) {
     if (!actions || actions.length === 0) return null;
 
     const studentIds = [...new Set(actions.map(a => a.student_id).filter(Boolean))];
@@ -295,12 +309,96 @@ export class AgentOrchestrator {
       const u = this.userCache.get(sId);
       return {
         id: sId,
-        name: u?.profile?.full_name || u?.full_name || 'el estudiante',
+        name: u?.profile?.full_name || u?.full_name || 'Estudiante',
         inc: u?.incremental_user_code || u?.raw_data?.incremental_user_code || ''
       };
     });
 
     const actionTypes = new Set(actions.map(a => a.action_type));
+    const hasEnroll = actionTypes.has('enroll_user');
+    const hasRemove = actionTypes.has('remove_user');
+    const isTraslado = hasEnroll && hasRemove;
+
+    // Detectar categorías de acción independientes
+    const categories = [];
+    if (isTraslado) {
+      categories.push('traslado');
+    } else {
+      if (hasEnroll) categories.push('enroll');
+      if (hasRemove) categories.push('remove');
+    }
+    if (actionTypes.has('change_status')) categories.push('change_status');
+    if (actionTypes.has('audit_statistics')) categories.push('audit_statistics');
+    if (actionTypes.has('recalculate_grades')) categories.push('recalculate_grades');
+    if (actionTypes.has('fix_deliverable')) categories.push('fix_deliverable');
+    if (actionTypes.has('undo_publication')) categories.push('undo_publication');
+    if (actionTypes.has('clean_cache_sislms') || actionTypes.has('clean_cache_crm')) categories.push('clean_cache');
+
+    // ── GESTIÓN MULTIACCIÓN COMPUESTA ──────────────────────────────────────────
+    if (categories.length > 1) {
+      const bullets = [];
+
+      if (categories.includes('change_status')) {
+        const statusActions = actions.filter(a => a.action_type === 'change_status');
+        const stDetails = statusActions.map(act => {
+          const s = students.find(st => st.id === act.student_id) || {};
+          const incTag = s.inc ? ` (ID: ${s.inc})` : '';
+          const progName = programMap[act.program_id] ? ` en su programa ${programMap[act.program_id]}` : '';
+          return `${s.name || 'Estudiante'}${incTag} a estado ${act.status_name || 'Actualizado'}${progName}`;
+        }).join(', ');
+        bullets.push(`• Cambio de Estado: ${stDetails}.`);
+      }
+
+      if (categories.includes('traslado')) {
+        const enrollGroups = [...new Set(actions.filter(a => a.action_type === 'enroll_user').map(a => groupMap[a.group_id] || a.group_id).filter(Boolean))];
+        const destStr = enrollGroups.length > 0 ? ` al nuevo grupo ${enrollGroups.join(', ')}` : '';
+        const names = students.map(s => `${s.name}${s.inc ? ` (ID: ${s.inc})` : ''}`).join(', ');
+        bullets.push(`• Traslado de materias: Realizado${destStr} para ${names}.`);
+      }
+
+      if (categories.includes('enroll')) {
+        const enrollGroups = [...new Set(actions.filter(a => a.action_type === 'enroll_user').map(a => groupMap[a.group_id] || a.group_id).filter(Boolean))];
+        const gStr = enrollGroups.length > 0 ? ` al grupo ${enrollGroups.join(', ')}` : '';
+        const names = students.map(s => `${s.name}${s.inc ? ` (ID: ${s.inc})` : ''}`).join(', ');
+        bullets.push(`• Inscripción: Estudiante inscrito${gStr} (${names}).`);
+      }
+
+      if (categories.includes('remove')) {
+        const removeGroups = [...new Set(actions.filter(a => a.action_type === 'remove_user').map(a => groupMap[a.group_id] || a.group_id).filter(Boolean))];
+        const gStr = removeGroups.length > 0 ? ` del grupo ${removeGroups.join(', ')}` : '';
+        const names = students.map(s => `${s.name}${s.inc ? ` (ID: ${s.inc})` : ''}`).join(', ');
+        bullets.push(`• Retiro: Estudiante retirado${gStr} (${names}).`);
+      }
+
+      if (categories.includes('audit_statistics')) {
+        const names = students.map(s => `${s.name}${s.inc ? ` (ID: ${s.inc})` : ''}`).join(', ');
+        bullets.push(`• Auditoría de estadísticas: Sincronización de progreso completada para ${names}.`);
+      }
+
+      if (categories.includes('recalculate_grades')) {
+        const names = students.map(s => `${s.name}${s.inc ? ` (ID: ${s.inc})` : ''}`).join(', ');
+        bullets.push(`• Recálculo de notas completado para ${names}.`);
+      }
+
+      if (categories.includes('fix_deliverable')) {
+        const names = students.map(s => `${s.name}${s.inc ? ` (ID: ${s.inc})` : ''}`).join(', ');
+        bullets.push(`• Entregable corregido y habilitado para ${names}.`);
+      }
+
+      if (categories.includes('undo_publication')) {
+        const gNames = [...new Set(actions.filter(a => a.action_type === 'undo_publication').map(a => groupMap[a.group_id] || a.group_id).filter(Boolean))];
+        const gStr = gNames.length > 0 ? ` para el grupo ${gNames.join(', ')}` : '';
+        bullets.push(`• Despublicación revertida${gStr}.`);
+      }
+
+      if (categories.includes('clean_cache')) {
+        bullets.push(`• Caché del sistema purgada.`);
+      }
+
+      return `✅ Solicitud gestionada con éxito.\n\nSe completaron las siguientes acciones:\n\n${bullets.join('\n')}`;
+    }
+
+    // ── ACCIONES MONOTEMÁTICAS ESPECIALIZADAS ──────────────────────────────────
 
     // 1. Cambio de estado
     if (actionTypes.has('change_status')) {
@@ -311,84 +409,167 @@ export class AgentOrchestrator {
         const stName = act.status_name || 'solicitado';
         const progName = programMap[act.program_id] ? ` en su programa ${programMap[act.program_id]}` : '';
         const incTag = student.inc ? ` (ID: ${student.inc})` : '';
-        return `✅ Estado actualizado con éxito.\n\nEl estudiante ${student.name}${incTag} ha sido actualizado a estado ${stName}${progName}.\n\nQuedamos atentos ante cualquier novedad. 🚀`;
+        return `✅ Estado actualizado con éxito.\n\nEl estudiante ${student.name}${incTag} ha sido actualizado a estado ${stName}${progName}.`;
       } else {
         const listStr = statusActions.map(act => {
           const s = students.find(st => st.id === act.student_id) || {};
           const incTag = s.inc ? ` (ID: ${s.inc})` : '';
           return `• ${s.name || 'Estudiante'}${incTag}: Estado ${act.status_name || 'Actualizado'}`;
         }).join('\n');
-        return `✅ Estados actualizados con éxito.\n\nSe procesó la actualización de estado para los siguientes estudiantes:\n\n${listStr}\n\nQuedamos atentos a cualquier novedad. 🚀`;
+        return `✅ Estados actualizados con éxito.\n\nSe procesó la actualización de estado para los siguientes estudiantes:\n\n${listStr}`;
       }
     }
 
     // 2. Auditoría de estadísticas
     if (actionTypes.has('audit_statistics')) {
-      const student = students[0] || {};
-      const incTag = student.inc ? ` (ID: ${student.inc})` : '';
       const gNames = actions.map(a => groupMap[a.group_id]).filter(Boolean);
       const groupStr = gNames.length > 0 ? ` en el grupo ${gNames.join(', ')}` : '';
-      return `✅ Progreso y estadísticas auditados con éxito.\n\nSe ejecutó la auditoría y sincronización completa para el estudiante ${student.name}${incTag}${groupStr}. Los recursos completados y avances han sido recalculados y sincronizados en la plataforma.\n\nQuedamos a su disposición. 🚀`;
+      if (students.length === 1) {
+        const student = students[0] || {};
+        const incTag = student.inc ? ` (ID: ${student.inc})` : '';
+        return `✅ Progreso y estadísticas auditados con éxito.\n\nSe ejecutó la auditoría y sincronización completa para el estudiante ${student.name}${incTag}${groupStr}. Los recursos completados y avances han sido recalculados y sincronizados en la plataforma.`;
+      } else {
+        const studentList = students.map(s => `• ${s.name}${s.inc ? ` (ID: ${s.inc})` : ''}`).join('\n');
+        return `✅ Progreso y estadísticas auditados con éxito.\n\nSe ejecutó la auditoría y sincronización completa${groupStr} para los siguientes estudiantes:\n\n${studentList}\n\nLos recursos completados y avances han sido recalculados y sincronizados en la plataforma.`;
+      }
     }
 
-    // 3. Inscripciones y Retiros
-    const hasEnroll = actionTypes.has('enroll_user');
-    const hasRemove = actionTypes.has('remove_user');
-
-    if (hasEnroll && hasRemove) {
-      const student = students[0] || {};
-      const incTag = student.inc ? ` (ID: ${student.inc})` : '';
+    // 3. Traslados (Enroll + Remove simultáneos)
+    if (isTraslado) {
+      const origGroups = [...new Set(actions.filter(a => a.action_type === 'remove_user').map(a => groupMap[a.group_id] || a.group_id).filter(Boolean))];
       const enrollGroups = [...new Set(actions.filter(a => a.action_type === 'enroll_user').map(a => groupMap[a.group_id] || a.group_id).filter(Boolean))];
-      return `✅ Traslado de materias gestionado con éxito.\n\nSe realizaron los movimientos correspondientes para el estudiante ${student.name}${incTag}, desinscribiendo de los grupos anteriores e inscribiendo en los nuevos grupos solicitados (${enrollGroups.join(', ')}).\n\nQuedamos atentos ante cualquier novedad. 🚀`;
+
+      if (students.length === 1) {
+        const student = students[0] || {};
+        const incTag = student.inc ? ` (ID: ${student.inc})` : '';
+
+        // Si hay múltiples grupos en origen o destino, desglosarlos con viñetas
+        if (origGroups.length > 1 || enrollGroups.length > 1) {
+          const origText = origGroups.length > 1
+            ? `de los siguientes grupos:\n${origGroups.map(g => `  • ${g}`).join('\n')}`
+            : (origGroups.length === 1 ? `del grupo ${origGroups[0]}` : 'de los grupos anteriores');
+          const destText = enrollGroups.length > 1
+            ? `en los siguientes nuevos grupos:\n${enrollGroups.map(g => `  • ${g}`).join('\n')}`
+            : (enrollGroups.length === 1 ? `al nuevo grupo ${enrollGroups[0]}` : 'en los nuevos grupos solicitados');
+
+          return `✅ Traslado de materias gestionado con éxito.\n\nSe realizaron los movimientos correspondientes para el estudiante ${student.name}${incTag}, desinscribiendo ${origText} e inscribiendo ${destText}.`;
+        }
+
+        const origStr = origGroups.length > 0 ? `del grupo ${origGroups.join(', ')}` : 'de los grupos anteriores';
+        const destStr = enrollGroups.length > 0 ? `al nuevo grupo ${enrollGroups.join(', ')}` : 'en los nuevos grupos solicitados';
+        return `✅ Traslado de materias gestionado con éxito.\n\nSe realizaron los movimientos correspondientes para el estudiante ${student.name}${incTag}, desinscribiendo ${origStr} e inscribiendo ${destStr}.`;
+      } else {
+        const studentLines = students.map(s => {
+          const incTag = s.inc ? ` (ID: ${s.inc})` : '';
+          const sOrig = [...new Set(actions.filter(a => a.student_id === s.id && a.action_type === 'remove_user').map(a => groupMap[a.group_id] || a.group_id).filter(Boolean))];
+          const sDest = [...new Set(actions.filter(a => a.student_id === s.id && a.action_type === 'enroll_user').map(a => groupMap[a.group_id] || a.group_id).filter(Boolean))];
+
+          if (sOrig.length > 0 && sDest.length > 0) {
+            return `• ${s.name}${incTag}: ${sOrig.join(', ')} ➔ ${sDest.join(', ')}`;
+          } else if (sDest.length > 0) {
+            return `• ${s.name}${incTag}: ➔ ${sDest.join(', ')}`;
+          } else if (sOrig.length > 0) {
+            return `• ${s.name}${incTag}: Retiro de ${sOrig.join(', ')}`;
+          } else {
+            return `• ${s.name}${incTag}`;
+          }
+        }).join('\n');
+
+        return `✅ Traslados de materias gestionados con éxito.\n\nSe realizaron los movimientos correspondientes para los siguientes estudiantes:\n\n${studentLines}`;
+      }
     }
 
+    // 4. Inscripciones puras
     if (hasEnroll) {
       const enrollGroups = [...new Set(actions.map(a => groupMap[a.group_id] || a.group_id).filter(Boolean))];
       if (students.length === 1) {
         const student = students[0] || {};
         const incTag = student.inc ? ` (ID: ${student.inc})` : '';
-        const groupStr = enrollGroups.length > 0 ? ` al grupo ${enrollGroups.join(', ')}` : '';
-        return `✅ Estudiante inscrito con éxito.\n\nEl estudiante ${student.name}${incTag} ha sido inscrito satisfactoriamente${groupStr}.\n\nQuedamos atentos ante cualquier novedad. 🚀`;
+        if (enrollGroups.length > 1) {
+          const groupList = enrollGroups.map(g => `• ${g}`).join('\n');
+          return `✅ Estudiante inscrito con éxito.\n\nEl estudiante ${student.name}${incTag} ha sido inscrito satisfactoriamente en los siguientes grupos:\n\n${groupList}`;
+        }
+        const groupStr = enrollGroups.length === 1 ? ` al grupo ${enrollGroups[0]}` : '';
+        return `✅ Estudiante inscrito con éxito.\n\nEl estudiante ${student.name}${incTag} ha sido inscrito satisfactoriamente${groupStr}.`;
       } else {
-        return `✅ Inscripciones realizadas con éxito.\n\nSe inscribieron ${students.length} estudiantes en los grupos correspondientes (${enrollGroups.join(', ')}).\n\nQuedamos a su disposición. 🚀`;
+        const studentList = students.map(s => `• ${s.name}${s.inc ? ` (ID: ${s.inc})` : ''}`).join('\n');
+        if (enrollGroups.length > 1) {
+          const groupList = enrollGroups.map(g => `• ${g}`).join('\n');
+          return `✅ Inscripciones realizadas con éxito.\n\nSe inscribieron los siguientes ${students.length} estudiantes:\n\n${studentList}\n\nEn los siguientes grupos:\n\n${groupList}`;
+        }
+        const groupStr = enrollGroups.length === 1 ? ` (${enrollGroups[0]})` : '';
+        return `✅ Inscripciones realizadas con éxito.\n\nSe inscribieron los siguientes ${students.length} estudiantes en los grupos correspondientes${groupStr}:\n\n${studentList}`;
       }
     }
 
+    // 5. Retiros puros
     if (hasRemove) {
       const removeGroups = [...new Set(actions.map(a => groupMap[a.group_id] || a.group_id).filter(Boolean))];
       if (students.length === 1) {
         const student = students[0] || {};
         const incTag = student.inc ? ` (ID: ${student.inc})` : '';
-        const groupStr = removeGroups.length > 0 ? ` del grupo ${removeGroups.join(', ')}` : '';
-        return `✅ Retiro procesado con éxito.\n\nSe retiró al estudiante ${student.name}${incTag}${groupStr}.\n\nQuedamos atentos. 🚀`;
+        if (removeGroups.length > 1) {
+          const groupList = removeGroups.map(g => `• ${g}`).join('\n');
+          return `✅ Retiro procesado con éxito.\n\nSe retiró al estudiante ${student.name}${incTag} de los siguientes grupos:\n\n${groupList}`;
+        }
+        const groupStr = removeGroups.length === 1 ? ` del grupo ${removeGroups[0]}` : '';
+        return `✅ Retiro procesado con éxito.\n\nSe retiró al estudiante ${student.name}${incTag}${groupStr}.`;
       } else {
-        return `✅ Retiro masivo procesado.\n\nSe retiraron ${students.length} estudiantes de los grupos indicados (${removeGroups.join(', ')}).\n\nQuedamos atentos. 🚀`;
+        const studentList = students.map(s => `• ${s.name}${s.inc ? ` (ID: ${s.inc})` : ''}`).join('\n');
+        if (removeGroups.length > 1) {
+          const groupList = removeGroups.map(g => `• ${g}`).join('\n');
+          return `✅ Retiro masivo procesado.\n\nSe retiraron los siguientes ${students.length} estudiantes:\n\n${studentList}\n\nDe los siguientes grupos:\n\n${groupList}`;
+        }
+        const groupStr = removeGroups.length === 1 ? ` (${removeGroups[0]})` : '';
+        return `✅ Retiro masivo procesado.\n\nSe retiraron los siguientes ${students.length} estudiantes de los grupos indicados${groupStr}:\n\n${studentList}`;
       }
     }
 
-    // 4. Recálculo de notas
+    // 6. Despublicación de grupos (undo_publication)
+    if (actionTypes.has('undo_publication')) {
+      const gNames = [...new Set(actions.map(a => groupMap[a.group_id] || a.group_id).filter(Boolean))];
+      const gStr = gNames.length > 0 ? ` para el grupo ${gNames.join(', ')}` : '';
+      return `✅ Despublicación realizada con éxito.\n\nSe revirtió la publicación${gStr}.`;
+    }
+
+    // 7. Recálculo de notas
     if (actionTypes.has('recalculate_grades')) {
-      const student = students[0] || {};
-      const incTag = student.inc ? ` (ID: ${student.inc})` : '';
-      return `✅ Calificaciones recalculadas con éxito.\n\nSe forzó el recálculo de la nota final para ${student.name}${incTag}.\n\nQuedamos atentos. 🚀`;
+      if (students.length === 1) {
+        const student = students[0] || {};
+        const incTag = student.inc ? ` (ID: ${student.inc})` : '';
+        return `✅ Calificaciones recalculadas con éxito.\n\nSe forzó el recálculo de la nota final para ${student.name}${incTag}.`;
+      } else {
+        const studentList = students.map(s => `• ${s.name}${s.inc ? ` (ID: ${s.inc})` : ''}`).join('\n');
+        return `✅ Calificaciones recalculadas con éxito.\n\nSe forzó el recálculo de la nota final para los siguientes estudiantes:\n\n${studentList}`;
+      }
     }
 
-    // 5. Corregir entregable
+    // 8. Corregir entregable
     if (actionTypes.has('fix_deliverable')) {
-      const student = students[0] || {};
-      const incTag = student.inc ? ` (ID: ${student.inc})` : '';
-      return `✅ Entregable corregido.\n\nSe habilitó y corrigió el intento de entrega para el estudiante ${student.name}${incTag}.\n\nQuedamos atentos. 🚀`;
+      if (students.length === 1) {
+        const student = students[0] || {};
+        const incTag = student.inc ? ` (ID: ${student.inc})` : '';
+        return `✅ Entregable corregido.\n\nSe habilitó y corrigió el intento de entrega para el estudiante ${student.name}${incTag}.`;
+      } else {
+        const studentList = students.map(s => `• ${s.name}${s.inc ? ` (ID: ${s.inc})` : ''}`).join('\n');
+        return `✅ Entregables corregidos.\n\nSe habilitó y corrigió el intento de entrega para los siguientes estudiantes:\n\n${studentList}`;
+      }
     }
 
-    // 6. Limpieza de cache
+    // 9. Limpieza de cache
     if (actionTypes.has('clean_cache_sislms') || actionTypes.has('clean_cache_crm')) {
-      return `✅ Caché del sistema limpiada con éxito.\n\nSe ejecutó la purga del caché solicitado.\n\nQuedamos atentos. 🚀`;
+      return `✅ Caché del sistema limpiada con éxito.\n\nSe ejecutó la purga del caché solicitado.`;
     }
 
     // Fallback genérico
-    const student = students[0] || {};
-    const incTag = student.inc ? ` (ID: ${student.inc})` : '';
-    return `✅ Solicitud gestionada con éxito.\n\nSe procesaron los comandos correspondientes para ${student.name || 'el estudiante'}${incTag}.\n\nQuedamos atentos ante cualquier duda. 🚀`;
+    if (students.length === 1) {
+      const student = students[0] || {};
+      const incTag = student.inc ? ` (ID: ${student.inc})` : '';
+      return `✅ Solicitud gestionada con éxito.\n\nSe procesaron los comandos correspondientes para ${student.name || 'el estudiante'}${incTag}.`;
+    } else {
+      const studentList = students.map(s => `• ${s.name || 'Estudiante'}${s.inc ? ` (ID: ${s.inc})` : ''}`).join('\n');
+      return `✅ Solicitud gestionada con éxito.\n\nSe procesaron los comandos correspondientes para los siguientes estudiantes:\n\n${studentList}`;
+    }
   }
 
   /**
@@ -477,7 +658,7 @@ export class AgentOrchestrator {
         }
 
         // 6. Generar respuesta sintetizada para Tickets / Slack
-        const ticketResponse = await this.generateTicketResponse(finalActions);
+        const ticketResponse = await this.generateTicketResponse(finalActions, geminiResult.ticketClosing);
 
         return {
           type: 'COMMANDS',

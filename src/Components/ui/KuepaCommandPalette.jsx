@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Command, ArrowRight, Bot, Zap, Settings, Loader2, Key, Trash2, Edit2, RefreshCw, Check, X, Copy, Sparkles, Cpu, Ticket, MessageSquare } from 'lucide-react';
+import { Search, Command, ArrowRight, Bot, Zap, Settings, Loader2, Key, Trash2, Edit2, RefreshCw, Check, X, Copy, Sparkles, Cpu, Ticket, MessageSquare, Camera } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { supabase } from '../../services/supabaseClient';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
@@ -11,6 +11,7 @@ import { setGlobalSetting, getGlobalSetting } from '../../services/settingsServi
 import { AVAILABLE_AI_MODELS, DEFAULT_AI_MODEL, prepareRetryHistory } from '../../services/aiService';
 import AiAssistantHero from './AiAssistantHero';
 import { matchAcademicTerm } from '../../utils/academicTerms';
+import { copyElementAsImage } from '../../services/ticketExportService';
 
 const renderCommandSyntax = (cmd, isCopied) => {
   if (isCopied) {
@@ -45,6 +46,8 @@ export default function KuepaCommandPalette() {
   const [aiAlliance, setAiAlliance] = useLocalStorage('ai_alliance', 'na');
   const [copiedCommandKeys, setCopiedCommandKeys] = useState({});
   const [copiedTicketKeys, setCopiedTicketKeys] = useState({});
+  const [copiedTicketImageKeys, setCopiedTicketImageKeys] = useState({});
+  const [copyingImageIndex, setCopyingImageIndex] = useState(null);
   const [aiModel, setAiModel] = useLocalStorage('gemini_model', DEFAULT_AI_MODEL);
 
   const currentModelObj = AVAILABLE_AI_MODELS.find(m => m.id === aiModel) || AVAILABLE_AI_MODELS[0];
@@ -422,6 +425,27 @@ INSTRUCCIONES DE ACCIÓN:
       setCopiedTicketKeys(prev => ({ ...prev, [key]: true }));
       toast.success("Respuesta para el ticket copiada al portapapeles ✨");
     });
+  };
+
+  const handleCopyTicketImage = async (cardElement, index) => {
+    if (!cardElement) return;
+    try {
+      setCopyingImageIndex(index);
+      await copyElementAsImage(cardElement, {
+        backgroundColor: '#090d16',
+        pixelRatio: 2
+      });
+      setCopiedTicketImageKeys(prev => ({ ...prev, [index]: true }));
+      toast.success("¡Imagen copiada al portapapeles! Lista para pegar en Slack o Jira ✨");
+      setTimeout(() => {
+        setCopiedTicketImageKeys(prev => ({ ...prev, [index]: false }));
+      }, 2500);
+    } catch (err) {
+      console.error("Error al copiar imagen del ticket:", err);
+      toast.error("No se pudo copiar la imagen al portapapeles");
+    } finally {
+      setCopyingImageIndex(null);
+    }
   };
 
   const handleApiKeyBlur = async () => {
@@ -1199,18 +1223,22 @@ INSTRUCCIONES DE ACCIÓN:
 
                                   {/* Ticket / Slack response card */}
                                   {parsedResult.ticketResponse && (
-                                    <div style={{
-                                      marginTop: '8px',
-                                      padding: '14px 16px',
-                                      background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(6, 78, 59, 0.16) 100%)',
-                                      border: '1px solid rgba(52, 211, 153, 0.3)',
-                                      borderRadius: '12px',
-                                      boxShadow: '0 4px 16px rgba(0, 0, 0, 0.25)',
-                                      display: 'flex',
-                                      flexDirection: 'column',
-                                      gap: '10px'
-                                    }}>
-                                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                                    <div
+                                      data-ticket-card="true"
+                                      id={`ticket-card-${index}`}
+                                      style={{
+                                        marginTop: '8px',
+                                        padding: '14px 16px',
+                                        background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(6, 78, 59, 0.16) 100%)',
+                                        border: '1px solid rgba(52, 211, 153, 0.3)',
+                                        borderRadius: '12px',
+                                        boxShadow: '0 4px 16px rgba(0, 0, 0, 0.25)',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        gap: '10px'
+                                      }}
+                                    >
+                                      <div className="no-export" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                           <div style={{ width: '22px', height: '22px', borderRadius: '6px', background: 'rgba(52, 211, 153, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                             <MessageSquare size={13} color="#34d399" />
@@ -1219,40 +1247,80 @@ INSTRUCCIONES DE ACCIÓN:
                                             Respuesta para el Ticket / Slack
                                           </span>
                                         </div>
-                                        <button
-                                          type="button"
-                                          onClick={() => handleCopyTicketResponse(parsedResult.ticketResponse, index)}
-                                          style={{
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '6px',
-                                            background: copiedTicketKeys[index] ? 'rgba(34, 197, 94, 0.25)' : 'rgba(52, 211, 153, 0.15)',
-                                            border: copiedTicketKeys[index] ? '1px solid rgba(34, 197, 94, 0.5)' : '1px solid rgba(52, 211, 153, 0.3)',
-                                            color: copiedTicketKeys[index] ? '#86efac' : '#34d399',
-                                            padding: '5px 12px',
-                                            borderRadius: '7px',
-                                            fontSize: '11.5px',
-                                            fontWeight: 700,
-                                            cursor: 'pointer',
-                                            transition: 'all 0.18s ease'
-                                          }}
-                                          title="Copiar respuesta al portapapeles"
-                                        >
-                                          {copiedTicketKeys[index] ? <Check size={12} strokeWidth={2.5} /> : <Copy size={12} />}
-                                          {copiedTicketKeys[index] ? 'Copiada' : 'Copiar Respuesta'}
-                                        </button>
+                                        <div className="no-export" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                          <button
+                                            type="button"
+                                            className="no-export"
+                                            onClick={(e) => {
+                                              const cardEl = e.currentTarget.closest('[data-ticket-card="true"]');
+                                              const targetEl = cardEl?.querySelector('[data-ticket-body="true"]') || cardEl;
+                                              handleCopyTicketImage(targetEl, index);
+                                            }}
+                                            disabled={copyingImageIndex === index}
+                                            style={{
+                                              display: 'flex',
+                                              alignItems: 'center',
+                                              gap: '6px',
+                                              background: copiedTicketImageKeys[index] ? 'rgba(34, 197, 94, 0.25)' : 'rgba(56, 189, 248, 0.15)',
+                                              border: copiedTicketImageKeys[index] ? '1px solid rgba(34, 197, 94, 0.5)' : '1px solid rgba(56, 189, 248, 0.3)',
+                                              color: copiedTicketImageKeys[index] ? '#86efac' : '#38bdf8',
+                                              padding: '5px 12px',
+                                              borderRadius: '7px',
+                                              fontSize: '11.5px',
+                                              fontWeight: 700,
+                                              cursor: copyingImageIndex === index ? 'wait' : 'pointer',
+                                              transition: 'all 0.18s ease'
+                                            }}
+                                            title="Copiar tarjeta como imagen para pegar directo en Slack o Jira (Ctrl+V)"
+                                          >
+                                            {copyingImageIndex === index ? (
+                                              <Loader2 size={12} className="animate-spin" />
+                                            ) : copiedTicketImageKeys[index] ? (
+                                              <Check size={12} strokeWidth={2.5} />
+                                            ) : (
+                                              <Camera size={12} />
+                                            )}
+                                            {copyingImageIndex === index ? 'Generando...' : copiedTicketImageKeys[index] ? 'Imagen Copiada' : 'Copiar Imagen'}
+                                          </button>
+                                          <button
+                                            type="button"
+                                            className="no-export"
+                                            onClick={() => handleCopyTicketResponse(parsedResult.ticketResponse, index)}
+                                            style={{
+                                              display: 'flex',
+                                              alignItems: 'center',
+                                              gap: '6px',
+                                              background: copiedTicketKeys[index] ? 'rgba(34, 197, 94, 0.25)' : 'rgba(52, 211, 153, 0.15)',
+                                              border: copiedTicketKeys[index] ? '1px solid rgba(34, 197, 94, 0.5)' : '1px solid rgba(52, 211, 153, 0.3)',
+                                              color: copiedTicketKeys[index] ? '#86efac' : '#34d399',
+                                              padding: '5px 12px',
+                                              borderRadius: '7px',
+                                              fontSize: '11.5px',
+                                              fontWeight: 700,
+                                              cursor: 'pointer',
+                                              transition: 'all 0.18s ease'
+                                            }}
+                                            title="Copiar respuesta al portapapeles"
+                                          >
+                                            {copiedTicketKeys[index] ? <Check size={12} strokeWidth={2.5} /> : <Copy size={12} />}
+                                            {copiedTicketKeys[index] ? 'Copiada' : 'Copiar Respuesta'}
+                                          </button>
+                                        </div>
                                       </div>
-                                      <div style={{
-                                        fontSize: '13.5px',
-                                        color: '#f8fafc',
-                                        lineHeight: '1.6',
-                                        whiteSpace: 'pre-wrap',
-                                        fontFamily: "'Space Grotesk', sans-serif",
-                                        borderLeft: '3px solid #10b981',
-                                        padding: '10px 14px',
-                                        background: 'rgba(0, 0, 0, 0.3)',
-                                        borderRadius: '4px 8px 8px 4px'
-                                      }}>
+                                      <div
+                                        data-ticket-body="true"
+                                        style={{
+                                          fontSize: '13.5px',
+                                          color: '#f8fafc',
+                                          lineHeight: '1.6',
+                                          whiteSpace: 'pre-wrap',
+                                          fontFamily: "'Space Grotesk', sans-serif",
+                                          borderLeft: '3px solid #10b981',
+                                          padding: '10px 14px',
+                                          background: 'rgba(0, 0, 0, 0.3)',
+                                          borderRadius: '4px 8px 8px 4px'
+                                        }}
+                                      >
                                         {parsedResult.ticketResponse}
                                       </div>
                                     </div>
