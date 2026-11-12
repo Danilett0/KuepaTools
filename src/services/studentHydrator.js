@@ -83,7 +83,7 @@ const programNamesCache = new Map();
  * @param {string} allianceId - ObjectID de la alianza
  * @returns {Promise<Object>} - Mapa de programId → nombre
  */
-async function resolveProgramNames(programIds, allianceId) {
+export async function resolveProgramNames(programIds, allianceId) {
   if (!programIds.length) return {};
 
   const resultMap = {};
@@ -160,12 +160,24 @@ export async function hydrateStudents(text, allianceKey, onStateChange, options 
   const hydratedStudents = [];
   const allProgramIds = [];
   
-  // 1. Batch lookup para INCs en 1 sola consulta
+  // 1. Batch lookup para INCs (aprovechando cache si se proporciona)
   const incNumbers = [...new Set(detectedINCs.map(n => parseInt(n, 10)).filter(n => !isNaN(n)))];
   let usersByInc = [];
-  if (incNumbers.length > 0) {
+  const uncachedIncs = [];
+
+  for (const incNum of incNumbers) {
+    const cached = options?.cache?.get(String(incNum));
+    if (cached) {
+      usersByInc.push(cached);
+    } else {
+      uncachedIncs.push(incNum);
+    }
+  }
+
+  if (uncachedIncs.length > 0) {
     try {
-      usersByInc = await findUsersByIncList(incNumbers, allianceId);
+      const fetched = await findUsersByIncList(uncachedIncs, allianceId);
+      usersByInc.push(...fetched);
     } catch (err) {
       console.warn('Error hidratando lista de INCs:', err.message);
     }
@@ -175,9 +187,21 @@ export async function hydrateStudents(text, allianceKey, onStateChange, options 
   const resolvedOids = new Set(usersByInc.map(u => u._id?.$oid).filter(Boolean));
   const remainingOids = detectedObjectIDs.filter(oid => !resolvedOids.has(oid));
   let usersByOid = [];
-  if (remainingOids.length > 0) {
+  const uncachedOids = [];
+
+  for (const oid of remainingOids) {
+    const cached = options?.cache?.get(oid);
+    if (cached) {
+      usersByOid.push(cached);
+    } else {
+      uncachedOids.push(oid);
+    }
+  }
+
+  if (uncachedOids.length > 0) {
     try {
-      usersByOid = await findUsersByMongoIds(remainingOids, allianceId);
+      const fetched = await findUsersByMongoIds(uncachedOids, allianceId);
+      usersByOid.push(...fetched);
     } catch (err) {
       console.warn('Error hidratando ObjectIDs:', err.message);
     }
@@ -209,15 +233,16 @@ export async function hydrateStudents(text, allianceKey, onStateChange, options 
     if (user && user._id && user._id.$oid) {
       const studentPrograms = (user.programs || []).map(p => {
         const pid = p.structure?.$oid || p.structure;
-        if (pid) allProgramIds.push(pid);
-        return { id: pid };
+        if (pid && !p.name) allProgramIds.push(pid);
+        return { id: pid, name: p.name || undefined };
       }).filter(p => p.id);
 
       hydratedStudents.push({
         inc: user.incremental_user_code ? String(user.incremental_user_code) : '',
         objectId: user._id.$oid,
         name: user.profile?.full_name || 'Sin nombre',
-        email: user.profile?.email || '',
+        email: user.profile?.email || user.email || '',
+        phone: user.profile?.phone || user.phone || '',
         programs: studentPrograms,
         programCount: studentPrograms.length,
         autoProgram: studentPrograms.length === 1 ? studentPrograms[0] : null,
@@ -234,10 +259,10 @@ export async function hydrateStudents(text, allianceKey, onStateChange, options 
     // Enriquecer los programas con sus nombres
     for (const student of hydratedStudents) {
       for (const prog of student.programs) {
-        prog.name = programNames[prog.id] || prog.id;
+        prog.name = prog.name || programNames[prog.id] || prog.id;
       }
       if (student.autoProgram) {
-        student.autoProgram.name = programNames[student.autoProgram.id] || student.autoProgram.id;
+        student.autoProgram.name = student.autoProgram.name || programNames[student.autoProgram.id] || student.autoProgram.id;
       }
     }
   }
@@ -264,6 +289,12 @@ export function buildContextBlock(students, objectIds = []) {
   for (const s of students) {
     context += `\n- INC ${s.inc} → ObjectID: "${s.objectId}"`;
     context += `\n  Nombre: "${s.name}"`;
+    if (s.email) {
+      context += `\n  Email: "${s.email}"`;
+    }
+    if (s.phone) {
+      context += `\n  Teléfono: "${s.phone}"`;
+    }
     
     if (s.programCount === 0) {
       context += `\n  Programas: Ninguno registrado.`;

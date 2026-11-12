@@ -3,7 +3,7 @@ import { findUser, findUsersByIncList, findUsersByMongoIds } from './usuariosSer
 import { supabase } from './supabaseClient.js';
 import { ALLIANCE_IDS } from '../utils/constants.js';
 import { generateCommandsFromActions } from '../agent/skills/index.js';
-import { hydrateStudents, extractObjectIDs } from './studentHydrator.js';
+import { hydrateStudents, extractObjectIDs, resolveProgramNames } from './studentHydrator.js';
 import { extractMultipleSisUrls } from '../utils/academicTerms.js';
 export const DEFAULT_TICKET_CLOSINGS = [
   'Listo por aquí. Por favor valida y nos avisas si surge cualquier duda. 🙌',
@@ -26,11 +26,31 @@ export class AgentOrchestrator {
     this.options = options;
     this.userCache = new Map();
     this.estadosCache = null;
+    this.alianzasCache = null;
   }
 
   // Utilidad para normalizar textos sin acentos
   normalizeStr(str) {
     return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  }
+
+  /**
+   * Obtiene la lista completa de alianzas desde caché o base de datos.
+   */
+  async getAllAlliances() {
+    if (this.alianzasCache && this.alianzasCache.length > 0) {
+      return this.alianzasCache;
+    }
+    try {
+      const { data } = await supabase.from('alianzas').select('mongo_id, name').order('name');
+      if (data && data.length > 0) {
+        this.alianzasCache = data;
+        return data;
+      }
+    } catch (err) {
+      console.warn('Error consultando catálogo de alianzas:', err);
+    }
+    return this.alianzasCache || [];
   }
 
   /**
@@ -76,7 +96,7 @@ export class AgentOrchestrator {
         uncachedIncs.add(parseInt(sId, 10));
       } else if (isMongoId) {
         const needsProgramAutoFill = !action.program_id && 
-          (action.action_type === 'audit_statistics' || action.action_type === 'change_status' || action.action_type === 'undo_program');
+          (action.action_type === 'audit_statistics' || action.action_type === 'change_status' || action.action_type === 'undo_program' || action.action_type === 'fix_deliverable');
         if (needsProgramAutoFill) {
           uncachedMongoIds.add(sId);
         }
@@ -127,7 +147,7 @@ export class AgentOrchestrator {
     // Usa el texto completo de la conversación para detectar INCs de mensajes anteriores
     const textToHydrate = fullConversationText || text;
     try {
-      const hydration = await hydrateStudents(textToHydrate, this.alliance, onStateChange);
+      const hydration = await hydrateStudents(textToHydrate, this.alliance, onStateChange, { cache: this.userCache });
       
       // Guardar estudiantes hidratados en el cache local para evitar re-consultas
       if (hydration.students && hydration.students.length > 0) {
@@ -191,6 +211,18 @@ export class AgentOrchestrator {
     let resolvedAction = { ...action };
     let studentUser = null;
 
+    // Salvaguarda: Corrección de intención progreso vs entregable
+    // Si el LLM confundió la petición y generó fix_deliverable pero el usuario solicitó
+    // corregir progreso o actualizar estadísticas sin mencionar entregables o intentos de entrega:
+    if (resolvedAction.action_type === 'fix_deliverable' && typeof userText === 'string' && userText.trim()) {
+      const normText = this.normalizeStr(userText);
+      const isProgressRequest = /\b(progreso|avance|avances|estadistica|estadisticas|sincroniz)/i.test(normText);
+      const isDeliverableExplicit = /\b(entregable|entregables|tarea|tareas|actividad|actividades|intento|intentos|archivo|evidencia|reabrir|entrega|entregas)\b/i.test(normText);
+      if (isProgressRequest && !isDeliverableExplicit) {
+        resolvedAction.action_type = 'audit_statistics';
+      }
+    }
+
     const isMongoId = (id) => typeof id === 'string' && /^[a-f0-9]{24}$/i.test(id);
     const isInc = (id) => typeof id === 'string' && /^\d+$/.test(id) && id.length <= 7;
 
@@ -233,23 +265,71 @@ export class AgentOrchestrator {
         if (studentUser.programs.length === 1) {
           resolvedAction.program_id = studentUser.programs[0].structure?.$oid || studentUser.programs[0].structure;
         } else {
+          // Extraer IDs de programas y resolver nombres
+          const rawProgs = studentUser.programs.map(p => {
+            const id = p.structure?.$oid || p.structure || (typeof p === 'string' ? p : null);
+            return { id, name: p.name || null };
+          }).filter(p => p.id);
+
+          const missingNameIds = rawProgs.filter(p => !p.name).map(p => p.id);
+          let nameMap = {};
+          if (missingNameIds.length > 0) {
+            try {
+              nameMap = await resolveProgramNames(missingNameIds, ALLIANCE_IDS[this.alliance]);
+            } catch (err) {
+              console.warn('Error resolviendo nombres de programas en orquestador:', err);
+            }
+          }
+
+          const progsWithNames = rawProgs.map(p => ({
+            id: p.id,
+            name: p.name || nameMap[p.id] || p.id
+          }));
+
           let matchedProg = null;
           if (typeof userText === 'string' && userText.trim()) {
             const normalizedText = this.normalizeStr(userText);
-            matchedProg = studentUser.programs.find(p => {
-              const name = p.name || '';
-              if (!name) return false;
-              const normName = this.normalizeStr(name);
-              if (normalizedText.includes(normName)) return true;
-              const words = normName.split(/\s+/).filter(w => w.length > 3);
-              return words.some(w => normalizedText.includes(w));
-            });
+
+            // 1. Soporte para selección por número u ordinal ("1", "el 1", "primero", "el primero", "2", "el 2", "segundo")
+            const ordinalMatch = normalizedText.match(/\b(?:el\s+)?(1|2|3|4|5|primer[oa]?|segund[oa]|tercer[oa]?|cuart[oa]|quint[oa])\b/);
+            if (ordinalMatch) {
+              const ordMap = { 
+                '1': 0, 'primero': 0, 'primera': 0, 'primer': 0,
+                '2': 1, 'segundo': 1, 'segunda': 1,
+                '3': 2, 'tercero': 2, 'tercera': 2, 'tercer': 2,
+                '4': 3, 'cuarto': 3, 'cuarta': 3,
+                '5': 4, 'quinto': 4, 'quinta': 4
+              };
+              const targetIdx = ordMap[ordinalMatch[1]];
+              if (targetIdx !== undefined && targetIdx < progsWithNames.length) {
+                matchedProg = progsWithNames[targetIdx];
+              }
+            }
+
+            // 2. Coincidencia por nombre del programa o palabras clave
+            if (!matchedProg) {
+              matchedProg = progsWithNames.find(p => {
+                const normName = this.normalizeStr(p.name || '');
+                if (!normName) return false;
+                if (normalizedText.includes(normName)) return true;
+                const words = normName.split(/\s+/).filter(w => w.length > 3);
+                return words.some(w => normalizedText.includes(w));
+              });
+            }
+
+            // 3. Coincidencia directa por ObjectID
+            if (!matchedProg) {
+              matchedProg = progsWithNames.find(p => normalizedText.includes(p.id.toLowerCase()));
+            }
           }
 
           if (matchedProg) {
-            resolvedAction.program_id = matchedProg.structure?.$oid || matchedProg.structure;
+            resolvedAction.program_id = matchedProg.id;
           } else {
-            throw new Error(`INCOMPLETE:El estudiante tiene múltiples programas registrados (${studentUser.programs.length}). Por favor, proporciona el ID del programa específico al que te refieres.`);
+            const progListText = progsWithNames.map((p, idx) => `  ${idx + 1}. **${p.name}** (ID: \`${p.id}\`)`).join('\n');
+            const err = new Error(`INCOMPLETE:El estudiante tiene múltiples programas registrados (${progsWithNames.length}):\n${progListText}\n\nPor favor, indica el número (ej: "1" o "2"), el nombre o el ID del programa específico al que deseas aplicar la acción.`);
+            err.options = progsWithNames.map(p => ({ label: p.name, value: p.id }));
+            throw err;
           }
         }
       } else {
@@ -652,6 +732,123 @@ export class AgentOrchestrator {
     // 1. RAG + INC-First Hydration (usa el texto completo de la conversación)
     const processedText = await this.preprocessMessage(userText, onThinkingStateChange, fullConversationText);
     
+    // Detección directa de consultas informativas sobre programas del estudiante
+    const trimmedUserText = String(userText || '').trim();
+    const isAskingForPrograms = /^(?:¿?\s*(?:qu[eé]\s+programas?\s+tiene|dime\s+cu[aá]les\s+son|cu[aá]les\s+son(?:\s+sus\s+programas)?|qu[eé]\s+programas?\s+est[aá]n\s+registrados|cu[aá]les\s+programas\s+tiene|qu[eé]\s+programas\s+hay|cu[aá]les\s+son\?|dime\s+los\s+programas))\b/i.test(trimmedUserText);
+
+    if (isAskingForPrograms) {
+      const candidateUser = Array.from(this.userCache.values()).find(u => u && u.programs && u.programs.length > 0);
+      if (candidateUser) {
+        const rawProgs = candidateUser.programs.map(p => {
+          const id = p.structure?.$oid || p.structure || (typeof p === 'string' ? p : null);
+          return { id, name: p.name || null };
+        }).filter(p => p.id);
+
+        const missingNameIds = rawProgs.filter(p => !p.name).map(p => p.id);
+        let nameMap = {};
+        if (missingNameIds.length > 0) {
+          try {
+            nameMap = await resolveProgramNames(missingNameIds, ALLIANCE_IDS[this.alliance]);
+          } catch (err) {
+            console.warn('Error resolviendo nombres de programas:', err);
+          }
+        }
+
+        const progsWithNames = rawProgs.map(p => ({
+          id: p.id,
+          name: p.name || nameMap[p.id] || p.id
+        }));
+
+        if (progsWithNames.length > 0) {
+          const studentName = candidateUser.profile?.full_name || 'El estudiante';
+          const listStr = progsWithNames.map((p, i) => `  ${i + 1}. **${p.name}** (ID: \`${p.id}\`)`).join('\n');
+          const msg = `El estudiante **${studentName}** tiene registrados los siguientes ${progsWithNames.length} programas:\n\n${listStr}\n\nIndícame el nombre, el número (ej: 1 o 2) o el ID del programa sobre el cual deseas realizar la gestión.`;
+
+          return {
+            type: 'INFO',
+            message: msg,
+            options: progsWithNames.map(p => ({ label: p.name, value: p.id }))
+          };
+        }
+      }
+    }
+
+    // Detección directa de consultas sobre correo/email del estudiante
+    const isAskingForEmail = /(?:(?:cu[aá]l|dime|qu[eé]|dame|sabes|ver)\s+(?:es\s+)?(?:el\s+)?(?:correo|email)|correo\s+del\s+estudiante|email\s+del\s+estudiante|su\s+correo|su\s+email)/i.test(trimmedUserText);
+
+    if (isAskingForEmail) {
+      const candidateUser = Array.from(this.userCache.values()).find(u => u && (u.profile?.email || u.email));
+      if (candidateUser) {
+        const studentName = candidateUser.profile?.full_name || candidateUser.full_name || 'El estudiante';
+        const email = candidateUser.profile?.email || candidateUser.email || 'No registrado';
+        const inc = candidateUser.incremental_user_code ? ` (ID: ${candidateUser.incremental_user_code})` : '';
+        return {
+          type: 'INFO',
+          message: `El correo electrónico de **${studentName}**${inc} es:\n\n📧 **${email}**`
+        };
+      }
+    }
+
+    // Detección directa de consultas sobre todas las alianzas / catálogo
+    const isAskingForAllAlliances = /(?:(?:todas\s+(?:las\s+)?alianzas|lista(?:do)?\s+de\s+(?:todas\s+)?(?:las\s+)?alianzas|cat[aá]logo\s+de\s+alianzas|qu[eé]\s+alianzas\s+(?:tenemos|hay|existen)|cu[aá]les\s+(?:son\s+las\s+)?alianzas|ver\s+(?:todas\s+las\s+)?alianzas|mostrar\s+(?:todas\s+las\s+)?alianzas))/i.test(trimmedUserText) ||
+      (/(?:todas|lista|cat[aá]logo)/i.test(trimmedUserText) && /alianzas/i.test(trimmedUserText));
+
+    if (isAskingForAllAlliances) {
+      const allAlliances = await this.getAllAlliances();
+      if (allAlliances && allAlliances.length > 0) {
+        const list = allAlliances.map(a => `• **${a.name}:** \`${a.mongo_id}\``).join('\n');
+        return {
+          type: 'INFO',
+          message: `Aquí tienes la lista de alianzas registradas en el catálogo (${allAlliances.length}):\n\n${list}\n\n*(Nota: Las sedes principales de la plataforma son **Kuepa (Colombia)**: \`${ALLIANCE_IDS.kuepa}\` y **Nueva América**: \`${ALLIANCE_IDS.na}\`)*`
+        };
+      }
+    }
+
+    // Detección directa de consultas sobre sedes maestras (Kuepa / Nueva América)
+    const isAskingForMasterAlliances = /(?:(?:id\s+(?:de\s+)?(?:kuepa|nueva\s*am[eé]rica)|alianza\s+(?:de\s+)?(?:kuepa|nueva\s*am[eé]rica)|sedes?\s+principales|alianzas?\s+principales))/i.test(trimmedUserText) &&
+      !/(?:todas|lista|cat[aá]logo|socios?|compensar)/i.test(trimmedUserText);
+    const isAskingForAllianceId = /(?:(?:cu[aá]l|dime|qu[eé]|dame|sabes|ver)\s+(?:es\s+)?(?:el\s+)?(?:id\s+de\s+(?:la\s+)?alianza|id\s+alianza)|id\s+de\s+(?:la\s+)?alianza|alianzas?\s+del\s+sistema)/i.test(trimmedUserText);
+
+    if (isAskingForMasterAlliances) {
+      return {
+        type: 'INFO',
+        message: `Las alianzas / sedes principales del sistema son:\n\n• **Kuepa (Colombia):** \`${ALLIANCE_IDS.kuepa}\`\n• **Nueva América:** \`${ALLIANCE_IDS.na}\``
+      };
+    }
+
+    // Consulta directa a BD/caché si pregunta por una alianza específica distinta (ej: "socios 3")
+    const isAskingForSpecificAlliance = /(?:alianza\s+(?:de\s+)?|id\s+de\s+(?:la\s+alianza\s+de\s+)?)([\w\s\d]+)/i.test(trimmedUserText);
+    if ((isAskingForAllianceId || isAskingForSpecificAlliance) && !isAskingForMasterAlliances && !isAskingForAllAlliances) {
+      const matchSpecific = trimmedUserText.match(/(?:alianza\s+(?:de\s+)?|id\s+de\s+(?:la\s+alianza\s+de\s+)?)([\w\s\d]+)/i);
+      const searchTerm = matchSpecific ? matchSpecific[1].replace(/^(?:la\s+|el\s+)/i, '').trim() : '';
+      if (searchTerm) {
+        let matches = [];
+        if (this.alianzasCache && this.alianzasCache.length > 0) {
+          const normSearch = this.normalizeStr(searchTerm);
+          matches = this.alianzasCache.filter(a => this.normalizeStr(a.name).includes(normSearch));
+        } else {
+          try {
+            const { data } = await supabase
+              .from('alianzas')
+              .select('mongo_id, name')
+              .ilike('name', `%${searchTerm}%`)
+              .limit(10);
+            matches = data || [];
+          } catch (err) {
+            console.warn('Error consultando alianza específica en DB:', err);
+          }
+        }
+
+        if (matches && matches.length > 0) {
+          const list = matches.map(a => `• **${a.name}:** \`${a.mongo_id}\``).join('\n');
+          return {
+            type: 'INFO',
+            message: `Encontré la(s) siguiente(s) alianza(s) en el catálogo:\n\n${list}`
+          };
+        }
+      }
+    }
+
     onThinkingStateChange('ai');
     
     // Construir historial para Gemini
@@ -739,7 +936,11 @@ export class AgentOrchestrator {
 
     } catch (error) {
       if (error.message && error.message.startsWith('INCOMPLETE:')) {
-        return { type: 'INCOMPLETE', message: error.message.replace('INCOMPLETE:', '') };
+        return { 
+          type: 'INCOMPLETE', 
+          message: error.message.replace('INCOMPLETE:', ''),
+          options: error.options || null
+        };
       }
       throw error;
     } finally {

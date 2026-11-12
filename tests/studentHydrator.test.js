@@ -122,6 +122,24 @@ describe('studentHydrator - buildContextBlock con grupos inscritos', () => {
     assert.match(block, /usa ESTRICTAMENTE "6ae3853368839a18af139191" como group_id/);
   });
 
+  test('debe incluir email y teléfono del estudiante cuando estén disponibles', () => {
+    const students = [
+      {
+        inc: '12345',
+        objectId: '6aa17497b8640d100208762a',
+        name: 'Carlos Perez',
+        email: 'carlos.perez@kuepa.com',
+        phone: '3001234567',
+        programCount: 0,
+        programs: []
+      }
+    ];
+
+    const block = buildContextBlock(students, []);
+    assert.match(block, /Email: "carlos\.perez@kuepa\.com"/);
+    assert.match(block, /Teléfono: "3001234567"/);
+  });
+
   test('casos límite: arreglo de estudiantes vacío retorna string vacío', () => {
     assert.equal(buildContextBlock([], []), '');
     assert.equal(buildContextBlock(null, []), '');

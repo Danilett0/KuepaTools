@@ -191,8 +191,23 @@ export default function KuepaCommandPalette() {
           
           try {
             if (table === 'alianzas') {
-              const { data } = await supabase.from('alianzas').select('mongo_id, name').ilike('name', `%${searchTerm || ''}%`).limit(10);
-              if (data && data.length) dbResultsStr = data.map(d => `ID: ${d.mongo_id}, Nombre: ${d.name}`).join(' | ');
+              let query = supabase.from('alianzas').select('mongo_id, name').order('name');
+              const cleanTerm = (searchTerm || '').trim();
+              const isGeneric = !cleanTerm || /^(?:todas?|todos?|alianzas?|lista(?:do)?|catalogo|catálogo)$/i.test(cleanTerm);
+              if (!isGeneric) {
+                const words = cleanTerm.split(/\s+(?:y|o|en|de)\s+|\s+/).filter(w => w.length > 2);
+                if (words.length > 1) {
+                  query = query.or(words.map(w => `name.ilike.%${w}%`).join(','));
+                } else {
+                  query = query.ilike('name', `%${cleanTerm}%`);
+                }
+              }
+              const { data } = await query.limit(100);
+              if (data && data.length) {
+                dbResultsStr = data.map(d => `ID: ${d.mongo_id}, Nombre: ${d.name}`).join(' | ');
+              } else {
+                dbResultsStr = `No se encontraron alianzas registradas con el término "${cleanTerm}". (Sedes maestras: Kuepa: ${ALLIANCE_IDS.kuepa} | Nueva América: ${ALLIANCE_IDS.na})`;
+              }
             } else if (table === 'programas') {
               const { data } = await supabase.from('programas').select('mongo_id, name').eq('alliance_id', ALLIANCE_IDS[aiAlliance]).ilike('name', `%${searchTerm || ''}%`).limit(10);
               if (data && data.length) dbResultsStr = data.map(d => `ID: ${d.mongo_id}, Nombre: ${d.name}`).join(' | ');
@@ -255,6 +270,40 @@ export default function KuepaCommandPalette() {
               } else {
                 dbResultsStr = "Falta especificar el student_id para consultar los grupos.";
               }
+            } else if (table === 'programas_estudiante') {
+              const studentId = result.query.student_id || result.query.student_ids?.[0];
+              if (studentId) {
+                const resolvedUser = await orchestrator.getUser(studentId);
+                if (resolvedUser && resolvedUser.programs && resolvedUser.programs.length > 0) {
+                  const programIds = resolvedUser.programs.map(p => p.structure?.$oid || p.structure).filter(Boolean);
+                  const { resolveProgramNames } = await import('../../services/studentHydrator.js');
+                  const nameMap = await resolveProgramNames(programIds, ALLIANCE_IDS[aiAlliance]);
+                  const progs = resolvedUser.programs.map((p, i) => {
+                    const id = p.structure?.$oid || p.structure;
+                    const name = p.name || nameMap[id] || id;
+                    return `    • ${i + 1}. ${name} (ID: ${id})`;
+                  });
+                  dbResultsStr = `- Estudiante "${resolvedUser.profile?.full_name || studentId}":\n${progs.join('\n')}`;
+                } else {
+                  dbResultsStr = `- Estudiante "${studentId}": Sin programas registrados.`;
+                }
+              } else {
+                dbResultsStr = "Falta especificar el student_id para consultar los programas.";
+              }
+            } else if (table === 'estudiante_info') {
+              const studentId = result.query.student_id || result.query.student_ids?.[0];
+              if (studentId) {
+                const resolvedUser = await orchestrator.getUser(studentId);
+                if (resolvedUser) {
+                  const inc = resolvedUser.incremental_user_code || 'N/A';
+                  const name = resolvedUser.profile?.full_name || 'Sin nombre';
+                  const email = resolvedUser.profile?.email || 'N/A';
+                  const oId = resolvedUser._id?.$oid || resolvedUser._id;
+                  dbResultsStr = `- Ficha de Estudiante:\n  • Nombre: ${name}\n  • INC: ${inc}\n  • ObjectID: ${oId}\n  • Email: ${email}`;
+                } else {
+                  dbResultsStr = `Estudiante "${studentId}" no encontrado en la base de datos.`;
+                }
+              }
             }
           } catch (e) {
             if (currentAbortController.signal.aborted) return;
@@ -264,11 +313,18 @@ export default function KuepaCommandPalette() {
 
           if (currentAbortController.signal.aborted) return;
 
-          const searchLabel = searchTerm ? `'${searchTerm}'` : 'todos los grupos';
-          const systemMsgText = `[RESULTADOS DE BD PARA ${searchLabel}]:
-${dbResultsStr}
+          const searchLabel = searchTerm ? `'${searchTerm}'` : (table || 'todos los grupos');
+          const isInformationalQuery = table === 'programas_estudiante' || table === 'estudiante_info' || /^(?:¿?\s*(?:qu[eé]|cu[aá]l|dime|c[oó]mo|qui[eé]n|listar|mostrar))\b/i.test(lastMsgText.trim());
 
-INSTRUCCIONES DE ACCIÓN:
+          let systemMsgText = `[RESULTADOS DE BD PARA ${searchLabel}]:\n${dbResultsStr}\n\n`;
+
+          if (isInformationalQuery) {
+            systemMsgText += `INSTRUCCIONES DE RESPUESTA:
+- Responde a la consulta del usuario de forma clara, amable y estructurada usando type: "INFO".
+- Presenta los datos obtenidos usando viñetas y formato legible con nombres y sus IDs.
+- Si había una acción pendiente previa, indícale amablemente cómo puede proceder indicando la opción deseada.`;
+          } else {
+            systemMsgText += `INSTRUCCIONES DE ACCIÓN:
 - Utiliza estos grupos reales de la BD para resolver los IDs de los grupos actuales de CADA estudiante.
 - Evalúa a cada estudiante por separado. Si un estudiante no tiene grupos, ignóralo, pero procesa y genera las acciones para todos los estudiantes que sí tengan grupos inscritos. NUNCA canceles la operación completa si uno no tiene grupos.
 - Si el usuario solicitó retirar de todos los grupos o desinscribir, emite la acción remove_user para cada uno de los grupos listados arriba.
@@ -276,6 +332,7 @@ INSTRUCCIONES DE ACCIÓN:
 - Si el usuario solicitó eliminar un cuatrimestre o nivel (ej: C3), retira (remove_user) al estudiante de todos los grupos listados arriba pertenecientes a ese nivel.
 - Conserva e incluye cualquier otra acción solicitada en el mensaje original (como cambios de estado).
 - Genera el conjunto COMPLETO de acciones en el arreglo "actions".`;
+          }
 
           currentHistory = [
             ...currentHistory, 
@@ -1048,6 +1105,42 @@ INSTRUCCIONES DE ACCIÓN:
                                     <span style={{ color: 'var(--on-surface)', fontSize: '15px', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>
                                       {parsedResult.message}
                                     </span>
+                                    {parsedResult.options && parsedResult.options.length > 0 && (
+                                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '12px' }}>
+                                        {parsedResult.options.map((opt, optIdx) => (
+                                          <button
+                                            key={opt.value || optIdx}
+                                            type="button"
+                                            onClick={() => handleAnalyze(opt.value)}
+                                            style={{
+                                              display: 'inline-flex',
+                                              alignItems: 'center',
+                                              gap: '6px',
+                                              background: 'rgba(234, 179, 8, 0.15)',
+                                              border: '1px solid rgba(234, 179, 8, 0.35)',
+                                              color: '#facc15',
+                                              padding: '6px 12px',
+                                              borderRadius: '8px',
+                                              fontSize: '13px',
+                                              fontWeight: 600,
+                                              cursor: 'pointer',
+                                              transition: 'all 0.18s ease',
+                                              fontFamily: "'Space Grotesk', sans-serif"
+                                            }}
+                                            onMouseEnter={(e) => {
+                                              e.currentTarget.style.background = 'rgba(234, 179, 8, 0.28)';
+                                              e.currentTarget.style.borderColor = '#facc15';
+                                            }}
+                                            onMouseLeave={(e) => {
+                                              e.currentTarget.style.background = 'rgba(234, 179, 8, 0.15)';
+                                              e.currentTarget.style.borderColor = 'rgba(234, 179, 8, 0.35)';
+                                            }}
+                                          >
+                                            <span>{opt.label}</span>
+                                          </button>
+                                        ))}
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
                               ) : isCommandBlock ? (
@@ -1362,8 +1455,46 @@ INSTRUCCIONES DE ACCIÓN:
                                   <ArrowRight size={18} color="var(--on-surface-variant)" />
                                 </div>
                               ) : (
-                                <div style={{ color: 'var(--on-surface-variant)', fontSize: '15px', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>
-                                  {msg.text || "Procesando..."}
+                                <div>
+                                  <div style={{ color: 'var(--on-surface)', fontSize: '15px', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>
+                                    {msg.text || "Procesando..."}
+                                  </div>
+                                  {parsedResult?.options && parsedResult.options.length > 0 && (
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '12px' }}>
+                                      {parsedResult.options.map((opt, optIdx) => (
+                                        <button
+                                          key={opt.value || optIdx}
+                                          type="button"
+                                          onClick={() => handleAnalyze(opt.value)}
+                                          style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '6px',
+                                            background: 'rgba(16, 185, 129, 0.15)',
+                                            border: '1px solid rgba(52, 211, 153, 0.35)',
+                                            color: '#34d399',
+                                            padding: '6px 14px',
+                                            borderRadius: '8px',
+                                            fontSize: '13px',
+                                            fontWeight: 600,
+                                            cursor: 'pointer',
+                                            transition: 'all 0.18s ease',
+                                            fontFamily: "'Space Grotesk', sans-serif"
+                                          }}
+                                          onMouseEnter={(e) => {
+                                            e.currentTarget.style.background = 'rgba(16, 185, 129, 0.25)';
+                                            e.currentTarget.style.borderColor = '#34d399';
+                                          }}
+                                          onMouseLeave={(e) => {
+                                            e.currentTarget.style.background = 'rgba(16, 185, 129, 0.15)';
+                                            e.currentTarget.style.borderColor = 'rgba(52, 211, 153, 0.35)';
+                                          }}
+                                        >
+                                          <span>{opt.label}</span>
+                                        </button>
+                                      ))}
+                                    </div>
+                                  )}
                                 </div>
                               )}
                             </div>
