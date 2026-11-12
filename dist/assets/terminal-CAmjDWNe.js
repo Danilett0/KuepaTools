@@ -1,1 +1,0 @@
-import{B as e}from"./index-sMzP40gL.js";var t=e(`terminal`,[[`path`,{d:`M12 19h8`,key:`baeox8`}],[`path`,{d:`m4 17 6-6-6-6`,key:`1yngyt`}]]);export{t};

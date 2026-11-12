@@ -82,6 +82,10 @@ export const generateCommandsFromActions = (actions) => {
         commands.push(`magik run:prod attempts:fix ["${gId}","${sId}"]`);
         break;
         
+      case "undo_program":
+        commands.push(`magik run:prod undo:program ["${pId}","${sId}"]`);
+        break;
+        
       default:
         console.warn(`Action type no reconocido: ${action_type}`);
     }

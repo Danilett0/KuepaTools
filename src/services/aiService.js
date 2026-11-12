@@ -46,6 +46,7 @@ REGLAS CRÍTICAS sobre el contexto:
 2. Si tiene múltiples programas Y la acción que vas a generar requiere program_id, PRIMERO verifica si el usuario mencionó (o insinuó claramente, ej: "tecnologo") el nombre de uno de ellos en su mensaje. Si es así, USA el ID de ese programa directamente. Si NO lo especificó, PREGUNTA al usuario cuál necesita listando los NOMBRES (no los IDs crudos). Usa saltos de línea (\n) y viñetas para que se muestre como una lista vertical clara. Si la acción NO requiere program_id, ignora este paso.
 3. NUNCA preguntes por datos que ya están en el contexto inyectado.
 4. Si no hay bloque de contexto, trabaja normalmente con lo que el usuario escribió.
+5. Si el usuario solicita inscribir una lista de estudiantes en un grupo específico (group_id), usa ESTRICTAMENTE ese mismo group_id para CADA una de las acciones "enroll_user". NUNCA dividas la lista ni uses otros group_ids distintos al proporcionado en el mensaje.
 
 ## Reglas de Parámetros:
 - student_id: Usa el ObjectID del contexto si está disponible. Si no, puede ser un INC (número corto).
@@ -62,6 +63,7 @@ REGLAS CRÍTICAS sobre el contexto:
 - "clean_cache_sislms": Limpiar cache de SIS. (No requiere parámetros).
 - "clean_cache_crm": Limpiar cache de CRM. (No requiere parámetros).
 - "fix_deliverable": Corregir entregable. (Requiere group_id y student_id. NO requiere program_id, NUNCA preguntes por el programa).
+- "undo_program": Eliminar o quitar programa a un estudiante. (Requiere student_id y program_id).
 
 ## Jerga Institucional y Abreviaturas de Soporte (Tickets de Slack/Zendesk/Email):
 1. "C1", "C2", ..., "C10": Abreviatura institucional estándar para "Cuatrimestre X" (Nueva América) o "Ciclo X" (Kuepa). 
@@ -91,6 +93,14 @@ REGLAS CRÍTICAS sobre el contexto:
    - "Módulo 0" suele nombrarse "Módulo 0", "Módulo Alfa", "Módulo Alpha", tener código de materia que comienza con "M0-" (ej. "M0-TLAA", "M0-TLCF", "AE-C0-") o pertenecer al nivel "Introducción" o "Módulo 0".
    - Al retirar o buscar "módulo 0", examina el nombre del grupo, la "Materia" ("M0-...", etc.) y el "Nivel" ("Introducción", "Módulo 0").
    - Si el usuario solicita una acción sobre una lista de estudiantes y algunos de ellos no tienen la materia/grupo inscrita en la alianza actual, emite las acciones para los que sí la tengan e incluye en "message" una nota explicativa clara indicando cuáles estudiantes no tenían dicha materia inscrita en la alianza activa.
+
+7. ELIMINAR / QUITAR PROGRAMA ACADÉMICO:
+   - Cuando el usuario solicite "eliminar programa", "quitar programa", "desvincular programa" o similar:
+     * Genera la acción "undo_program".
+     * Parámetros obligatorios: student_id y program_id.
+     * Si el estudiante tiene exactamente 1 programa en el contexto inyectado, usa ese program_id directamente.
+     * Si el estudiante tiene múltiples programas y el usuario menciona el nombre (ej. "marketing", "bachillerato"), selecciona el program_id correspondiente a ese programa.
+     * Si tiene múltiples programas y NO especificó cuál, responde con \`type: "INCOMPLETE"\` preguntando cuál programa desea eliminar y lista los nombres de los programas registrados.
 
 ## Flujo de Trabajo:
 1. IMPORTANTE: Analiza TODA la conversación para mantener el contexto (ej. saber a qué estudiante o programa se refiere el usuario), pero genera las acciones (type: "ACTIONS") ÚNICAMENTE para la ÚLTIMA petición del usuario. NUNCA acumules ni repitas acciones de mensajes anteriores.

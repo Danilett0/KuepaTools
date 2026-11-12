@@ -3,7 +3,7 @@ import { findUser, findUsersByIncList, findUsersByMongoIds } from './usuariosSer
 import { supabase } from './supabaseClient.js';
 import { ALLIANCE_IDS } from '../utils/constants.js';
 import { generateCommandsFromActions } from '../agent/skills/index.js';
-import { hydrateStudents } from './studentHydrator.js';
+import { hydrateStudents, extractObjectIDs } from './studentHydrator.js';
 import { extractMultipleSisUrls } from '../utils/academicTerms.js';
 export const DEFAULT_TICKET_CLOSINGS = [
   'Listo por aquí. Por favor valida y nos avisas si surge cualquier duda. 🙌',
@@ -76,7 +76,7 @@ export class AgentOrchestrator {
         uncachedIncs.add(parseInt(sId, 10));
       } else if (isMongoId) {
         const needsProgramAutoFill = !action.program_id && 
-          (action.action_type === 'audit_statistics' || action.action_type === 'change_status');
+          (action.action_type === 'audit_statistics' || action.action_type === 'change_status' || action.action_type === 'undo_program');
         if (needsProgramAutoFill) {
           uncachedMongoIds.add(sId);
         }
@@ -187,7 +187,7 @@ export class AgentOrchestrator {
    * Red de seguridad: traduce INCs, programas faltantes y estados a sus ObjectIDs reales.
    * Con el INC-First pipeline y el cache local, esto no genera consultas duplicadas.
    */
-  async resolveMagicVariables(action, chatHistory) {
+  async resolveMagicVariables(action, chatHistory, userText = '') {
     let resolvedAction = { ...action };
     let studentUser = null;
 
@@ -202,7 +202,7 @@ export class AgentOrchestrator {
         // Ya es un ObjectID válido de MongoDB.
         // Solo necesitamos studentUser si la acción requiere autocompletar program_id
         const needsProgramAutoFill = !resolvedAction.program_id && 
-          (resolvedAction.action_type === 'audit_statistics' || resolvedAction.action_type === 'change_status');
+          (resolvedAction.action_type === 'audit_statistics' || resolvedAction.action_type === 'change_status' || resolvedAction.action_type === 'undo_program');
         if (needsProgramAutoFill) {
           studentUser = await this.getUser(sId);
         }
@@ -224,7 +224,7 @@ export class AgentOrchestrator {
     }
 
     // 2. Autocompletar program_id desde los programas del estudiante
-    if (!resolvedAction.program_id && (resolvedAction.action_type === 'audit_statistics' || resolvedAction.action_type === 'change_status')) {
+    if (!resolvedAction.program_id && (resolvedAction.action_type === 'audit_statistics' || resolvedAction.action_type === 'change_status' || resolvedAction.action_type === 'undo_program')) {
       if (!studentUser && resolvedAction.student_id) {
         studentUser = await this.getUser(resolvedAction.student_id);
       }
@@ -233,7 +233,24 @@ export class AgentOrchestrator {
         if (studentUser.programs.length === 1) {
           resolvedAction.program_id = studentUser.programs[0].structure?.$oid || studentUser.programs[0].structure;
         } else {
-          throw new Error(`INCOMPLETE:El estudiante tiene múltiples programas registrados (${studentUser.programs.length}). Por favor, proporciona el ID del programa específico al que te refieres.`);
+          let matchedProg = null;
+          if (typeof userText === 'string' && userText.trim()) {
+            const normalizedText = this.normalizeStr(userText);
+            matchedProg = studentUser.programs.find(p => {
+              const name = p.name || '';
+              if (!name) return false;
+              const normName = this.normalizeStr(name);
+              if (normalizedText.includes(normName)) return true;
+              const words = normName.split(/\s+/).filter(w => w.length > 3);
+              return words.some(w => normalizedText.includes(w));
+            });
+          }
+
+          if (matchedProg) {
+            resolvedAction.program_id = matchedProg.structure?.$oid || matchedProg.structure;
+          } else {
+            throw new Error(`INCOMPLETE:El estudiante tiene múltiples programas registrados (${studentUser.programs.length}). Por favor, proporciona el ID del programa específico al que te refieres.`);
+          }
         }
       } else {
         throw new Error(`INCOMPLETE:No se encontró ningún programa asociado al estudiante. ¿Tienes el ID del programa académico?`);
@@ -255,6 +272,19 @@ export class AgentOrchestrator {
         resolvedAction.status_id = matchedState.mongo_id;
       } else {
         throw new Error(`INCOMPLETE:El estado "${resolvedAction.status_name}" no existe en la alianza actual. Por favor verifica el nombre.`);
+      }
+    }
+
+    // 4. Anclaje determinista de group_id para enroll_user
+    // Si el usuario especificó un único group_id explícito en su mensaje, cualquier acción enroll_user
+    // debe usar estrictamente ese ID, evitando alucinaciones o mezcla de IDs del LLM.
+    if (resolvedAction.action_type === 'enroll_user' && typeof userText === 'string' && userText.trim()) {
+      const explicitOids = extractObjectIDs(userText);
+      const candidateGroupOids = explicitOids.filter(oid => oid !== resolvedAction.student_id);
+      if (candidateGroupOids.length === 1) {
+        resolvedAction.group_id = candidateGroupOids[0];
+      } else if (explicitOids.length === 1) {
+        resolvedAction.group_id = explicitOids[0];
       }
     }
 
@@ -333,6 +363,7 @@ export class AgentOrchestrator {
     if (actionTypes.has('fix_deliverable')) categories.push('fix_deliverable');
     if (actionTypes.has('undo_publication')) categories.push('undo_publication');
     if (actionTypes.has('clean_cache_sislms') || actionTypes.has('clean_cache_crm')) categories.push('clean_cache');
+    if (actionTypes.has('undo_program')) categories.push('undo_program');
 
     // ── GESTIÓN MULTIACCIÓN COMPUESTA ──────────────────────────────────────────
     if (categories.length > 1) {
@@ -393,6 +424,17 @@ export class AgentOrchestrator {
 
       if (categories.includes('clean_cache')) {
         bullets.push(`• Caché del sistema purgada.`);
+      }
+
+      if (categories.includes('undo_program')) {
+        const undoProgActions = actions.filter(a => a.action_type === 'undo_program');
+        const details = undoProgActions.map(act => {
+          const s = students.find(st => st.id === act.student_id) || {};
+          const incTag = s.inc ? ` (ID: ${s.inc})` : '';
+          const progName = programMap[act.program_id] ? ` del programa ${programMap[act.program_id]}` : '';
+          return `${s.name || 'Estudiante'}${incTag}${progName}`;
+        }).join(', ');
+        bullets.push(`• Eliminación de Programa: Desvinculación completada para ${details}.`);
       }
 
       return `✅ Solicitud gestionada con éxito.\n\nSe completaron las siguientes acciones:\n\n${bullets.join('\n')}`;
@@ -561,6 +603,26 @@ export class AgentOrchestrator {
       return `✅ Caché del sistema limpiada con éxito.\n\nSe ejecutó la purga del caché solicitado.`;
     }
 
+    // 10. Eliminación de programa
+    if (actionTypes.has('undo_program')) {
+      const undoProgActions = actions.filter(a => a.action_type === 'undo_program');
+      if (undoProgActions.length === 1) {
+        const act = undoProgActions[0];
+        const student = students.find(s => s.id === act.student_id) || students[0] || {};
+        const progName = programMap[act.program_id] ? ` ${programMap[act.program_id]}` : '';
+        const incTag = student.inc ? ` (ID: ${student.inc})` : '';
+        return `✅ Programa eliminado con éxito.\n\nSe desvinculó el programa${progName} para el estudiante ${student.name}${incTag}.`;
+      } else {
+        const listStr = undoProgActions.map(act => {
+          const s = students.find(st => st.id === act.student_id) || {};
+          const incTag = s.inc ? ` (ID: ${s.inc})` : '';
+          const progName = programMap[act.program_id] ? ` en ${programMap[act.program_id]}` : '';
+          return `• ${s.name || 'Estudiante'}${incTag}: Programa retirado${progName}`;
+        }).join('\n');
+        return `✅ Programas eliminados con éxito.\n\nSe procesó la eliminación de programa para los siguientes estudiantes:\n\n${listStr}`;
+      }
+    }
+
     // Fallback genérico
     if (students.length === 1) {
       const student = students[0] || {};
@@ -641,7 +703,7 @@ export class AgentOrchestrator {
 
         let finalActions = [];
         for (const action of geminiResult.actions) {
-          const resolvedAction = await this.resolveMagicVariables(action, chatHistory);
+          const resolvedAction = await this.resolveMagicVariables(action, chatHistory, userText);
           finalActions.push(resolvedAction);
         }
 

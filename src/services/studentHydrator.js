@@ -56,6 +56,23 @@ export function extractObjectIDs(text) {
   return [...new Set(matches)];
 }
 
+/**
+ * Determina si es necesario consultar e inyectar los grupos inscritos de los estudiantes.
+ * Para inscripciones puras (enroll_user), consultar todos los grupos es innecesario,
+ * sobrecarga el contexto con cientos de IDs y produce alucinaciones de tokens en el LLM.
+ * Solo se requiere para retiros, traslados o eliminación de cuatrimestres.
+ * 
+ * @param {string} text - Texto del usuario
+ * @returns {boolean}
+ */
+export function isGroupLookupNeeded(text) {
+  if (!text || typeof text !== 'string') return false;
+  const normalized = text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
+  const withdrawOrTransferRegex = /\b(retir\w*|sac\w*|desinscrib\w*|desmatricul\w*|traslad\w*|mov\w*|cambi\w*|elimin\w*|baj\w*|quit\w*|c[1-9]|c10|m0|modulo\s*0|alpha|alfa|materias|grupos?\s+actual\w*|grupos?\s+inscrit\w*)\b/i;
+  return withdrawOrTransferRegex.test(normalized);
+}
+
 const programNamesCache = new Map();
 
 /**
@@ -125,7 +142,7 @@ async function resolveProgramNames(programIds, allianceId) {
  * @property {Object|null} autoProgram - Programa auto-resuelto si tiene exactamente 1
  * @property {Object} rawUser - Objeto de usuario completo normalizado
  */
-export async function hydrateStudents(text, allianceKey, onStateChange) {
+export async function hydrateStudents(text, allianceKey, onStateChange, options = {}) {
   const allianceId = ALLIANCE_IDS[allianceKey];
   const detectedINCs = extractINCs(text);
   const detectedObjectIDs = extractObjectIDs(text);
@@ -168,10 +185,11 @@ export async function hydrateStudents(text, allianceKey, onStateChange) {
 
   const allFoundUsers = [...usersByInc, ...usersByOid];
 
-  // Batch lookup de grupos activos para todos los estudiantes detectados
+  // Batch lookup de grupos activos SOLO si la acción involucra retiros, traslados o consulta de grupos
+  const shouldFetchGroups = options?.forceGroupLookup ?? isGroupLookupNeeded(text);
   const studentOids = allFoundUsers.map(u => u._id?.$oid).filter(Boolean);
   const groupsByStudent = new Map();
-  if (studentOids.length > 0) {
+  if (shouldFetchGroups && studentOids.length > 0) {
     try {
       await Promise.all(studentOids.map(async (sId) => {
         const { data: userStructures } = await supabase
@@ -203,7 +221,7 @@ export async function hydrateStudents(text, allianceKey, onStateChange) {
         programs: studentPrograms,
         programCount: studentPrograms.length,
         autoProgram: studentPrograms.length === 1 ? studentPrograms[0] : null,
-        groups: groupsByStudent.get(user._id.$oid) || [],
+        groups: shouldFetchGroups ? (groupsByStudent.get(user._id.$oid) || []) : undefined,
         rawUser: user
       });
     }
@@ -269,7 +287,7 @@ export function buildContextBlock(students, objectIds = []) {
         const subjectInfo = subjectName ? `, Materia: ${subjectName}` : '';
         context += `\n    • "${g.name}" (ID: ${gId}${subjectInfo}, Nivel: ${levelName})`;
       }
-    } else {
+    } else if (s.groups && s.groups.length === 0) {
       context += `\n  Grupos inscritos: Ninguno registrado.`;
     }
   }
@@ -277,6 +295,9 @@ export function buildContextBlock(students, objectIds = []) {
   if (Array.isArray(objectIds) && objectIds.length > 0) {
     context += `\n\nObjectIDs detectados en el mensaje: ${objectIds.join(', ')}`;
     context += `\n(Pueden ser group_id, program_id, u otro ID según el contexto del mensaje.)`;
+    if (objectIds.length === 1) {
+      context += `\nIMPORTANTE: Si la solicitud es de inscripción masiva (enroll_user) en este grupo, usa ESTRICTAMENTE "${objectIds[0]}" como group_id para TODOS los estudiantes. NUNCA inventes ni alternes con otros IDs de grupo.`;
+    }
   }
   
   context += `\n\nUSA ESTOS DATOS DIRECTAMENTE EN TUS ACCIONES. No preguntes por student_id ni program_id si ya están aquí.`;

@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { extractINCs, buildContextBlock } from '../src/services/studentHydrator.js';
+import { extractINCs, buildContextBlock, isGroupLookupNeeded } from '../src/services/studentHydrator.js';
 
 describe('studentHydrator - extractINCs', () => {
   test('debe extraer múltiples INCs de una lista vertical como la enviada por el usuario', () => {
@@ -102,9 +102,58 @@ describe('studentHydrator - buildContextBlock con grupos inscritos', () => {
     assert.match(block, /Grupos inscritos: Ninguno registrado/);
   });
 
+  test('omite la sección de grupos cuando groups es undefined (lookup omitido para inscripciones puras)', () => {
+    const students = [
+      {
+        inc: '33108',
+        objectId: '6aa17497b8640d100208762a',
+        name: 'Karen Sofia Gonzalez Pineros',
+        programCount: 1,
+        autoProgram: { name: 'Auxiliar Administrativo', id: '61e2a3b4c5d6e7f8a9b0c1d3' },
+        programs: [{ name: 'Auxiliar Administrativo', id: '61e2a3b4c5d6e7f8a9b0c1d3' }],
+        groups: undefined
+      }
+    ];
+
+    const block = buildContextBlock(students, ['6ae3853368839a18af139191']);
+    assert.match(block, /INC 33108/);
+    assert.ok(!block.includes('Grupos inscritos'));
+    assert.match(block, /ObjectIDs detectados en el mensaje: 6ae3853368839a18af139191/);
+    assert.match(block, /usa ESTRICTAMENTE "6ae3853368839a18af139191" como group_id/);
+  });
+
   test('casos límite: arreglo de estudiantes vacío retorna string vacío', () => {
     assert.equal(buildContextBlock([], []), '');
     assert.equal(buildContextBlock(null, []), '');
     assert.equal(buildContextBlock(undefined, []), '');
+  });
+});
+
+describe('studentHydrator - isGroupLookupNeeded', () => {
+  test('retorna false para peticiones de inscripción pura', () => {
+    const text1 = 'en este grupo 6ae3853368839a18af139191 necesito inscribir a esta lista de estudiantes\n15110\n23822';
+    assert.equal(isGroupLookupNeeded(text1), false);
+
+    const text2 = 'inscribir al estudiante 15110 en el grupo 6ae3853368839a18af139191';
+    assert.equal(isGroupLookupNeeded(text2), false);
+
+    const text3 = 'matricular a estos estudiantes al grupo 6ae3853368839a18af139191';
+    assert.equal(isGroupLookupNeeded(text3), false);
+  });
+
+  test('retorna true cuando se solicitan retiros, traslados o eliminación de cuatrimestres', () => {
+    assert.equal(isGroupLookupNeeded('retirar al estudiante 15110 de sus grupos'), true);
+    assert.equal(isGroupLookupNeeded('sacar del grupo a 15110'), true);
+    assert.equal(isGroupLookupNeeded('trasladar materias de 15110 al grupo 6ae...'), true);
+    assert.equal(isGroupLookupNeeded('eliminar C3 de 15110'), true);
+    assert.equal(isGroupLookupNeeded('desinscribir de todos los grupos'), true);
+    assert.equal(isGroupLookupNeeded('cambiar de grupo al estudiante 15110'), true);
+  });
+
+  test('casos límite: texto vacío, nulo o tipos no string retornan false', () => {
+    assert.equal(isGroupLookupNeeded(''), false);
+    assert.equal(isGroupLookupNeeded(null), false);
+    assert.equal(isGroupLookupNeeded(undefined), false);
+    assert.equal(isGroupLookupNeeded(12345), false);
   });
 });

@@ -165,6 +165,13 @@ export function generate360Commands(actionType, params = {}) {
       return [`magik run:prod status:change["${programId}","${targetStatusId}","${studentId}"]`];
     }
 
+    case 'undo_program': {
+      if (!studentId || !programId) {
+        throw new Error('studentId y programId son requeridos para eliminar el programa.');
+      }
+      return [`magik run:prod undo:program ["${programId}","${studentId}"]`];
+    }
+
     case 'clean_cache_lms':
       return ['magik run:prod cache:clean:sislms ["*"]'];
 
