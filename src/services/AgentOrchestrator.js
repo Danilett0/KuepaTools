@@ -5,6 +5,7 @@ import { ALLIANCE_IDS } from '../utils/constants.js';
 import { generateCommandsFromActions } from '../agent/skills/index.js';
 import { hydrateStudents, extractObjectIDs, resolveProgramNames } from './studentHydrator.js';
 import { extractMultipleSisUrls } from '../utils/academicTerms.js';
+import { extractTableFromText, detectTransferTable, detectStatusTable } from '../utils/tableParser.js';
 export const DEFAULT_TICKET_CLOSINGS = [
   'Listo por aquí. Por favor valida y nos avisas si surge cualquier duda. 🙌',
   'Quedó listo de nuestra parte. Por favor revisa y nos comentas si necesitas algo más. ✨',
@@ -32,6 +33,82 @@ export class AgentOrchestrator {
   // Utilidad para normalizar textos sin acentos
   normalizeStr(str) {
     return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  }
+
+  /**
+   * Resuelve la coincidencia flexible entre el nombre de estado solicitado y los estados del catálogo.
+   * Soporta coincidencia exacta, limpieza de preposiciones/conectores ("con materias pendientes" -> "materias pendientes"),
+   * inclusión mutua de subcadenas y diccionario de alias académicos habituales.
+   */
+  resolveStateMatch(targetName, candidateStates) {
+    if (!targetName || !candidateStates || candidateStates.length === 0) return null;
+
+    const normTarget = this.normalizeStr(String(targetName).trim());
+    if (!normTarget) return null;
+
+    // 1. Coincidencia exacta
+    const exactMatch = candidateStates.find(e => this.normalizeStr(e.name || '') === normTarget);
+    if (exactMatch) return exactMatch;
+
+    // Limpieza de palabras accesorias o de enlace comunes
+    const stripStopWords = (str) =>
+      this.normalizeStr(String(str || ''))
+        .replace(/\b(con|sin|de|en|el|la|los|las|estado|estatus|status)\b/gi, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    const cleanTarget = stripStopWords(targetName);
+
+    // 2. Coincidencia tras remover palabras vacías
+    if (cleanTarget) {
+      const matchClean = candidateStates.find(e => stripStopWords(e.name || '') === cleanTarget);
+      if (matchClean) return matchClean;
+    }
+
+    // 3. Coincidencia por inclusión de subcadena mutua (mínimo 4 caracteres)
+    if (cleanTarget.length >= 4) {
+      const matchSubstring = candidateStates.find(e => {
+        const cleanDb = stripStopWords(e.name || '');
+        return cleanDb.length >= 4 && (cleanDb.includes(cleanTarget) || cleanTarget.includes(cleanDb));
+      });
+      if (matchSubstring) return matchSubstring;
+    }
+
+    // 4. Diccionario de alias / variantes habituales
+    const STATE_ALIASES = {
+      'graduado': 'finalizado',
+      'graduada': 'finalizado',
+      'culminado': 'finalizado',
+      'culminada': 'finalizado',
+      'terminado': 'finalizado',
+      'terminada': 'finalizado',
+      'egresado': 'finalizado',
+      'egresada': 'finalizado',
+      'retirada': 'retirado',
+      'desertor': 'retirado',
+      'desertora': 'retirado',
+      'baja': 'retirado',
+      'dado de baja': 'retirado',
+      'inactivo': 'retirado',
+      'inactiva': 'retirado',
+      'activa': 'activo',
+      'matriculado': 'activo',
+      'matriculada': 'activo',
+      'inscrito': 'activo',
+      'inscrita': 'activo',
+      'aprobado': 'aprobado',
+      'aprobada': 'aprobado',
+      'reprobado': 'reprobado',
+      'reprobada': 'reprobado'
+    };
+
+    const targetAlias = STATE_ALIASES[normTarget] || STATE_ALIASES[cleanTarget];
+    if (targetAlias) {
+      const matchAlias = candidateStates.find(e => this.normalizeStr(e.name || '').includes(targetAlias));
+      if (matchAlias) return matchAlias;
+    }
+
+    return null;
   }
 
   /**
@@ -337,7 +414,7 @@ export class AgentOrchestrator {
       }
     }
 
-    // 3. Resolver Estados Dinámicos usando cache local
+    // 3. Resolver Estados Dinámicos usando cache local con coincidencia flexible
     if (resolvedAction.action_type === 'change_status' && resolvedAction.status_name && !resolvedAction.status_id) {
       if (!this.estadosCache) {
         const { data: estadosData } = await supabase
@@ -347,11 +424,24 @@ export class AgentOrchestrator {
         this.estadosCache = estadosData || [];
       }
         
-      const matchedState = this.estadosCache.find(e => this.normalizeStr(e.name) === this.normalizeStr(resolvedAction.status_name));
+      let matchedState = this.resolveStateMatch(resolvedAction.status_name, this.estadosCache);
+
+      // Si no coincide directamente, verificar si el mensaje del usuario especifica o corrige el estado
+      if (!matchedState && typeof userText === 'string' && userText.trim()) {
+        const userStateMatch = this.resolveStateMatch(userText, this.estadosCache);
+        if (userStateMatch) {
+          matchedState = userStateMatch;
+        }
+      }
+
       if (matchedState) {
         resolvedAction.status_id = matchedState.mongo_id;
+        resolvedAction.status_name = matchedState.name;
       } else {
-        throw new Error(`INCOMPLETE:El estado "${resolvedAction.status_name}" no existe en la alianza actual. Por favor verifica el nombre.`);
+        const availableList = this.estadosCache.map(e => `• **${e.name}**`).join('\n');
+        const err = new Error(`INCOMPLETE:El estado "${resolvedAction.status_name}" no existe en la alianza actual. Por favor verifica el nombre o selecciona una de las opciones disponibles:\n\n${availableList}`);
+        err.options = this.estadosCache.map(e => ({ label: e.name, value: e.name }));
+        throw err;
       }
     }
 
@@ -375,12 +465,15 @@ export class AgentOrchestrator {
    * Genera una respuesta concisa y profesional lista para copiar y pegar en tickets o Slack.
    * Entrega únicamente la solución técnica ejecutada sin frases de despedida ni relleno adicional.
    */
-  async generateTicketResponse(actions, customClosing = null) {
+  async generateTicketResponse(actions, customClosing = null, options = {}) {
     if (!actions || actions.length === 0) return null;
 
     const studentIds = [...new Set(actions.map(a => a.student_id).filter(Boolean))];
     const groupIds = [...new Set(actions.map(a => a.group_id).filter(Boolean))];
     const programIds = [...new Set(actions.map(a => a.program_id).filter(Boolean))];
+
+    // Una acción es extensa si proviene de lote tabular o involucra más de 2 estudiantes
+    const isExtensive = Boolean(options.isBatch) || studentIds.length > 2;
 
     // Consultar nombres de grupos
     const groupMap = {};
@@ -451,49 +544,82 @@ export class AgentOrchestrator {
 
       if (categories.includes('change_status')) {
         const statusActions = actions.filter(a => a.action_type === 'change_status');
-        const stDetails = statusActions.map(act => {
-          const s = students.find(st => st.id === act.student_id) || {};
-          const incTag = s.inc ? ` (ID: ${s.inc})` : '';
-          const progName = programMap[act.program_id] ? ` en su programa ${programMap[act.program_id]}` : '';
-          return `${s.name || 'Estudiante'}${incTag} a estado ${act.status_name || 'Actualizado'}${progName}`;
-        }).join(', ');
-        bullets.push(`• Cambio de Estado: ${stDetails}.`);
+        if (isExtensive) {
+          bullets.push(`• Cambio de Estado: Actualizado para un total de ${statusActions.length} estudiantes.`);
+        } else {
+          const stDetails = statusActions.map(act => {
+            const s = students.find(st => st.id === act.student_id) || {};
+            const incTag = s.inc ? ` (ID: ${s.inc})` : '';
+            const progName = programMap[act.program_id] ? ` en su programa ${programMap[act.program_id]}` : '';
+            return `${s.name || 'Estudiante'}${incTag} a estado ${act.status_name || 'Actualizado'}${progName}`;
+          }).join(', ');
+          bullets.push(`• Cambio de Estado: ${stDetails}.`);
+        }
       }
 
       if (categories.includes('traslado')) {
-        const enrollGroups = [...new Set(actions.filter(a => a.action_type === 'enroll_user').map(a => groupMap[a.group_id] || a.group_id).filter(Boolean))];
-        const destStr = enrollGroups.length > 0 ? ` al nuevo grupo ${enrollGroups.join(', ')}` : '';
-        const names = students.map(s => `${s.name}${s.inc ? ` (ID: ${s.inc})` : ''}`).join(', ');
-        bullets.push(`• Traslado de materias: Realizado${destStr} para ${names}.`);
+        const enrollActions = actions.filter(a => a.action_type === 'enroll_user');
+        const removeActions = actions.filter(a => a.action_type === 'remove_user');
+        const totalTransfers = Math.max(enrollActions.length, removeActions.length, students.length);
+        if (isExtensive) {
+          bullets.push(`• Traslado de materias: Se realizaron un total de ${totalTransfers} traslados para ${students.length} estudiantes.`);
+        } else {
+          const enrollGroups = [...new Set(actions.filter(a => a.action_type === 'enroll_user').map(a => groupMap[a.group_id] || a.group_id).filter(Boolean))];
+          const destStr = enrollGroups.length > 0 ? ` al nuevo grupo ${enrollGroups.join(', ')}` : '';
+          const names = students.map(s => `${s.name}${s.inc ? ` (ID: ${s.inc})` : ''}`).join(', ');
+          bullets.push(`• Traslado de materias: Realizado${destStr} para ${names}.`);
+        }
       }
 
       if (categories.includes('enroll')) {
-        const enrollGroups = [...new Set(actions.filter(a => a.action_type === 'enroll_user').map(a => groupMap[a.group_id] || a.group_id).filter(Boolean))];
-        const gStr = enrollGroups.length > 0 ? ` al grupo ${enrollGroups.join(', ')}` : '';
-        const names = students.map(s => `${s.name}${s.inc ? ` (ID: ${s.inc})` : ''}`).join(', ');
-        bullets.push(`• Inscripción: Estudiante inscrito${gStr} (${names}).`);
+        const enrollActions = actions.filter(a => a.action_type === 'enroll_user');
+        if (isExtensive) {
+          bullets.push(`• Inscripciones: Completadas para un total de ${students.length} estudiantes (${enrollActions.length} asignaciones).`);
+        } else {
+          const enrollGroups = [...new Set(actions.filter(a => a.action_type === 'enroll_user').map(a => groupMap[a.group_id] || a.group_id).filter(Boolean))];
+          const gStr = enrollGroups.length > 0 ? ` al grupo ${enrollGroups.join(', ')}` : '';
+          const names = students.map(s => `${s.name}${s.inc ? ` (ID: ${s.inc})` : ''}`).join(', ');
+          bullets.push(`• Inscripción: Estudiante inscrito${gStr} (${names}).`);
+        }
       }
 
       if (categories.includes('remove')) {
-        const removeGroups = [...new Set(actions.filter(a => a.action_type === 'remove_user').map(a => groupMap[a.group_id] || a.group_id).filter(Boolean))];
-        const gStr = removeGroups.length > 0 ? ` del grupo ${removeGroups.join(', ')}` : '';
-        const names = students.map(s => `${s.name}${s.inc ? ` (ID: ${s.inc})` : ''}`).join(', ');
-        bullets.push(`• Retiro: Estudiante retirado${gStr} (${names}).`);
+        const removeActions = actions.filter(a => a.action_type === 'remove_user');
+        if (isExtensive) {
+          bullets.push(`• Retiros: Procesados para un total de ${students.length} estudiantes (${removeActions.length} asignaciones).`);
+        } else {
+          const removeGroups = [...new Set(actions.filter(a => a.action_type === 'remove_user').map(a => groupMap[a.group_id] || a.group_id).filter(Boolean))];
+          const gStr = removeGroups.length > 0 ? ` del grupo ${removeGroups.join(', ')}` : '';
+          const names = students.map(s => `${s.name}${s.inc ? ` (ID: ${s.inc})` : ''}`).join(', ');
+          bullets.push(`• Retiro: Estudiante retirado${gStr} (${names}).`);
+        }
       }
 
       if (categories.includes('audit_statistics')) {
-        const names = students.map(s => `${s.name}${s.inc ? ` (ID: ${s.inc})` : ''}`).join(', ');
-        bullets.push(`• Auditoría de estadísticas: Sincronización de progreso completada para ${names}.`);
+        if (isExtensive) {
+          bullets.push(`• Auditoría de estadísticas: Sincronización completada para un total de ${students.length} estudiantes.`);
+        } else {
+          const names = students.map(s => `${s.name}${s.inc ? ` (ID: ${s.inc})` : ''}`).join(', ');
+          bullets.push(`• Auditoría de estadísticas: Sincronización de progreso completada para ${names}.`);
+        }
       }
 
       if (categories.includes('recalculate_grades')) {
-        const names = students.map(s => `${s.name}${s.inc ? ` (ID: ${s.inc})` : ''}`).join(', ');
-        bullets.push(`• Recálculo de notas completado para ${names}.`);
+        if (isExtensive) {
+          bullets.push(`• Recálculo de notas: Completado para un total de ${students.length} estudiantes.`);
+        } else {
+          const names = students.map(s => `${s.name}${s.inc ? ` (ID: ${s.inc})` : ''}`).join(', ');
+          bullets.push(`• Recálculo de notas completado para ${names}.`);
+        }
       }
 
       if (categories.includes('fix_deliverable')) {
-        const names = students.map(s => `${s.name}${s.inc ? ` (ID: ${s.inc})` : ''}`).join(', ');
-        bullets.push(`• Entregable corregido y habilitado para ${names}.`);
+        if (isExtensive) {
+          bullets.push(`• Entregables: Habilitados y corregidos para un total de ${students.length} estudiantes.`);
+        } else {
+          const names = students.map(s => `${s.name}${s.inc ? ` (ID: ${s.inc})` : ''}`).join(', ');
+          bullets.push(`• Entregable corregido y habilitado para ${names}.`);
+        }
       }
 
       if (categories.includes('undo_publication')) {
@@ -508,16 +634,20 @@ export class AgentOrchestrator {
 
       if (categories.includes('undo_program')) {
         const undoProgActions = actions.filter(a => a.action_type === 'undo_program');
-        const details = undoProgActions.map(act => {
-          const s = students.find(st => st.id === act.student_id) || {};
-          const incTag = s.inc ? ` (ID: ${s.inc})` : '';
-          const progName = programMap[act.program_id] ? ` del programa ${programMap[act.program_id]}` : '';
-          return `${s.name || 'Estudiante'}${incTag}${progName}`;
-        }).join(', ');
-        bullets.push(`• Eliminación de Programa: Desvinculación completada para ${details}.`);
+        if (isExtensive) {
+          bullets.push(`• Eliminación de Programa: Desvinculación completada para un total de ${undoProgActions.length} estudiantes.`);
+        } else {
+          const details = undoProgActions.map(act => {
+            const s = students.find(st => st.id === act.student_id) || {};
+            const incTag = s.inc ? ` (ID: ${s.inc})` : '';
+            const progName = programMap[act.program_id] ? ` del programa ${programMap[act.program_id]}` : '';
+            return `${s.name || 'Estudiante'}${incTag}${progName}`;
+          }).join(', ');
+          bullets.push(`• Eliminación de Programa: Desvinculación completada para ${details}.`);
+        }
       }
 
-      return `✅ Solicitud gestionada con éxito.\n\nSe completaron las siguientes acciones:\n\n${bullets.join('\n')}`;
+      return `✅ Solicitud gestionada con éxito.\n\nSe completaron las siguientes acciones según lo solicitado en el ticket:\n\n${bullets.join('\n')}`;
     }
 
     // ── ACCIONES MONOTEMÁTICAS ESPECIALIZADAS ──────────────────────────────────
@@ -532,6 +662,10 @@ export class AgentOrchestrator {
         const progName = programMap[act.program_id] ? ` en su programa ${programMap[act.program_id]}` : '';
         const incTag = student.inc ? ` (ID: ${student.inc})` : '';
         return `✅ Estado actualizado con éxito.\n\nEl estudiante ${student.name}${incTag} ha sido actualizado a estado ${stName}${progName}.`;
+      } else if (isExtensive) {
+        const uniqueStatuses = [...new Set(statusActions.map(a => a.status_name).filter(Boolean))];
+        const statusLabel = uniqueStatuses.length === 1 ? ` a estado "${uniqueStatuses[0]}"` : '';
+        return `✅ Estados actualizados con éxito.\n\nSe procesó el cambio de estado${statusLabel} para un total de ${statusActions.length} estudiantes según lo solicitado en el ticket.`;
       } else {
         const listStr = statusActions.map(act => {
           const s = students.find(st => st.id === act.student_id) || {};
@@ -550,6 +684,8 @@ export class AgentOrchestrator {
         const student = students[0] || {};
         const incTag = student.inc ? ` (ID: ${student.inc})` : '';
         return `✅ Progreso y estadísticas auditados con éxito.\n\nSe ejecutó la auditoría y sincronización completa para el estudiante ${student.name}${incTag}${groupStr}. Los recursos completados y avances han sido recalculados y sincronizados en la plataforma.`;
+      } else if (isExtensive) {
+        return `✅ Progreso y estadísticas auditados con éxito.\n\nSe completó la auditoría y sincronización de avance para un total de ${students.length} estudiantes según lo solicitado en el ticket.`;
       } else {
         const studentList = students.map(s => `• ${s.name}${s.inc ? ` (ID: ${s.inc})` : ''}`).join('\n');
         return `✅ Progreso y estadísticas auditados con éxito.\n\nSe ejecutó la auditoría y sincronización completa${groupStr} para los siguientes estudiantes:\n\n${studentList}\n\nLos recursos completados y avances han sido recalculados y sincronizados en la plataforma.`;
@@ -580,6 +716,12 @@ export class AgentOrchestrator {
         const origStr = origGroups.length > 0 ? `del grupo ${origGroups.join(', ')}` : 'de los grupos anteriores';
         const destStr = enrollGroups.length > 0 ? `al nuevo grupo ${enrollGroups.join(', ')}` : 'en los nuevos grupos solicitados';
         return `✅ Traslado de materias gestionado con éxito.\n\nSe realizaron los movimientos correspondientes para el estudiante ${student.name}${incTag}, desinscribiendo ${origStr} e inscribiendo ${destStr}.`;
+      } else if (isExtensive) {
+        const enrollActions = actions.filter(a => a.action_type === 'enroll_user');
+        const removeActions = actions.filter(a => a.action_type === 'remove_user');
+        const totalTransfers = Math.max(enrollActions.length, removeActions.length, students.length);
+        const countStr = totalTransfers === 1 ? '1 traslado de materia' : `${totalTransfers} traslados de materias`;
+        return `✅ Traslados realizados con éxito.\n\nSe realizaron un total de ${countStr} para ${students.length} estudiantes según lo solicitado en el ticket.`;
       } else {
         const studentLines = students.map(s => {
           const incTag = s.inc ? ` (ID: ${s.inc})` : '';
@@ -613,6 +755,10 @@ export class AgentOrchestrator {
         }
         const groupStr = enrollGroups.length === 1 ? ` al grupo ${enrollGroups[0]}` : '';
         return `✅ Estudiante inscrito con éxito.\n\nEl estudiante ${student.name}${incTag} ha sido inscrito satisfactoriamente${groupStr}.`;
+      } else if (isExtensive) {
+        const enrollActions = actions.filter(a => a.action_type === 'enroll_user');
+        const countStr = enrollActions.length === 1 ? '1 materia/grupo' : `${enrollActions.length} asignaciones de materias/grupos`;
+        return `✅ Inscripciones realizadas con éxito.\n\nSe completó la inscripción de un total de ${students.length} estudiantes (${countStr}) según lo solicitado en el ticket.`;
       } else {
         const studentList = students.map(s => `• ${s.name}${s.inc ? ` (ID: ${s.inc})` : ''}`).join('\n');
         if (enrollGroups.length > 1) {
@@ -636,6 +782,10 @@ export class AgentOrchestrator {
         }
         const groupStr = removeGroups.length === 1 ? ` del grupo ${removeGroups[0]}` : '';
         return `✅ Retiro procesado con éxito.\n\nSe retiró al estudiante ${student.name}${incTag}${groupStr}.`;
+      } else if (isExtensive) {
+        const removeActions = actions.filter(a => a.action_type === 'remove_user');
+        const countStr = removeActions.length === 1 ? '1 materia/grupo' : `${removeActions.length} materias/grupos`;
+        return `✅ Retiros procesados con éxito.\n\nSe procesó el retiro de un total de ${students.length} estudiantes (${countStr}) según lo solicitado en el ticket.`;
       } else {
         const studentList = students.map(s => `• ${s.name}${s.inc ? ` (ID: ${s.inc})` : ''}`).join('\n');
         if (removeGroups.length > 1) {
@@ -660,6 +810,8 @@ export class AgentOrchestrator {
         const student = students[0] || {};
         const incTag = student.inc ? ` (ID: ${student.inc})` : '';
         return `✅ Calificaciones recalculadas con éxito.\n\nSe forzó el recálculo de la nota final para ${student.name}${incTag}.`;
+      } else if (isExtensive) {
+        return `✅ Calificaciones recalculadas con éxito.\n\nSe forzó el recálculo de la nota final para un total de ${students.length} estudiantes según lo solicitado en el ticket.`;
       } else {
         const studentList = students.map(s => `• ${s.name}${s.inc ? ` (ID: ${s.inc})` : ''}`).join('\n');
         return `✅ Calificaciones recalculadas con éxito.\n\nSe forzó el recálculo de la nota final para los siguientes estudiantes:\n\n${studentList}`;
@@ -672,6 +824,8 @@ export class AgentOrchestrator {
         const student = students[0] || {};
         const incTag = student.inc ? ` (ID: ${student.inc})` : '';
         return `✅ Entregable corregido.\n\nSe habilitó y corrigió el intento de entrega para el estudiante ${student.name}${incTag}.`;
+      } else if (isExtensive) {
+        return `✅ Entregables corregidos con éxito.\n\nSe habilitó y corrigió el intento de entrega para un total de ${students.length} estudiantes según lo solicitado en el ticket.`;
       } else {
         const studentList = students.map(s => `• ${s.name}${s.inc ? ` (ID: ${s.inc})` : ''}`).join('\n');
         return `✅ Entregables corregidos.\n\nSe habilitó y corrigió el intento de entrega para los siguientes estudiantes:\n\n${studentList}`;
@@ -692,6 +846,8 @@ export class AgentOrchestrator {
         const progName = programMap[act.program_id] ? ` ${programMap[act.program_id]}` : '';
         const incTag = student.inc ? ` (ID: ${student.inc})` : '';
         return `✅ Programa eliminado con éxito.\n\nSe desvinculó el programa${progName} para el estudiante ${student.name}${incTag}.`;
+      } else if (isExtensive) {
+        return `✅ Programas desvinculados con éxito.\n\nSe completó la desvinculación de programas para un total de ${undoProgActions.length} estudiantes según lo solicitado en el ticket.`;
       } else {
         const listStr = undoProgActions.map(act => {
           const s = students.find(st => st.id === act.student_id) || {};
@@ -708,6 +864,8 @@ export class AgentOrchestrator {
       const student = students[0] || {};
       const incTag = student.inc ? ` (ID: ${student.inc})` : '';
       return `✅ Solicitud gestionada con éxito.\n\nSe procesaron los comandos correspondientes para ${student.name || 'el estudiante'}${incTag}.`;
+    } else if (isExtensive) {
+      return `✅ Solicitud gestionada con éxito.\n\nSe procesaron las gestiones solicitadas para un total de ${students.length} estudiantes según lo solicitado en el ticket.`;
     } else {
       const studentList = students.map(s => `• ${s.name || 'Estudiante'}${s.inc ? ` (ID: ${s.inc})` : ''}`).join('\n');
       return `✅ Solicitud gestionada con éxito.\n\nSe procesaron los comandos correspondientes para los siguientes estudiantes:\n\n${studentList}`;
@@ -732,8 +890,103 @@ export class AgentOrchestrator {
     // 1. RAG + INC-First Hydration (usa el texto completo de la conversación)
     const processedText = await this.preprocessMessage(userText, onThinkingStateChange, fullConversationText);
     
-    // Detección directa de consultas informativas sobre programas del estudiante
     const trimmedUserText = String(userText || '').trim();
+
+    // Detección directa de Matrices Tabulares (ej: traslados / inscripciones masivas copiadas de Excel)
+    const tableExtraction = extractTableFromText(userText);
+    if (tableExtraction) {
+      const transferData = detectTransferTable(tableExtraction.table);
+      const isInformationalQuery = /^(?:¿?\s*(?:cu[aá]ntos|qu[eé]|cu[aá]l|dime|c[oó]mo|qui[eé]n))\b/i.test(trimmedUserText);
+      
+      if (!isInformationalQuery && transferData && transferData.isTransfer && transferData.items.length > 0) {
+        onThinkingStateChange('db_processing');
+        const actions = [];
+        for (const item of transferData.items) {
+          actions.push({
+            action_type: 'remove_user',
+            student_id: item.studentId,
+            group_id: item.fromGroupId
+          });
+          actions.push({
+            action_type: 'enroll_user',
+            student_id: item.studentId,
+            group_id: item.toGroupId
+          });
+        }
+
+        await this.batchPrefetchUsers(actions);
+        let finalActions = [];
+        for (const action of actions) {
+          const resolved = await this.resolveMagicVariables(action, chatHistory, userText);
+          finalActions.push(resolved);
+        }
+
+        const bashCommands = generateCommandsFromActions(finalActions);
+        const ticketResponse = await this.generateTicketResponse(finalActions, null, { isBatch: true });
+
+        return {
+          type: 'COMMANDS',
+          commands: bashCommands,
+          ticketResponse,
+          message: `📊 Se procesó la matriz tabular de traslados con **${transferData.totalStudents} estudiantes** (${finalActions.length} comandos generados).`
+        };
+      } else if (!isInformationalQuery && transferData && transferData.isEnrollBatch && transferData.items.length > 0) {
+        onThinkingStateChange('db_processing');
+        const actions = transferData.items.map(item => ({
+          action_type: 'enroll_user',
+          student_id: item.studentId,
+          group_id: item.groupId
+        }));
+
+        await this.batchPrefetchUsers(actions);
+        let finalActions = [];
+        for (const action of actions) {
+          const resolved = await this.resolveMagicVariables(action, chatHistory, userText);
+          finalActions.push(resolved);
+        }
+
+        const bashCommands = generateCommandsFromActions(finalActions);
+        const ticketResponse = await this.generateTicketResponse(finalActions, null, { isBatch: true });
+
+        return {
+          type: 'COMMANDS',
+          commands: bashCommands,
+          ticketResponse,
+          message: `📊 Se procesó la matriz tabular de inscripciones con **${transferData.totalStudents} estudiantes** (${finalActions.length} comandos generados).`
+        };
+      } else if (!isInformationalQuery) {
+        const statusData = detectStatusTable(tableExtraction.table);
+        if (statusData && statusData.isStatusBatch && statusData.items.length > 0) {
+          onThinkingStateChange('db_processing');
+          const actions = statusData.items.map(item => ({
+            action_type: 'change_status',
+            student_id: item.studentId,
+            status_name: item.statusName,
+            program_hint: item.programHint || ''
+          }));
+
+          await this.batchPrefetchUsers(actions);
+          let finalActions = [];
+          for (const action of actions) {
+            const contextForAction = action.program_hint ? `${userText} ${action.program_hint}` : userText;
+            const resolved = await this.resolveMagicVariables(action, chatHistory, contextForAction);
+            finalActions.push(resolved);
+          }
+
+          const bashCommands = generateCommandsFromActions(finalActions);
+          const ticketResponse = await this.generateTicketResponse(finalActions, null, { isBatch: true });
+
+          return {
+            type: 'COMMANDS',
+            commands: bashCommands,
+            ticketResponse,
+            message: `📊 Se procesó el cambio de estado para **${statusData.totalStudents} estudiantes** (${finalActions.length} comandos generados).`
+          };
+        }
+      }
+    }
+
+    // Detección directa de consultas informativas sobre programas del estudiante
     const isAskingForPrograms = /^(?:¿?\s*(?:qu[eé]\s+programas?\s+tiene|dime\s+cu[aá]les\s+son|cu[aá]les\s+son(?:\s+sus\s+programas)?|qu[eé]\s+programas?\s+est[aá]n\s+registrados|cu[aá]les\s+programas\s+tiene|qu[eé]\s+programas\s+hay|cu[aá]les\s+son\?|dime\s+los\s+programas))\b/i.test(trimmedUserText);
 
     if (isAskingForPrograms) {

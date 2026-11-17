@@ -204,4 +204,41 @@ describe('AgentOrchestrator — Respuestas Limpias de Ticket (Solo Solución Té
     assert.ok(response.includes('• Grupo Beta'));
     assert.equal(response.includes('al grupo Grupo Alfa, Grupo Beta'), false);
   });
+
+  test('en traslados extensos (> 2 estudiantes o matriz tabular), genera un resumen con cifras globales para Slack / Tickets', async () => {
+    orchestrator.userCache.set('u1', { profile: { full_name: 'Estudiante 1' }, incremental_user_code: 101 });
+    orchestrator.userCache.set('u2', { profile: { full_name: 'Estudiante 2' }, incremental_user_code: 102 });
+    orchestrator.userCache.set('u3', { profile: { full_name: 'Estudiante 3' }, incremental_user_code: 103 });
+
+    const actions = [
+      { action_type: 'remove_user', student_id: 'u1', group_id: 'gOrig1' },
+      { action_type: 'remove_user', student_id: 'u2', group_id: 'gOrig2' },
+      { action_type: 'remove_user', student_id: 'u3', group_id: 'gOrig3' },
+      { action_type: 'enroll_user', student_id: 'u1', group_id: 'gDest1' },
+      { action_type: 'enroll_user', student_id: 'u2', group_id: 'gDest2' },
+      { action_type: 'enroll_user', student_id: 'u3', group_id: 'gDest3' }
+    ];
+
+    const response = await orchestrator.generateTicketResponse(actions);
+
+    assert.ok(response.startsWith('✅ Traslados realizados con éxito.'));
+    assert.ok(response.includes('Se realizaron un total de 3 traslados de materias para 3 estudiantes según lo solicitado en el ticket.'));
+    assert.equal(response.includes('➔'), false);
+    assert.equal(response.includes('Estudiante 1'), false);
+  });
+
+  test('en lotes tabulares con opción isBatch, sintetiza cifras globales incluso con 2 estudiantes', async () => {
+    const actions = [
+      { action_type: 'remove_user', student_id: 'u1', group_id: 'gOrig1' },
+      { action_type: 'remove_user', student_id: 'u2', group_id: 'gOrig2' },
+      { action_type: 'enroll_user', student_id: 'u1', group_id: 'gDest1' },
+      { action_type: 'enroll_user', student_id: 'u2', group_id: 'gDest2' }
+    ];
+
+    const response = await orchestrator.generateTicketResponse(actions, null, { isBatch: true });
+
+    assert.ok(response.startsWith('✅ Traslados realizados con éxito.'));
+    assert.ok(response.includes('Se realizaron un total de 2 traslados de materias para 2 estudiantes'));
+    assert.equal(response.includes('➔'), false);
+  });
 });

@@ -119,6 +119,17 @@ REGLAS CRÍTICAS sobre el contexto:
    - "Entregable", "tarea", "actividad", "intento", "subir archivo", "abrir entrega", "reabrir intento":
      * ÚNICAMENTE en estos casos se debe utilizar "fix_deliverable".
 
+9. TABLAS COPIADAS DE EXCEL / GOOGLE SHEETS (DATOS TABULARES / TSV):
+   - El usuario puede pegar tablas copiadas de Excel o Sheets con columnas como \`user_id\`, \`grupo_id actual\` (donde está actualmente), \`group_id nuevo\` (donde debería estar), o una columna de \`estado\` (ej: "Finalizado", "Con materias pendientes", "Materias pendientes", "Activo", "Retirado").
+   - Cada fila representa una operación individual para un estudiante.
+   - Si la tabla contiene una columna de estado o el usuario solicita cambio de estado a partir de la tabla:
+     * Genera \`action_type: "change_status"\` para CADA estudiante de la tabla.
+     * Asigna a cada acción su propio \`status_name\` tomando el valor correspondiente a esa fila.
+     * NUNCA preguntes por el estado si cada fila de la tabla ya lo tiene indicado en sus columnas.
+   - Si la tabla indica grupo actual y grupo destino, genera un traslado para CADA fila: \`action_type: "remove_user"\` con el grupo actual, y \`action_type: "enroll_user"\` con el grupo destino.
+   - Si la tabla indica solo un grupo por estudiante, genera \`enroll_user\`.
+   - Genera TODAS las acciones en el arreglo "actions" sin omitir ninguna fila.
+
 ## Flujo de Trabajo:
 1. IMPORTANTE: Analiza TODA la conversación para mantener el contexto (ej. saber a qué estudiante o programa se refiere el usuario), pero genera las acciones (type: "ACTIONS") ÚNICAMENTE para la ÚLTIMA petición del usuario. NUNCA acumules ni repitas acciones de mensajes anteriores.
 2. Si la petición requiere consultar grupos actuales (por traslado de materias o eliminación de un cuatrimestre entero) Y los grupos NO están en el contexto del sistema, emite PRIMERO el \`type: "QUERY"\` con \`table: "grupos_estudiante"\`.

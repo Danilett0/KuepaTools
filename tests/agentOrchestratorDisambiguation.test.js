@@ -239,4 +239,57 @@ describe('AgentOrchestrator — Multiple Programs Disambiguation & Ordinal Suppo
     assert.match(result.message, /654321098765432109876543/);
     assert.ok(!result.message.includes('Las alianzas configuradas en el sistema son:'));
   });
+
+  test('resolveStateMatch y resolveMagicVariables resuelven estados con conectores como "Con materias pendientes"', async () => {
+    orchestrator.estadosCache = [
+      { mongo_id: 'status_1', name: 'Finalizado' },
+      { mongo_id: 'status_2', name: 'Materias pendientes' },
+      { mongo_id: 'status_3', name: 'Activo' }
+    ];
+
+    const matchCon = orchestrator.resolveStateMatch('Con materias pendientes', orchestrator.estadosCache);
+    assert.ok(matchCon !== null);
+    assert.equal(matchCon.mongo_id, 'status_2');
+    assert.equal(matchCon.name, 'Materias pendientes');
+
+    const matchAlias = orchestrator.resolveStateMatch('graduado', orchestrator.estadosCache);
+    assert.ok(matchAlias !== null);
+    assert.equal(matchAlias.mongo_id, 'status_1');
+
+    const action = {
+      action_type: 'change_status',
+      student_id: '69702880e569501d6d9d3f5b',
+      status_name: 'Con materias pendientes'
+    };
+
+    const resolved = await orchestrator.resolveMagicVariables(action, [], 'el 1');
+    assert.equal(resolved.status_id, 'status_2');
+    assert.equal(resolved.status_name, 'Materias pendientes');
+  });
+
+  test('resolveMagicVariables arroja error INCOMPLETE con options cuando el estado no existe', async () => {
+    orchestrator.estadosCache = [
+      { mongo_id: 'status_1', name: 'Finalizado' },
+      { mongo_id: 'status_2', name: 'Materias pendientes' }
+    ];
+
+    const action = {
+      action_type: 'change_status',
+      student_id: '69702880e569501d6d9d3f5b',
+      status_name: 'Estado Desconocido X'
+    };
+
+    await assert.rejects(
+      async () => {
+        await orchestrator.resolveMagicVariables(action, [], 'el 1');
+      },
+      (err) => {
+        assert.ok(err.message.startsWith('INCOMPLETE:El estado "Estado Desconocido X" no existe'));
+        assert.ok(Array.isArray(err.options));
+        assert.equal(err.options.length, 2);
+        assert.equal(err.options[0].value, 'Finalizado');
+        return true;
+      }
+    );
+  });
 });

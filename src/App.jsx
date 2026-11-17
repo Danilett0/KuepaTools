@@ -3,11 +3,12 @@ import { useState } from "react";
 import { toast } from "react-toastify";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import { Users, RefreshCw, BarChart2, Search, BookOpen, GraduationCap, Bot, Database } from "lucide-react";
+import { Users, RefreshCw, BarChart2, Search, BookOpen, GraduationCap, Database } from "lucide-react";
 import { useEffect } from "react";
 import Sidebar from "./Components/Sidebar.jsx";
 import AppRouter from "./Components/AppRouter.jsx";
 import KuepaCommandPalette from "./Components/ui/KuepaCommandPalette.jsx";
+import KuepaAiIcon from "./Components/ui/KuepaAiIcon.jsx";
 import Login from "./Components/Login.jsx";
 import ResetPassword from "./Components/ResetPassword.jsx";
 import { useAppStore } from "./store/useAppStore.js";
@@ -127,26 +128,34 @@ function App() {
             position: 'fixed',
             bottom: '24px',
             right: '24px',
-          width: '56px',
-          height: '56px',
-          borderRadius: '28px',
-          backgroundColor: 'var(--primary)',
-          color: '#000',
-          border: 'none',
-          boxShadow: '0 8px 24px rgba(18, 163, 131, 0.4)',
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 9998,
-          transition: 'transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)',
-        }}
-        onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1) translateY(-4px)'}
-        onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1) translateY(0)'}
-        title="Abrir Kuepa AI (Alt+K)"
-      >
-        <Bot size={28} />
-      </button>
+            width: '56px',
+            height: '56px',
+            borderRadius: '28px',
+            background: 'linear-gradient(135deg, rgba(16, 24, 39, 0.95) 0%, rgba(7, 9, 14, 0.98) 100%)',
+            border: '1.5px solid rgba(52, 211, 153, 0.45)',
+            boxShadow: '0 8px 30px rgba(0, 0, 0, 0.7), 0 0 20px rgba(16, 185, 129, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.15)',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9998,
+            transition: 'all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)',
+            backdropFilter: 'blur(12px)',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'scale(1.08) translateY(-3px)';
+            e.currentTarget.style.borderColor = 'rgba(52, 211, 153, 0.85)';
+            e.currentTarget.style.boxShadow = '0 12px 36px rgba(0, 0, 0, 0.8), 0 0 28px rgba(16, 185, 129, 0.55), inset 0 1px 1px rgba(255, 255, 255, 0.25)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'scale(1) translateY(0)';
+            e.currentTarget.style.borderColor = 'rgba(52, 211, 153, 0.45)';
+            e.currentTarget.style.boxShadow = '0 8px 30px rgba(0, 0, 0, 0.7), 0 0 20px rgba(16, 185, 129, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.15)';
+          }}
+          title="Abrir Kuepa AI (Alt+K)"
+        >
+          <KuepaAiIcon size={26} glow />
+        </button>
       )}
 
       <ToastContainer
