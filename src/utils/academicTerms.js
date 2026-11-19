@@ -194,3 +194,32 @@ export function extractMultipleSisUrls(text) {
 
   return results;
 }
+
+/**
+ * Extrae todas las URLs de grupos académicos de SIS encontradas en el texto.
+ * Reconoce URLs con formato: https://sis.kuepa.com/academic-group/details/:groupId (con o sin query params).
+ *
+ * @param {string} text
+ * @returns {Array<{ groupId: string, fullUrl: string }>}
+ */
+export function extractAcademicGroupUrls(text) {
+  if (!text || typeof text !== 'string') return [];
+
+  const groupUrlRegex = /https:\/\/sis\.kuepa\.com\/academic-group\/details\/([a-f0-9]{24})(?:[/?#\s]|$)/gi;
+  const results = [];
+  const seenGroupIds = new Set();
+
+  for (const match of text.matchAll(groupUrlRegex)) {
+    const groupId = match[1];
+
+    if (!seenGroupIds.has(groupId)) {
+      seenGroupIds.add(groupId);
+      results.push({
+        groupId,
+        fullUrl: match[0].trim()
+      });
+    }
+  }
+
+  return results;
+}

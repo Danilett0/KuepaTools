@@ -42,6 +42,7 @@ Devuelve UNICAMENTE un JSON válido.
 - Catálogo General de Alianzas (Convenios, colegios, empresas o "todas las alianzas"):
   Si el usuario pregunta por "todas las alianzas", "lista de alianzas", o por el ID/nombre de una alianza de convenio específica (ej: "Socios 3", "Compensar", etc.), NUNCA respondas únicamente con las dos sedes principales. En su lugar, GENERA una consulta a base de datos:
   \`type: "QUERY"\`, \`query: { "table": "alianzas", "searchTerm": "" }\` (o el nombre específico solicitado).
+- REGLA NEGATIVA DE ALIANZAS: NUNCA consultes la tabla "alianzas" si el usuario está preguntando por un "grupo", "materia" o "asignatura", o si proporciona el ID de un grupo. Para grupos académicos debes consultar \`table: "grupo_info"\` o responder directamente con \`type: "INFO"\` si los datos ya están en el contexto.
 
 ## Contexto Inyectado (INC-First):
 Antes de recibir el mensaje, el sistema ya buscó a los estudiantes mencionados por su INC (número corto) en la base de datos.
@@ -148,6 +149,7 @@ REGLAS CRÍTICAS sobre el contexto:
      * Para consultar programas del estudiante: genera \`type: "QUERY"\` con \`query.table: "programas_estudiante"\` y \`query.student_id\`.
      * Para consultar datos generales del estudiante: genera \`type: "QUERY"\` con \`query.table: "estudiante_info"\` y \`query.student_id\`.
      * Para consultar grupos del estudiante: genera \`type: "QUERY"\` con \`query.table: "grupos_estudiante"\` y \`query.student_id\`.
+     * Para consultar información de un grupo académico específico: genera \`type: "QUERY"\` con \`query.table: "grupo_info"\` y \`query.group_id\`.
      * Para consultar catálogos del sistema: genera \`type: "QUERY"\` con \`query.table\` ("programas", "alianzas", "estados") y \`query.searchTerm\`.
 2. Si el usuario responde a una pregunta de desambiguación indicando el programa por número ("1", "2"), por nombre ("administración") o por ID:
    - Continúa con la acción pendiente (ej: change_status, audit_statistics, undo_program) usando \`type: "ACTIONS"\` e incluyendo el student_id y el program_id correspondiente.
@@ -166,10 +168,11 @@ Estructura estricta JSON:
   ],
   "message": "string (obligatorio si type es INCOMPLETE o INFO, opcional en ACTIONS para notas o advertencias al usuario)",
   "query": {
-    "table": "alianzas" | "programas" | "estados" | "grupos_estudiante" | "programas_estudiante" | "estudiante_info",
+    "table": "alianzas" | "programas" | "estados" | "grupos_estudiante" | "programas_estudiante" | "estudiante_info" | "grupo_info",
     "searchTerm": "string (opcional)",
     "student_id": "string (opcional)",
-    "student_ids": ["string"]
+    "student_ids": ["string"],
+    "group_id": "string (opcional)"
   }
 }
 `;
@@ -192,13 +195,13 @@ const wait = (ms, signal) => new Promise((resolve, reject) => {
 });
 
 export const analyzeIntentWithGemini = async (chatHistory, apiKey, options = {}) => {
-  const { 
-    maxRetries = DEFAULT_MAX_RETRIES, 
-    baseDelay = 1500, 
-    timeoutMs = DEFAULT_AI_TIMEOUT_MS, 
-    onRetry = null, 
-    model = DEFAULT_AI_MODEL, 
-    signal = null 
+  const {
+    maxRetries = DEFAULT_MAX_RETRIES,
+    baseDelay = 1500,
+    timeoutMs = DEFAULT_AI_TIMEOUT_MS,
+    onRetry = null,
+    model = DEFAULT_AI_MODEL,
+    signal = null
   } = options;
 
   if (signal?.aborted) {

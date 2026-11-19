@@ -312,6 +312,25 @@ export default function KuepaCommandPalette() {
                   dbResultsStr = `Estudiante "${studentId}" no encontrado en la base de datos.`;
                 }
               }
+            } else if (table === 'grupo_info') {
+              const targetGroupId = result.query.group_id || result.query.groupId || result.query.searchTerm || result.query.student_id;
+              if (targetGroupId) {
+                const { fetchGroupStructure } = await import('../../services/groupAuditService.js');
+                const groupData = await fetchGroupStructure(targetGroupId);
+                if (groupData) {
+                  const count = groupData.studentIds?.length || 0;
+                  const cohort = groupData.parentName ? `\n  • Cohorte / Padre: ${groupData.parentName}` : '';
+                  const level = groupData.levelName ? `\n  • Nivel de Pensum: ${groupData.levelName}` : '';
+                  const allianceStr = groupData.allianceName
+                    ? `\n  • Alianza: ${groupData.allianceName} (ID: ${groupData.allianceId || 'N/A'})`
+                    : `\n  • Alianza ID: ${groupData.allianceId || 'N/A'}`;
+                  dbResultsStr = `- Ficha de Grupo Académico:\n  • Nombre de la Materia: ${groupData.name}\n  • ID del Grupo (MongoDB): ${groupData.groupId}${cohort}${level}${allianceStr}\n  • Total estudiantes inscritos: ${count}`;
+                } else {
+                  dbResultsStr = `No se encontró información en la base de datos para el grupo con ID "${targetGroupId}".`;
+                }
+              } else {
+                dbResultsStr = "Falta especificar el group_id para consultar la información del grupo.";
+              }
             }
           } catch (e) {
             if (currentAbortController.signal.aborted) return;
@@ -322,7 +341,7 @@ export default function KuepaCommandPalette() {
           if (currentAbortController.signal.aborted) return;
 
           const searchLabel = searchTerm ? `'${searchTerm}'` : (table || 'todos los grupos');
-          const isInformationalQuery = table === 'programas_estudiante' || table === 'estudiante_info' || /^(?:¿?\s*(?:qu[eé]|cu[aá]l|dime|c[oó]mo|qui[eé]n|listar|mostrar))\b/i.test(lastMsgText.trim());
+          const isInformationalQuery = table === 'programas_estudiante' || table === 'estudiante_info' || table === 'grupo_info' || /^(?:¿?\s*(?:qu[eé]|cu[aá]l|dime|c[oó]mo|qui[eé]n|listar|mostrar))\b/i.test(lastMsgText.trim());
 
           let systemMsgText = `[RESULTADOS DE BD PARA ${searchLabel}]:\n${dbResultsStr}\n\n`;
 

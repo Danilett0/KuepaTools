@@ -202,7 +202,10 @@ describe('AgentOrchestrator — Multiple Programs Disambiguation & Ordinal Suppo
       _id: { $oid: '69702880e569501d6d9d3f5b' },
       incremental_user_code: 12345,
       profile: { full_name: 'Estudiante Demo', email: 'demo@kuepa.com' },
-      programs: []
+      programs: [
+        { structure: { $oid: '6ab19bc9893449125c48a291' }, name: 'Administración pública' },
+        { structure: { $oid: '6ab19bf5893449125c48a84d' }, name: 'Álgebra Lineal-2341V..' }
+      ]
     };
     orchestrator.userCache.set('69702880e569501d6d9d3f5b', userWithEmail);
     orchestrator.userCache.set('12345', userWithEmail);
@@ -288,6 +291,55 @@ describe('AgentOrchestrator — Multiple Programs Disambiguation & Ordinal Suppo
         assert.ok(Array.isArray(err.options));
         assert.equal(err.options.length, 2);
         assert.equal(err.options[0].value, 'Finalizado');
+        return true;
+      }
+    );
+  });
+
+  test('resolveStateMatch resuelve flexiblemente "finalizado en espera de grado" hacia "Finalización en espera de grado"', () => {
+    const states = [
+      { mongo_id: '60e8b7445348bf79648860e6', name: 'Graduado' },
+      { mongo_id: '60e8b7445348bf79648860e7', name: 'Finalización en espera de grado' },
+      { mongo_id: '60e8b7445348bf79648860e8', name: 'Finalización parcial' },
+      { mongo_id: '60e8b7445348bf79648860e2', name: 'Finalizado sin requisitos' },
+      { mongo_id: '68c989ddca60fe3f17936042', name: 'Materias pendientes' }
+    ];
+
+    const matchFinalizadoEspera = orchestrator.resolveStateMatch('finalizado en espera de grado', states);
+    assert.ok(matchFinalizadoEspera !== null);
+    assert.equal(matchFinalizadoEspera.mongo_id, '60e8b7445348bf79648860e7');
+    assert.equal(matchFinalizadoEspera.name, 'Finalización en espera de grado');
+
+    const matchEsperaGrado = orchestrator.resolveStateMatch('espera de grado', states);
+    assert.ok(matchEsperaGrado !== null);
+    assert.equal(matchEsperaGrado.mongo_id, '60e8b7445348bf79648860e7');
+
+    const matchGraduadoVentanilla = orchestrator.resolveStateMatch('graduado-ventanilla', states);
+    assert.ok(matchGraduadoVentanilla !== null);
+    assert.equal(matchGraduadoVentanilla.mongo_id, '60e8b7445348bf79648860e6');
+  });
+
+  test('resolveMagicVariables no hace fallback a userText si userText es un lote multilínea con otros estados', async () => {
+    orchestrator.estadosCache = [
+      { mongo_id: 'status_grad', name: 'Graduado' },
+      { mongo_id: 'status_espera', name: 'Finalización en espera de grado' }
+    ];
+
+    const action = {
+      action_type: 'change_status',
+      student_id: '69702880e569501d6d9d3f5b',
+      program_id: '6ab19bc9893449125c48a291',
+      status_name: 'Estado Totalmente Invalido ZZZ'
+    };
+
+    const multiLineUserText = `26486 Kevin graduado\n30923 Roger Estado Totalmente Invalido ZZZ`;
+
+    await assert.rejects(
+      async () => {
+        await orchestrator.resolveMagicVariables(action, [], multiLineUserText);
+      },
+      (err) => {
+        assert.ok(err.message.startsWith('INCOMPLETE:El estado "Estado Totalmente Invalido ZZZ" no existe'));
         return true;
       }
     );

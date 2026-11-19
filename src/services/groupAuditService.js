@@ -75,6 +75,7 @@ export async function fetchGroupStructure(groupId) {
       users,
       alliance_id,
       parent:parent_id (
+        name,
         pensum_level_id,
         level:pensum_level_id ( name )
       )
@@ -89,12 +90,28 @@ export async function fetchGroupStructure(groupId) {
 
   if (!data) return null;
 
+  let allianceName = null;
+  if (data.alliance_id) {
+    try {
+      const { data: allianceData } = await supabase
+        .from('alianzas')
+        .select('name')
+        .eq('mongo_id', data.alliance_id)
+        .maybeSingle();
+      allianceName = allianceData?.name || null;
+    } catch (err) {
+      console.warn('Error resolviendo nombre de alianza:', err);
+    }
+  }
+
   return {
     groupId: data.mongo_id,
     name: data.name || `Grupo ${data.mongo_id}`,
+    parentName: data.parent?.name || null,
     levelName: data.parent?.level?.name || null,
     studentIds: Array.isArray(data.users) ? data.users.filter(Boolean) : [],
     allianceId: data.alliance_id || null,
+    allianceName
   };
 }
 

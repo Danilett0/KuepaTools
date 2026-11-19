@@ -4,7 +4,8 @@ import { supabase } from './supabaseClient.js';
 import { ALLIANCE_IDS } from '../utils/constants.js';
 import { generateCommandsFromActions } from '../agent/skills/index.js';
 import { hydrateStudents, extractObjectIDs, resolveProgramNames } from './studentHydrator.js';
-import { extractMultipleSisUrls } from '../utils/academicTerms.js';
+import { extractMultipleSisUrls, extractAcademicGroupUrls } from '../utils/academicTerms.js';
+import { fetchGroupStructure } from './groupAuditService.js';
 import { extractTableFromText, detectTransferTable, detectStatusTable } from '../utils/tableParser.js';
 export const DEFAULT_TICKET_CLOSINGS = [
   'Listo por aquí. Por favor valida y nos avisas si surge cualquier duda. 🙌',
@@ -35,9 +36,29 @@ export class AgentOrchestrator {
     return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   }
 
+  // Lematización morfológica y normalización de raíces académicas
+  stemAcademicToken(word) {
+    let w = this.normalizeStr(word);
+    if (/^(con|sin|de|en|el|la|los|las|del|al|un|una|estado|estatus|status)$/.test(w)) return '';
+    w = w.replace(/(acion|aciones|ado|ada|ados|adas|ando|ar|er|ir)$/g, '');
+    w = w.replace(/(mente)$/g, '');
+    w = w.replace(/(es|s|o|a)$/g, '');
+    return w;
+  }
+
+  // Extracción de tokens académicos limpios
+  getAcademicTokens(str) {
+    return this.normalizeStr(str)
+      .replace(/[^\w\s]/g, ' ')
+      .split(/\s+/)
+      .map(w => this.stemAcademicToken(w))
+      .filter(t => t.length >= 2);
+  }
+
   /**
    * Resuelve la coincidencia flexible entre el nombre de estado solicitado y los estados del catálogo.
    * Soporta coincidencia exacta, limpieza de preposiciones/conectores ("con materias pendientes" -> "materias pendientes"),
+   * lematización/afinidad morfológica por tokens ("finalizado en espera de grado" -> "Finalización en espera de grado"),
    * inclusión mutua de subcadenas y diccionario de alias académicos habituales.
    */
   resolveStateMatch(targetName, candidateStates) {
@@ -65,7 +86,45 @@ export class AgentOrchestrator {
       if (matchClean) return matchClean;
     }
 
-    // 3. Coincidencia por inclusión de subcadena mutua (mínimo 4 caracteres)
+    // 3. Coincidencia por tokens / lemas con alta afinidad (ponderación morfológica)
+    const targetTokens = this.getAcademicTokens(targetName);
+    if (targetTokens.length > 0) {
+      let bestCandidate = null;
+      let bestScore = 0;
+
+      for (const state of candidateStates) {
+        const stateTokens = this.getAcademicTokens(state.name);
+        if (stateTokens.length === 0) continue;
+
+        let matchCount = 0;
+        for (const t of targetTokens) {
+          if (stateTokens.includes(t)) {
+            matchCount += 1;
+          } else if (stateTokens.some(st => st.startsWith(t) || t.startsWith(st))) {
+            matchCount += 0.8;
+          }
+        }
+
+        const score = matchCount / Math.max(targetTokens.length, stateTokens.length);
+
+        const targetCoreMatched = targetTokens.every(t =>
+          stateTokens.includes(t) || stateTokens.some(st => st.startsWith(t) || t.startsWith(st))
+        );
+
+        const effectiveScore = targetCoreMatched && targetTokens.length >= 2 ? Math.max(score, 0.75) : score;
+
+        if (effectiveScore > bestScore) {
+          bestScore = effectiveScore;
+          bestCandidate = state;
+        }
+      }
+
+      if (bestCandidate && bestScore >= 0.6) {
+        return bestCandidate;
+      }
+    }
+
+    // 4. Coincidencia por inclusión de subcadena mutua (mínimo 4 caracteres)
     if (cleanTarget.length >= 4) {
       const matchSubstring = candidateStates.find(e => {
         const cleanDb = stripStopWords(e.name || '');
@@ -74,7 +133,7 @@ export class AgentOrchestrator {
       if (matchSubstring) return matchSubstring;
     }
 
-    // 4. Diccionario de alias / variantes habituales
+    // 5. Diccionario de alias / variantes habituales
     const STATE_ALIASES = {
       'graduado': 'finalizado',
       'graduada': 'finalizado',
@@ -84,13 +143,14 @@ export class AgentOrchestrator {
       'terminada': 'finalizado',
       'egresado': 'finalizado',
       'egresada': 'finalizado',
-      'retirada': 'retirado',
-      'desertor': 'retirado',
-      'desertora': 'retirado',
-      'baja': 'retirado',
-      'dado de baja': 'retirado',
-      'inactivo': 'retirado',
-      'inactiva': 'retirado',
+      'retirado': 'retiro',
+      'retirada': 'retiro',
+      'desertor': 'retiro',
+      'desertora': 'retiro',
+      'baja': 'retiro',
+      'dado de baja': 'retiro',
+      'inactivo': 'retiro',
+      'inactiva': 'retiro',
       'activa': 'activo',
       'matriculado': 'activo',
       'matriculada': 'activo',
@@ -276,6 +336,39 @@ export class AgentOrchestrator {
       }
     }
 
+    // ── Academic Group Detection (URLs de Grupos Académicos o IDs de Grupos) ────
+    const groupUrls = extractAcademicGroupUrls(textToHydrate);
+    const groupIdsToHydrate = new Set(groupUrls.map(u => u.groupId));
+
+    // Detectar si el texto menciona palabras asociadas a grupos ("grupo", "materia", "asignatura", "clase", "pensum", "sylabus")
+    const isGroupMentioned = /\b(grupo|materia|asignatura|clase|pensum|sylabus)\b/i.test(textToHydrate);
+    const detectedOids = extractObjectIDs(textToHydrate);
+
+    if (isGroupMentioned && detectedOids.length > 0) {
+      for (const oid of detectedOids) {
+        groupIdsToHydrate.add(oid);
+      }
+    }
+
+    if (groupIdsToHydrate.size > 0) {
+      for (const groupId of groupIdsToHydrate) {
+        try {
+          const groupData = await fetchGroupStructure(groupId);
+          if (groupData) {
+            const studentCount = groupData.studentIds?.length || 0;
+            const cohortInfo = groupData.parentName ? `, Cohorte/Padre: "${groupData.parentName}"` : '';
+            const levelInfo = groupData.levelName ? `, Nivel: "${groupData.levelName}"` : '';
+            const allianceInfo = groupData.allianceName
+              ? `, Alianza: "${groupData.allianceName}" (ID: "${groupData.allianceId || 'N/A'}")`
+              : `, Alianza ID: "${groupData.allianceId || 'N/A'}"`;
+            additionalContext += `\n[CONTEXTO DE GRUPO ACADÉMICO: Nombre: "${groupData.name}", Grupo ID: "${groupData.groupId}"${cohortInfo}${levelInfo}${allianceInfo}, Total estudiantes inscritos: ${studentCount}. Presenta esta información clara con viñetas cuando el usuario consulte sobre este grupo, indicando la Alianza como "${groupData.allianceName || 'Nueva América'}" y su ID.]`;
+          }
+        } catch (err) {
+          console.error("Error en RAG de Grupo Académico:", err);
+        }
+      }
+    }
+
     return `${enrichedText}${additionalContext}`;
   }
 
@@ -426,8 +519,8 @@ export class AgentOrchestrator {
         
       let matchedState = this.resolveStateMatch(resolvedAction.status_name, this.estadosCache);
 
-      // Si no coincide directamente, verificar si el mensaje del usuario especifica o corrige el estado
-      if (!matchedState && typeof userText === 'string' && userText.trim()) {
+      // Si no coincide directamente y NO se trata de un lote/texto multilínea, verificar si el texto puntual especifica el estado
+      if (!matchedState && typeof userText === 'string' && userText.trim() && !userText.includes('\n')) {
         const userStateMatch = this.resolveStateMatch(userText, this.estadosCache);
         if (userStateMatch) {
           matchedState = userStateMatch;
@@ -1057,12 +1150,12 @@ export class AgentOrchestrator {
       }
     }
 
-    // Detección directa de consultas sobre sedes maestras (Kuepa / Nueva América)
-    const isAskingForMasterAlliances = /(?:(?:id\s+(?:de\s+)?(?:kuepa|nueva\s*am[eé]rica)|alianza\s+(?:de\s+)?(?:kuepa|nueva\s*am[eé]rica)|sedes?\s+principales|alianzas?\s+principales))/i.test(trimmedUserText) &&
+    // Detección directa de consultas sobre sedes maestras (Kuepa / Nueva América) o "Alianza ID"
+    const isAskingForMasterAlliances = (/(?:(?:id\s+(?:de\s+)?(?:kuepa|nueva\s*am[eé]rica)|alianza\s+(?:de\s+)?(?:kuepa|nueva\s*am[eé]rica)|sedes?\s+principales|alianzas?\s+principales))/i.test(trimmedUserText) || /^alianza\s*id$/i.test(trimmedUserText)) &&
       !/(?:todas|lista|cat[aá]logo|socios?|compensar)/i.test(trimmedUserText);
-    const isAskingForAllianceId = /(?:(?:cu[aá]l|dime|qu[eé]|dame|sabes|ver)\s+(?:es\s+)?(?:el\s+)?(?:id\s+de\s+(?:la\s+)?alianza|id\s+alianza)|id\s+de\s+(?:la\s+)?alianza|alianzas?\s+del\s+sistema)/i.test(trimmedUserText);
+    const isAskingForAllianceId = /(?:(?:cu[aá]l|dime|qu[eé]|dame|sabes|ver)\s+(?:es\s+)?(?:el\s+)?(?:id\s+de\s+(?:la\s+)?alianza|id\s+alianza)|id\s+de\s+(?:la\s+)?alianza|alianzas?\s+del\s+sistema|^alianza\s*id$)/i.test(trimmedUserText);
 
-    if (isAskingForMasterAlliances) {
+    if (isAskingForMasterAlliances || /^alianza\s*id$/i.test(trimmedUserText)) {
       return {
         type: 'INFO',
         message: `Las alianzas / sedes principales del sistema son:\n\n• **Kuepa (Colombia):** \`${ALLIANCE_IDS.kuepa}\`\n• **Nueva América:** \`${ALLIANCE_IDS.na}\``
@@ -1070,11 +1163,14 @@ export class AgentOrchestrator {
     }
 
     // Consulta directa a BD/caché si pregunta por una alianza específica distinta (ej: "socios 3")
-    const isAskingForSpecificAlliance = /(?:alianza\s+(?:de\s+)?|id\s+de\s+(?:la\s+alianza\s+de\s+)?)([\w\s\d]+)/i.test(trimmedUserText);
-    if ((isAskingForAllianceId || isAskingForSpecificAlliance) && !isAskingForMasterAlliances && !isAskingForAllAlliances) {
-      const matchSpecific = trimmedUserText.match(/(?:alianza\s+(?:de\s+)?|id\s+de\s+(?:la\s+alianza\s+de\s+)?)([\w\s\d]+)/i);
+    const isSystemOrGroupMsg = trimmedUserText.startsWith('[') || /(?:grupo|materia|asignatura|clase)/i.test(trimmedUserText);
+    const isAskingForSpecificAlliance = !isSystemOrGroupMsg && /(?:alianza\s+(?:de\s+)?|id\s+de\s+(?:la\s+)?alianza\s+(?:de\s+)?)([\w\s\d]+)/i.test(trimmedUserText);
+    if ((isAskingForAllianceId || isAskingForSpecificAlliance) && !isAskingForMasterAlliances && !isAskingForAllAlliances && !isSystemOrGroupMsg) {
+      const matchSpecific = trimmedUserText.match(/(?:alianza\s+(?:de\s+)?|id\s+de\s+(?:la\s+)?alianza\s+(?:de\s+)?)([\w\s\d]+)/i);
       const searchTerm = matchSpecific ? matchSpecific[1].replace(/^(?:la\s+|el\s+)/i, '').trim() : '';
-      if (searchTerm) {
+      const isGenericOrIdWord = !searchTerm || /^(?:id|alianza|c[oó]digo|nombre)$/i.test(searchTerm);
+
+      if (searchTerm && !isGenericOrIdWord) {
         let matches = [];
         if (this.alianzasCache && this.alianzasCache.length > 0) {
           const normSearch = this.normalizeStr(searchTerm);

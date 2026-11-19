@@ -534,7 +534,7 @@ function CatalogListBlock({ items = [], onOptionSelect = null }) {
               {item.value && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
                   <CopyCodePill value={item.value} />
-                  {onOptionSelect && (
+                  {onOptionSelect && !/^(?:grupo\s*id|alianza\s*id|estudiante\s*id|id|objectid|mongo_?id)$/i.test(item.key.trim()) && (
                     <button
                       type="button"
                       onClick={(e) => {
@@ -553,7 +553,7 @@ function CatalogListBlock({ items = [], onOptionSelect = null }) {
                         transition: 'all 0.15s ease',
                         fontFamily: "'Space Grotesk', sans-serif"
                       }}
-                      title="Seleccionar este programa"
+                      title="Seleccionar este elemento"
                     >
                       Elegir
                     </button>

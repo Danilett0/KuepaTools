@@ -1,0 +1,11 @@
+import{x as e}from"./index-BqKw_4rf.js";function t(e){if(!e||typeof e!=`string`)return``;let t=e.trim().match(/\b([a-f0-9]{24})\b/i);return t?t[1]:``}function n(e,n=[]){if(!e||typeof e!=`string`)throw Error(`groupId es requerido y debe ser un string.`);let r=t(e);if(!r)throw Error(`groupId debe contener un ObjectId válido de 24 caracteres hexadecimales.`);if(!Array.isArray(n))throw Error(`studentIds debe ser un array.`);let i=Array.from(new Set(n.filter(e=>e&&typeof e==`string`).map(e=>t(e)).filter(Boolean)));if(i.length===0)throw Error(`Se requiere al menos un estudiante con ObjectId válido para generar el comando.`);return`magik run:prod audit:subject ${JSON.stringify([r,...i])}`}async function r(n){let r=t(n);if(!r)return null;let{data:i,error:a}=await e.from(`structures`).select(`
+      mongo_id,
+      name,
+      users,
+      alliance_id,
+      parent:parent_id (
+        name,
+        pensum_level_id,
+        level:pensum_level_id ( name )
+      )
+    `).eq(`mongo_id`,r).maybeSingle();if(a)throw console.error(`Error al consultar grupo en structures:`,a),a;if(!i)return null;let o=null;if(i.alliance_id)try{let{data:t}=await e.from(`alianzas`).select(`name`).eq(`mongo_id`,i.alliance_id).maybeSingle();o=t?.name||null}catch(e){console.warn(`Error resolviendo nombre de alianza:`,e)}return{groupId:i.mongo_id,name:i.name||`Grupo ${i.mongo_id}`,parentName:i.parent?.name||null,levelName:i.parent?.level?.name||null,studentIds:Array.isArray(i.users)?i.users.filter(Boolean):[],allianceId:i.alliance_id||null,allianceName:o}}async function i(n=[]){if(!Array.isArray(n)||n.length===0)return[];let r=Array.from(new Set(n.map(t).filter(Boolean)));if(r.length===0)return[];let{data:i,error:a}=await e.from(`users`).select(`mongo_id, incremental_user_code, full_name, email`).in(`mongo_id`,r);return a?(console.error(`Error al consultar usuarios:`,a),[]):(i||[]).map(e=>({mongoId:e.mongo_id,inc:e.incremental_user_code||null,fullName:e.full_name||`Estudiante sin nombre`,email:e.email||null}))}export{r as fetchGroupStructure,i as fetchStudentsInfo,n as generateAuditGroupSubjectCommand};
