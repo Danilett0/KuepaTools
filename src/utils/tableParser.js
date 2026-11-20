@@ -171,9 +171,15 @@ export function detectTransferTable(table) {
   );
 
   // Fallback: if we have 3 columns and column 0 is student, column 1 is origin, column 2 is destination
+  // But ONLY if those columns actually contain valid MongoObjectIds (≥70% of rows)
   if (studentCol === 0 && table.headers.length === 3) {
-    if (fromGroupCol === -1) fromGroupCol = 1;
-    if (toGroupCol === -1) toGroupCol = 2;
+    const colHasObjectIds = (colIdx) => {
+      if (table.rows.length === 0) return false;
+      const matchCount = table.rows.filter(r => isMongoObjectId((r[colIdx] || '').trim())).length;
+      return matchCount / table.rows.length >= 0.7;
+    };
+    if (fromGroupCol === -1 && colHasObjectIds(1)) fromGroupCol = 1;
+    if (toGroupCol === -1 && colHasObjectIds(2)) toGroupCol = 2;
   }
 
   // Check if we have valid columns
@@ -210,6 +216,16 @@ export function detectTransferTable(table) {
   }
 
   if (validRows.length === 0) return null;
+
+  // Guard: for a transfer to be valid, at least one group ID must be a real MongoObjectId.
+  // If none of the group IDs look like valid ObjectIds, this is NOT a transfer table
+  // (e.g. the columns contain status/program names instead of group IDs).
+  if (isTransfer) {
+    const hasValidGroupIds = validRows.some(
+      r => isMongoObjectId(r.fromGroupId) || isMongoObjectId(r.toGroupId)
+    );
+    if (!hasValidGroupIds) return null;
+  }
 
   return {
     isTransfer,

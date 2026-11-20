@@ -6,7 +6,6 @@ import { generateCommandsFromActions } from '../agent/skills/index.js';
 import { hydrateStudents, extractObjectIDs, resolveProgramNames } from './studentHydrator.js';
 import { extractMultipleSisUrls, extractAcademicGroupUrls } from '../utils/academicTerms.js';
 import { fetchGroupStructure } from './groupAuditService.js';
-import { extractTableFromText, detectTransferTable, detectStatusTable } from '../utils/tableParser.js';
 export const DEFAULT_TICKET_CLOSINGS = [
   'Listo por aquí. Por favor valida y nos avisas si surge cualquier duda. 🙌',
   'Quedó listo de nuestra parte. Por favor revisa y nos comentas si necesitas algo más. ✨',
@@ -984,100 +983,6 @@ export class AgentOrchestrator {
     const processedText = await this.preprocessMessage(userText, onThinkingStateChange, fullConversationText);
     
     const trimmedUserText = String(userText || '').trim();
-
-    // Detección directa de Matrices Tabulares (ej: traslados / inscripciones masivas copiadas de Excel)
-    const tableExtraction = extractTableFromText(userText);
-    if (tableExtraction) {
-      const transferData = detectTransferTable(tableExtraction.table);
-      const isInformationalQuery = /^(?:¿?\s*(?:cu[aá]ntos|qu[eé]|cu[aá]l|dime|c[oó]mo|qui[eé]n))\b/i.test(trimmedUserText);
-      
-      if (!isInformationalQuery && transferData && transferData.isTransfer && transferData.items.length > 0) {
-        onThinkingStateChange('db_processing');
-        const actions = [];
-        for (const item of transferData.items) {
-          actions.push({
-            action_type: 'remove_user',
-            student_id: item.studentId,
-            group_id: item.fromGroupId
-          });
-          actions.push({
-            action_type: 'enroll_user',
-            student_id: item.studentId,
-            group_id: item.toGroupId
-          });
-        }
-
-        await this.batchPrefetchUsers(actions);
-        let finalActions = [];
-        for (const action of actions) {
-          const resolved = await this.resolveMagicVariables(action, chatHistory, userText);
-          finalActions.push(resolved);
-        }
-
-        const bashCommands = generateCommandsFromActions(finalActions);
-        const ticketResponse = await this.generateTicketResponse(finalActions, null, { isBatch: true });
-
-        return {
-          type: 'COMMANDS',
-          commands: bashCommands,
-          ticketResponse,
-          message: `📊 Se procesó la matriz tabular de traslados con **${transferData.totalStudents} estudiantes** (${finalActions.length} comandos generados).`
-        };
-      } else if (!isInformationalQuery && transferData && transferData.isEnrollBatch && transferData.items.length > 0) {
-        onThinkingStateChange('db_processing');
-        const actions = transferData.items.map(item => ({
-          action_type: 'enroll_user',
-          student_id: item.studentId,
-          group_id: item.groupId
-        }));
-
-        await this.batchPrefetchUsers(actions);
-        let finalActions = [];
-        for (const action of actions) {
-          const resolved = await this.resolveMagicVariables(action, chatHistory, userText);
-          finalActions.push(resolved);
-        }
-
-        const bashCommands = generateCommandsFromActions(finalActions);
-        const ticketResponse = await this.generateTicketResponse(finalActions, null, { isBatch: true });
-
-        return {
-          type: 'COMMANDS',
-          commands: bashCommands,
-          ticketResponse,
-          message: `📊 Se procesó la matriz tabular de inscripciones con **${transferData.totalStudents} estudiantes** (${finalActions.length} comandos generados).`
-        };
-      } else if (!isInformationalQuery) {
-        const statusData = detectStatusTable(tableExtraction.table);
-        if (statusData && statusData.isStatusBatch && statusData.items.length > 0) {
-          onThinkingStateChange('db_processing');
-          const actions = statusData.items.map(item => ({
-            action_type: 'change_status',
-            student_id: item.studentId,
-            status_name: item.statusName,
-            program_hint: item.programHint || ''
-          }));
-
-          await this.batchPrefetchUsers(actions);
-          let finalActions = [];
-          for (const action of actions) {
-            const contextForAction = action.program_hint ? `${userText} ${action.program_hint}` : userText;
-            const resolved = await this.resolveMagicVariables(action, chatHistory, contextForAction);
-            finalActions.push(resolved);
-          }
-
-          const bashCommands = generateCommandsFromActions(finalActions);
-          const ticketResponse = await this.generateTicketResponse(finalActions, null, { isBatch: true });
-
-          return {
-            type: 'COMMANDS',
-            commands: bashCommands,
-            ticketResponse,
-            message: `📊 Se procesó el cambio de estado para **${statusData.totalStudents} estudiantes** (${finalActions.length} comandos generados).`
-          };
-        }
-      }
-    }
 
     // Detección directa de consultas informativas sobre programas del estudiante
     const isAskingForPrograms = /^(?:¿?\s*(?:qu[eé]\s+programas?\s+tiene|dime\s+cu[aá]les\s+son|cu[aá]les\s+son(?:\s+sus\s+programas)?|qu[eé]\s+programas?\s+est[aá]n\s+registrados|cu[aá]les\s+programas\s+tiene|qu[eé]\s+programas\s+hay|cu[aá]les\s+son\?|dime\s+los\s+programas))\b/i.test(trimmedUserText);
